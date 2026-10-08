@@ -1,0 +1,84 @@
+-- Seed Data for 7TIME Business Manager
+
+-- 1. Dealers
+INSERT INTO dealers (id, name) VALUES 
+('11111111-1111-1111-1111-111111111111', 'AL INFAQ TRADERS'),
+('22222222-2222-2222-2222-222222222222', 'AL AQSA PRARAHMA')
+ON CONFLICT DO NOTHING;
+
+-- 2. Reseller Customers
+INSERT INTO reseller_customers (id, name, phone, address) VALUES
+('33333333-3333-3333-3333-333333333333', 'Ishfaq ATM', NULL, NULL)
+ON CONFLICT DO NOTHING;
+
+-- 3. Delivery Customers
+INSERT INTO delivery_customers (id, name, phone, address) VALUES
+('44444444-4444-4444-4444-444444444444', 'naeem Uncle', NULL, NULL)
+ON CONFLICT DO NOTHING;
+
+-- 4. Delivery Routes
+INSERT INTO delivery_routes (id, name, fare) VALUES
+(uuid_generate_v4(), 'Khrew To Sheesha', 500.00),
+(uuid_generate_v4(), 'Khrew To Lal chowk', 350.00),
+(uuid_generate_v4(), 'Khrew To Batwara', 300.00),
+(uuid_generate_v4(), 'Khrew To Sonwara', 350.00),
+(uuid_generate_v4(), 'No Order', 0.00)
+ON CONFLICT DO NOTHING;
+
+-- 5. Products (AL INFAQ TRADERS)
+-- We set stock_quantity to the values provided, assuming they were bought at some point.
+-- We won't simulate purchases for all initial stock to keep seed simple, unless we want to accurately reflect total investment.
+-- Wait, the prompt says "Total Investment: Total cost invested in inventory/purchases". To have accurate "Total Purchases" for AL INFAQ, we should ideally insert purchases, but inserting directly into products is fine, the trigger will update stock_quantity if we insert purchases later.
+-- Let's just insert products with 0 stock, and then add purchases to populate the stock so the investment math works out perfectly.
+
+INSERT INTO products (id, dealer_id, name, unit, buying_cost, wholesale_price, retail_price, stock_quantity) VALUES
+('55555555-0001-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Black Forest', 'Kg', 650.00, 910.00, 1203.00, 0),
+('55555555-0002-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Accia Honey', 'Kg', 690.00, 966.00, 1277.00, 0),
+('55555555-0003-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Multifora Honey', 'Kg', 570.00, 798.00, 1055.00, 0),
+('55555555-0004-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Sider Honey', 'Kg', 650.00, 910.00, 1200.00, 0),
+('55555555-0005-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Jamun Honey', 'Kg', 700.00, 1000.00, 1300.00, 0),
+('55555555-0006-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Nutmix', 'Pc', 1350.00, 1900.00, 2500.00, 0),
+('55555555-0007-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Zaitoon Oil', 'Ltr', 1200.00, 1400.00, 1500.00, 0),
+('55555555-0008-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Irani Saffron', 'Pc', 190.00, 266.00, 352.00, 0),
+('55555555-0009-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Afgani Saffron', 'Pc', 180.00, 252.00, 333.00, 0),
+('55555555-0010-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Dates Toffee', 'Kg', 850.00, 1000.00, 1200.00, 0),
+('55555555-0011-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Kalong Oil', 'Box', 480.00, 500.00, 530.00, 0),
+('55555555-0012-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Walnut Oil', 'Box', 200.00, 280.00, 300.00, 0),
+('55555555-0013-5555-5555-555555555555', '11111111-1111-1111-1111-111111111111', 'Walnut Giri', 'Kg', 1050.00, 1470.00, 1943.00, 0)
+ON CONFLICT DO NOTHING;
+
+-- 6. Initial Purchases (to seed inventory quantity and dealer investment accurately)
+INSERT INTO purchases (dealer_id, product_id, purchase_date, quantity_bought, buying_rate, total_amount, amount_paid, balance) VALUES
+('11111111-1111-1111-1111-111111111111', '55555555-0001-5555-5555-555555555555', CURRENT_DATE, 5, 650.00, 3250.00, 0, 3250.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0002-5555-5555-555555555555', CURRENT_DATE, 5, 690.00, 3450.00, 0, 3450.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0003-5555-5555-555555555555', CURRENT_DATE, 5, 570.00, 2850.00, 0, 2850.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0004-5555-5555-555555555555', CURRENT_DATE, 5, 650.00, 3250.00, 0, 3250.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0005-5555-5555-555555555555', CURRENT_DATE, 2.5, 700.00, 1750.00, 0, 1750.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0006-5555-5555-555555555555', CURRENT_DATE, 2, 1350.00, 2700.00, 0, 2700.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0007-5555-5555-555555555555', CURRENT_DATE, 1, 1200.00, 1200.00, 0, 1200.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0008-5555-5555-555555555555', CURRENT_DATE, 1, 190.00, 190.00, 0, 190.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0009-5555-5555-555555555555', CURRENT_DATE, 1, 180.00, 180.00, 0, 180.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0010-5555-5555-555555555555', CURRENT_DATE, 2, 850.00, 1700.00, 0, 1700.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0011-5555-5555-555555555555', CURRENT_DATE, 1, 480.00, 480.00, 0, 480.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0012-5555-5555-555555555555', CURRENT_DATE, 1, 200.00, 200.00, 0, 200.00),
+('11111111-1111-1111-1111-111111111111', '55555555-0013-5555-5555-555555555555', CURRENT_DATE, 2, 1050.00, 2100.00, 0, 2100.00)
+ON CONFLICT DO NOTHING;
+
+-- 7. Specific Wholesale Transaction
+INSERT INTO wholesale_sales (
+    customer_id, product_id, dealer_id, sale_date, quantity, buying_cost, wholesale_price, total_sale, amount_received, balance, profit, payment_status, notes
+) VALUES (
+    '33333333-3333-3333-3333-333333333333', 
+    '55555555-0004-5555-5555-555555555555', -- Sider Honey
+    '11111111-1111-1111-1111-111111111111', -- AL INFAQ TRADERS
+    CURRENT_DATE,
+    1, 
+    650.00, 
+    910.00, 
+    910.00, 
+    910.00, 
+    0.00, 
+    260.00, 
+    'PAID', 
+    'Delivered - Settled'
+) ON CONFLICT DO NOTHING;
