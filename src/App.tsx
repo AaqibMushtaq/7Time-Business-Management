@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "./components/auth/AuthProvider"
 import { ProtectedRoute } from "./components/auth/ProtectedRoute"
 import { AppLayout } from "./components/layout/AppLayout"
+import { ErrorBoundary } from "./components/ErrorBoundary"
 import { Login } from "./pages/auth/Login"
 import DealersPage from "./pages/dealers"
 import DealerDetailPage from "./pages/dealers/DealerDetailPage"
@@ -27,43 +28,45 @@ const queryClient = new QueryClient()
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <HashRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            
-            <Route path="/" element={
-              <ProtectedRoute>
-                <AppLayout />
-              </ProtectedRoute>
-            }>
-              <Route index element={<DashboardPage />} />
-              <Route path="products" element={<ProductsPage />} />
-              <Route path="products/:id" element={<ProductDetailPage />} />
-              <Route path="inventory" element={<InventoryPage />} />
-              <Route path="purchases" element={<PurchasesPage />} />
-              <Route path="dealers" element={<DealersPage />} />
-              <Route path="dealers/:id" element={<DealerDetailPage />} />
-              <Route path="dealer-payments" element={<DealerPaymentsPage />} />
-              <Route path="resellers" element={<ResellersPage />} />
-              <Route path="resellers/:id" element={<ResellerDetailPage />} />
-              <Route path="reseller-payments" element={<ResellerPaymentsPage />} />
-              <Route path="wholesale" element={<WholesaleSalesPage />} />
-              <Route path="general-deliveries" element={<GeneralDeliveriesPage />} />
-              <Route path="naeem" element={<NaeemUnclePage />} />
-              <Route path="analytics" element={<div>Analytics (Phase 5)</div>} />
-              <Route path="reports" element={<ReportsPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="backup" element={<BackupPage />} />
-              <Route path="audit" element={<AuditLogPage />} />
-            </Route>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <HashRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }>
+                <Route index element={<DashboardPage />} />
+                <Route path="products" element={<ProductsPage />} />
+                <Route path="products/:id" element={<ProductDetailPage />} />
+                <Route path="inventory" element={<InventoryPage />} />
+                <Route path="purchases" element={<PurchasesPage />} />
+                <Route path="dealers" element={<DealersPage />} />
+                <Route path="dealers/:id" element={<DealerDetailPage />} />
+                <Route path="dealer-payments" element={<DealerPaymentsPage />} />
+                <Route path="resellers" element={<ResellersPage />} />
+                <Route path="resellers/:id" element={<ResellerDetailPage />} />
+                <Route path="reseller-payments" element={<ResellerPaymentsPage />} />
+                <Route path="wholesale" element={<WholesaleSalesPage />} />
+                <Route path="general-deliveries" element={<GeneralDeliveriesPage />} />
+                <Route path="naeem" element={<NaeemUnclePage />} />
+                <Route path="analytics" element={<div>Analytics (Phase 5)</div>} />
+                <Route path="reports" element={<ReportsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
+                <Route path="backup" element={<BackupPage />} />
+                <Route path="audit" element={<AuditLogPage />} />
+              </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </HashRouter>
-      </AuthProvider>
-    </QueryClientProvider>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </HashRouter>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 
