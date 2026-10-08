@@ -21,7 +21,7 @@ import {
 
 export default function NaeemUnclePage() {
   const queryClient = useQueryClient()
-  const today = new Date().toISOString().split("T")[0]
+  const today = useMemo(() => new Date().toISOString().split("T")[0], [])
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     return localStorage.getItem("naeem_selected_month") || today.substring(0, 7)
@@ -244,6 +244,7 @@ export default function NaeemUnclePage() {
 
   useEffect(() => {
     if (!isPaymentModalOpen || !payAmount) {
+      // oxlint-disable-next-line react/set-state-in-effect
       setPayAllocations({})
       return
     }
@@ -274,7 +275,7 @@ export default function NaeemUnclePage() {
     }
 
     const allocations = Object.entries(payAllocations)
-      .filter(([_, val]) => val > 0)
+      .filter(([, val]) => val > 0)
       .map(([daily_record_id, allocated_amount]) => ({
         payment_id: "", 
         daily_record_id,
