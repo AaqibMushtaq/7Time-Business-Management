@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query"
 import { getDashboardStats, type DateRange } from "@/services/dashboard"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, Package, ShoppingCart, Truck, Users, ArrowUpRight, ArrowDownRight, AlertTriangle, ListOrdered, Calendar } from "lucide-react"
+import { Loader2, Package, ShoppingCart, Truck, Users, ArrowUpRight, ArrowDownRight, AlertTriangle, ListOrdered, Calendar, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { Link } from "react-router-dom"
 
 export default function DashboardPage() {
   const [dateRange, setDateRange] = useState<DateRange>("THIS_MONTH")
@@ -12,6 +13,26 @@ export default function DashboardPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["dashboardStats", dateRange],
     queryFn: () => getDashboardStats(dateRange),
+  })
+
+  const getPrevRange = (r: DateRange): DateRange => {
+    const map: Record<DateRange, DateRange> = {
+      TODAY: "TODAY",
+      THIS_WEEK: "THIS_WEEK",
+      THIS_MONTH: "LAST_MONTH",
+      LAST_MONTH: "LAST_MONTH",
+      THIS_YEAR: "THIS_YEAR",
+      ALL: "ALL",
+      CUSTOM: "CUSTOM"
+    }
+    return map[r]
+  }
+
+  const prevRange = getPrevRange(dateRange)
+  const { data: prevData, isLoading: prevLoading } = useQuery({
+    queryKey: ["dashboardStats", prevRange],
+    queryFn: () => getDashboardStats(prevRange),
+    enabled: prevRange !== dateRange,
   })
 
   if (isLoading) {
@@ -23,6 +44,29 @@ export default function DashboardPage() {
   }
 
   if (!data) return null
+
+  const calculateChange = (current: number, previous: number) => {
+    if (prevRange === dateRange || prevLoading || !prevData) return null
+    if (previous === 0) return current > 0 ? { val: 100, trend: 'up' } : { val: 0, trend: 'flat' }
+    const percent = ((current - previous) / previous) * 100
+    return {
+      val: Math.abs(percent),
+      trend: percent > 0 ? 'up' : percent < 0 ? 'down' : 'flat'
+    }
+  }
+
+  const renderTrend = (current: number, previous: number | undefined) => {
+    if (previous === undefined) return null
+    const change = calculateChange(current, previous)
+    if (!change) return null
+
+    if (change.trend === 'up') {
+      return <span className="text-emerald-500 text-xs font-semibold flex items-center mt-1"><TrendingUp className="w-3 h-3 mr-1" /> {change.val.toFixed(1)}%</span>
+    } else if (change.trend === 'down') {
+      return <span className="text-red-500 text-xs font-semibold flex items-center mt-1"><TrendingDown className="w-3 h-3 mr-1" /> {change.val.toFixed(1)}%</span>
+    }
+    return <span className="text-slate-400 text-xs font-semibold flex items-center mt-1"><Minus className="w-3 h-3 mr-1" /> 0%</span>
+  }
 
   return (
     <div className="space-y-8 pb-12">
@@ -49,23 +93,49 @@ export default function DashboardPage() {
       </div>
 
       {/* PRIMARY KPI CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-slate-900 text-white shadow-md">
-          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase opacity-80 tracking-wider">Total Purchases</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{formatMoney(data.purchases.total)}</div></CardContent>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Link to="/purchases" className="block transition-transform hover:scale-[1.02]">
+          <Card className="bg-slate-900 text-white shadow-md h-full">
+            <CardHeader className="pb-2"><CardTitle className="text-[11px] uppercase opacity-80 tracking-wider">Total Purchases</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatMoney(data.purchases.total)}</div>
+              {renderTrend(data.purchases.total, prevData?.purchases.total)}
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/wholesale" className="block transition-transform hover:scale-[1.02]">
+          <Card className="bg-blue-600 text-white shadow-md h-full">
+            <CardHeader className="pb-2"><CardTitle className="text-[11px] uppercase opacity-80 tracking-wider">Wholesale Sales</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatMoney(data.sales.total)}</div>
+              {renderTrend(data.sales.total, prevData?.sales.total)}
+            </CardContent>
+          </Card>
+        </Link>
+        <Link to="/wholesale" className="block transition-transform hover:scale-[1.02]">
+          <Card className="bg-purple-600 text-white shadow-md h-full">
+            <CardHeader className="pb-2"><CardTitle className="text-[11px] uppercase opacity-80 tracking-wider">Realized Profit</CardTitle></CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatMoney(data.sales.profit)}</div>
+              {renderTrend(data.sales.profit, prevData?.sales.profit)}
+            </CardContent>
+          </Card>
+        </Link>
+        <Card className="bg-orange-600 text-white shadow-md h-full">
+          <CardHeader className="pb-2"><CardTitle className="text-[11px] uppercase opacity-80 tracking-wider">Net Cash Flow</CardTitle></CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-white">
+              {formatMoney((data.sales.received + data.sales.resellerPayments) - (data.purchases.paymentsMade + data.purchases.amountPaidAtPurchase + data.generalDelivery.fuel))}
+            </div>
+            <p className="text-[10px] opacity-70 mt-1">Inflows minus Outflows</p>
+          </CardContent>
         </Card>
-        <Card className="bg-blue-600 text-white shadow-md">
-          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase opacity-80 tracking-wider">Wholesale Sales</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{formatMoney(data.sales.total)}</div></CardContent>
-        </Card>
-        <Card className="bg-purple-600 text-white shadow-md">
-          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase opacity-80 tracking-wider">Realized Wholesale Profit</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{formatMoney(data.sales.profit)}</div></CardContent>
-        </Card>
-        <Card className="bg-emerald-600 text-white shadow-md">
-          <CardHeader className="pb-2"><CardTitle className="text-xs uppercase opacity-80 tracking-wider">Current Inventory Value</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{formatMoney(data.inventory.totalValue)}</div></CardContent>
-        </Card>
+        <Link to="/products" className="block transition-transform hover:scale-[1.02]">
+          <Card className="bg-emerald-600 text-white shadow-md h-full">
+            <CardHeader className="pb-2"><CardTitle className="text-[11px] uppercase opacity-80 tracking-wider">Current Inventory</CardTitle></CardHeader>
+            <CardContent><div className="text-2xl font-bold">{formatMoney(data.inventory.totalValue)}</div></CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* WE OWE / THEY OWE */}
@@ -164,8 +234,10 @@ export default function DashboardPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {data.dealers.sort((a,b) => b.outstanding - a.outstanding).map(d => (
-                      <tr key={d.id}>
-                        <td className="px-3 py-2 font-medium">{d.name}</td>
+                      <tr key={d.id} className="hover:bg-slate-100 transition-colors">
+                        <td className="px-3 py-2 font-medium">
+                          <Link to={`/dealers/${d.id}`} className="text-blue-600 hover:underline">{d.name}</Link>
+                        </td>
                         <td className="px-3 py-2 text-right text-red-600 font-bold">{formatMoney(d.outstanding)}</td>
                       </tr>
                     ))}
@@ -188,8 +260,10 @@ export default function DashboardPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {data.resellers.sort((a,b) => b.outstanding - a.outstanding).map(r => (
-                      <tr key={r.id}>
-                        <td className="px-3 py-2 font-medium">{r.name}</td>
+                      <tr key={r.id} className="hover:bg-slate-100 transition-colors">
+                        <td className="px-3 py-2 font-medium">
+                          <Link to={`/resellers/${r.id}`} className="text-blue-600 hover:underline">{r.name}</Link>
+                        </td>
                         <td className="px-3 py-2 text-right text-green-600 font-bold">{formatMoney(r.outstanding)}</td>
                       </tr>
                     ))}

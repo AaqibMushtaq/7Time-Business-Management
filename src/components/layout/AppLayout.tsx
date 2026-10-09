@@ -127,6 +127,9 @@ export function AppLayout() {
             <LogOut className="mr-3 h-5 w-5" />
             Sign Out
           </Button>
+          <div className="mt-4 text-center text-xs text-slate-600 font-medium tracking-wide">
+            v1.1.0
+          </div>
         </div>
       </div>
 

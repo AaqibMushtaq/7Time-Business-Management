@@ -18,6 +18,12 @@ export default function ReportsPage() {
     document.body.removeChild(link)
   }
 
+  const escapeCSV = (val: any) => {
+    if (val === null || val === undefined) return '""'
+    const str = String(val).replace(/"/g, '""')
+    return `"${str}"`
+  }
+
   const handleExport = async (type: string) => {
     setLoading(type)
     try {
@@ -25,57 +31,57 @@ export default function ReportsPage() {
       let csvContent = ""
 
       if (type === "PURCHASES") {
-        const { data: res } = await supabase.from("purchases").select("*, dealer:dealers(name)")
+        const { data: res } = await supabase.from("purchases").select("*, dealer:dealers(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Dealer,Product,Quantity,Cost,Total Amount,Paid,Balance,Status"]
-          .concat(data.map(r => `"${r.id}","${r.purchase_date}","${r.dealer?.name}","${r.product_id}","${r.quantity_bought}","${r.unit_cost}","${r.total_amount}","${r.amount_paid}","${r.balance}","${r.status}"`))
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.purchase_date)},${escapeCSV(r.dealer?.name)},${escapeCSV(r.product_id)},${escapeCSV(r.quantity_bought)},${escapeCSV(r.unit_cost)},${escapeCSV(r.total_amount)},${escapeCSV(r.amount_paid)},${escapeCSV(r.balance)},${escapeCSV(r.status)}`))
           .join("\n")
       } 
       else if (type === "WHOLESALE_SALES") {
-        const { data: res } = await supabase.from("wholesale_sales").select("*, customer:reseller_customers(name)")
+        const { data: res } = await supabase.from("wholesale_sales").select("*, customer:reseller_customers(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Reseller,Product,Quantity,Buying Cost,Wholesale Price,Total Sale,Received,Balance,Profit,Status,Payment Method"]
-          .concat(data.map(r => `"${r.id}","${r.sale_date}","${r.customer?.name}","${r.product_id}","${r.quantity}","${r.buying_cost}","${r.wholesale_price}","${r.total_sale}","${r.amount_received}","${r.balance}","${r.profit}","${r.payment_status}","${r.payment_method || ''}"`))
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.sale_date)},${escapeCSV(r.customer?.name)},${escapeCSV(r.product_id)},${escapeCSV(r.quantity)},${escapeCSV(r.buying_cost)},${escapeCSV(r.wholesale_price)},${escapeCSV(r.total_sale)},${escapeCSV(r.amount_received)},${escapeCSV(r.balance)},${escapeCSV(r.profit)},${escapeCSV(r.payment_status)},${escapeCSV(r.payment_method)}`))
           .join("\n")
       }
       else if (type === "INVENTORY") {
-        const { data: res } = await supabase.from("products").select("*, dealer:dealers(name)")
+        const { data: res } = await supabase.from("products").select("*, dealer:dealers(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Product,Category,Dealer,Stock Quantity,Unit,Buying Cost,Wholesale Price,Total Value,Potential Revenue"]
-          .concat(data.map(r => `"${r.id}","${r.name}","${r.category}","${r.dealer?.name}","${r.stock_quantity}","${r.unit}","${r.buying_cost}","${r.wholesale_price}","${r.stock_quantity * r.buying_cost}","${r.stock_quantity * r.wholesale_price}"`))
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.name)},${escapeCSV(r.category)},${escapeCSV(r.dealer?.name)},${escapeCSV(r.stock_quantity)},${escapeCSV(r.unit)},${escapeCSV(r.buying_cost)},${escapeCSV(r.wholesale_price)},${escapeCSV(r.stock_quantity * r.buying_cost)},${escapeCSV(r.stock_quantity * r.wholesale_price)}`))
           .join("\n")
       }
       else if (type === "DEALER_PAYMENTS") {
-        const { data: res } = await supabase.from("dealer_payments").select("*")
+        const { data: res } = await supabase.from("dealer_payments").select("*").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Dealer ID,Amount,Method,Reference,Notes"]
-          .concat(data.map(r => `"${r.id}","${r.payment_date}","${r.dealer_id}","${r.amount}","${r.payment_method}","${r.reference || ''}","${r.notes || ''}"`))
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.payment_date)},${escapeCSV(r.dealer_id)},${escapeCSV(r.amount)},${escapeCSV(r.payment_method)},${escapeCSV(r.reference)},${escapeCSV(r.notes)}`))
           .join("\n")
       }
       else if (type === "RESELLER_PAYMENTS") {
-        const { data: res } = await supabase.from("reseller_payments").select("*")
+        const { data: res } = await supabase.from("reseller_payments").select("*").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Customer ID,Amount,Method,Reference,Notes"]
-          .concat(data.map(r => `"${r.id}","${r.payment_date}","${r.customer_id}","${r.amount}","${r.payment_method}","${r.reference || ''}","${r.notes || ''}"`))
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.payment_date)},${escapeCSV(r.customer_id)},${escapeCSV(r.amount)},${escapeCSV(r.payment_method)},${escapeCSV(r.reference)},${escapeCSV(r.notes)}`))
           .join("\n")
       }
       else if (type === "GENERAL_DELIVERY") {
-        const { data: res } = await supabase.from("general_daily_records").select("*, entries:general_delivery_entries(*)")
+        const { data: res } = await supabase.from("general_daily_records").select("*, entries:general_delivery_entries(*)").limit(999999)
         data = res || []
         csvContent = ["Date,Total Deliveries,Entries Count,Fuel Expenses,Net Total,Remarks"]
           .concat(data.map((r: any) => {
             const allDel = r.entries?.reduce((acc: number, e: any) => acc + e.amount, 0) || 0
             const count = r.entries?.length || 0
             const net = allDel - (r.fuel_expenses || 0)
-            return `"${r.record_date}","${allDel}","${count}","${r.fuel_expenses || 0}","${net}","${r.remarks || ''}"`
+            return `${escapeCSV(r.record_date)},${escapeCSV(allDel)},${escapeCSV(count)},${escapeCSV(r.fuel_expenses || 0)},${escapeCSV(net)},${escapeCSV(r.remarks)}`
           }))
           .join("\n")
       }
       else if (type === "naeem_UNCLE") {
-        const { data: res } = await supabase.from("naeem_daily_records").select("*, route:naeem_routes(name)")
+        const { data: res } = await supabase.from("naeem_daily_records").select("*, route:naeem_routes(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Route,Standard Fare,Extra Charge,Final Fare,Cash Received,Payment Method,Balance,Status,Notes"]
-          .concat(data.map(r => `"${r.id}","${r.delivery_date}","${r.route?.name}","${r.standard_fare}","${r.extra_charge}","${r.final_fare}","${r.cash_received}","${r.payment_method || ''}","${r.balance}","${r.status}","${r.notes || ''}"`))
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.delivery_date)},${escapeCSV(r.route?.name)},${escapeCSV(r.standard_fare)},${escapeCSV(r.extra_charge)},${escapeCSV(r.final_fare)},${escapeCSV(r.cash_received)},${escapeCSV(r.payment_method)},${escapeCSV(r.balance)},${escapeCSV(r.status)},${escapeCSV(r.notes)}`))
           .join("\n")
       }
 
