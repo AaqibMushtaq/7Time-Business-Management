@@ -24,6 +24,8 @@ export default function DealersPage() {
     notes: ""
   })
 
+  const [formError, setFormError] = useState<string | null>(null)
+
   const { data: dealers, isLoading } = useQuery({
     queryKey: ["dealers"],
     queryFn: getDealersWithBalances,
@@ -35,6 +37,9 @@ export default function DealersPage() {
       queryClient.invalidateQueries({ queryKey: ["dealers"] })
       closeForm()
     },
+    onError: (error) => {
+      setFormError(error.message)
+    }
   })
 
   const updateMutation = useMutation({
@@ -43,11 +48,15 @@ export default function DealersPage() {
       queryClient.invalidateQueries({ queryKey: ["dealers"] })
       closeForm()
     },
+    onError: (error) => {
+      setFormError(error.message)
+    }
   })
 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setFormError(null)
     if (!formData.name.trim()) return
     
     const payload = {
@@ -67,6 +76,7 @@ export default function DealersPage() {
 
   const openEditForm = (dealer: Dealer, e: React.MouseEvent) => {
     e.stopPropagation()
+    setFormError(null)
     setEditingId(dealer.id)
     setFormData({
       name: dealer.name || "",
@@ -80,6 +90,7 @@ export default function DealersPage() {
 
   const closeForm = () => {
     setIsFormOpen(false)
+    setFormError(null)
     setEditingId(null)
     setFormData({ name: "", phone: "", whatsapp: "", address: "", notes: "" })
   }
@@ -111,6 +122,14 @@ export default function DealersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-[425px] rounded-lg border bg-card text-card-foreground shadow-lg p-6">
             <h2 className="text-lg font-semibold leading-none tracking-tight mb-4">{editingId ? "Edit Dealer" : "Add New Dealer"}</h2>
+            
+            {formError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
+                <p className="font-semibold mb-1">Error saving dealer</p>
+                <p>{formError}</p>
+              </div>
+            )}
+            
             <form onSubmit={handleSubmit} className="space-y-4 pt-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Dealer Name *</label>
