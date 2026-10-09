@@ -210,7 +210,7 @@ export default function DealersPage() {
             {filteredDealers.map(dealer => (
               <Card 
                 key={dealer.id} 
-                className="flex flex-col overflow-hidden hover:-translate-y-1 transition-all duration-200 cursor-pointer border border-slate-200 hover:border-blue-300 hover:shadow-lg focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2"
+                className="flex flex-col overflow-hidden hover:-translate-y-1 transition-all duration-200 cursor-pointer border border-slate-200 border-t-4 border-t-primary hover:border-primary hover:shadow-xl focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 rounded-2xl bg-white"
                 onClick={() => setSelectedDealerId(dealer.id)}
                 tabIndex={0}
                 onKeyDown={(e) => {
@@ -220,16 +220,19 @@ export default function DealersPage() {
                   }
                 }}
               >
-                <CardHeader className="pb-4 pt-5 px-5 flex flex-row items-start justify-between space-y-0 border-b border-slate-100 bg-slate-50/50">
+                <CardHeader className="pb-4 pt-5 px-5 flex flex-row items-start justify-between space-y-0 border-b border-slate-50 bg-slate-50/30">
                   <div className="flex items-center gap-4 overflow-hidden">
                     <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold uppercase shrink-0 shadow-sm text-lg">
                       {dealer.name.substring(0, 2)}
                     </div>
                     <div className="overflow-hidden">
-                      <CardTitle className="text-lg truncate text-slate-900" title={dealer.name}>{dealer.name}</CardTitle>
+                      <div className="flex items-center gap-2">
+                        <CardTitle className="text-lg font-bold truncate text-slate-900" title={dealer.name}>{dealer.name}</CardTitle>
+                        <span className="bg-slate-100 text-slate-500 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded tracking-wider shrink-0">Dealer</span>
+                      </div>
                       {dealer.phone ? (
-                        <p className="text-sm text-slate-500 mt-0.5 flex items-center gap-1.5 truncate">
-                          <Phone className="h-3 w-3 text-slate-400 shrink-0" />
+                        <p className="text-sm text-slate-500 mt-1 flex items-center gap-1.5 truncate">
+                          <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                           <span className="truncate">{dealer.phone}</span>
                         </p>
                       ) : (
@@ -242,7 +245,7 @@ export default function DealersPage() {
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="h-8 w-8 -mr-2 -mt-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 shrink-0"
+                    className="h-8 w-8 -mr-2 -mt-2 text-slate-400 hover:text-primary hover:bg-primary/10 shrink-0 rounded-full"
                     onClick={(e) => openEditForm(dealer, e)}
                     title="Edit Dealer"
                     aria-label={`Edit ${dealer.name}`}
@@ -269,10 +272,10 @@ export default function DealersPage() {
                   </div>
                 </CardContent>
                 
-                <CardFooter className="bg-slate-50 p-2 border-t border-slate-100 flex justify-around gap-1">
+                <CardFooter className="bg-slate-50/50 p-4 border-t border-slate-100 flex justify-center gap-3">
                   <Button
-                    variant="ghost"
-                    className={`w-full h-10 ${dealer.phone ? 'text-blue-600 hover:text-blue-700 hover:bg-blue-100' : 'text-slate-300 hover:bg-transparent'}`}
+                    variant="outline"
+                    className={`rounded-full h-10 w-10 p-0 shadow-sm ${dealer.phone ? 'text-primary border-primary/20 hover:bg-primary/10 hover:text-primary' : 'text-slate-300 border-slate-200 hover:bg-transparent'}`}
                     title={dealer.phone ? `Call ${dealer.phone}` : "No phone number available"}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -283,10 +286,9 @@ export default function DealersPage() {
                   >
                     <Phone className="h-4 w-4" />
                   </Button>
-                  <div className="w-px bg-slate-200 my-2 shrink-0"></div>
                   <Button
-                    variant="ghost"
-                    className={`w-full h-10 ${dealer.whatsapp || dealer.phone ? 'text-green-600 hover:text-green-700 hover:bg-green-100' : 'text-slate-300 hover:bg-transparent'}`}
+                    variant="outline"
+                    className={`rounded-full h-10 w-10 p-0 shadow-sm ${dealer.whatsapp || dealer.phone ? 'text-emerald-600 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700' : 'text-slate-300 border-slate-200 hover:bg-transparent'}`}
                     title={(dealer.whatsapp || dealer.phone) ? `WhatsApp ${(dealer.whatsapp || dealer.phone)}` : "No WhatsApp number available"}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -298,10 +300,9 @@ export default function DealersPage() {
                   >
                     <MessageCircle className="h-4 w-4" />
                   </Button>
-                  <div className="w-px bg-slate-200 my-2 shrink-0"></div>
                   <Button
-                    variant="ghost"
-                    className={`w-full h-10 ${dealer.address ? 'text-red-600 hover:text-red-700 hover:bg-red-100' : 'text-slate-300 hover:bg-transparent'}`}
+                    variant="outline"
+                    className={`rounded-full h-10 w-10 p-0 shadow-sm ${dealer.address ? 'text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700' : 'text-slate-300 border-slate-200 hover:bg-transparent'}`}
                     title={dealer.address ? `Map to ${dealer.address}` : "No address available"}
                     onClick={(e) => {
                       e.stopPropagation();
