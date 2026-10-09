@@ -97,9 +97,11 @@ export default function DealersPage() {
     <div className="space-y-6">
       {/* Dealer Details Modal */}
       {selectedDealerId && (
-        <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
-          <div className="fixed inset-y-0 right-0 z-50 w-full md:max-w-4xl bg-background shadow-lg border-l p-6 overflow-y-auto duration-500 ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:duration-700">
-            <DealerDetailPanel id={selectedDealerId} onClose={() => setSelectedDealerId(null)} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 sm:p-6 overflow-hidden">
+          <div className="relative w-full max-w-[1440px] md:w-[94vw] h-full md:h-[90vh] max-h-[90vh] bg-background shadow-2xl rounded-xl border flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex-1 overflow-y-auto">
+              <DealerDetailPanel id={selectedDealerId} onClose={() => setSelectedDealerId(null)} />
+            </div>
           </div>
         </div>
       )}
