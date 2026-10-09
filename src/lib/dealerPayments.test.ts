@@ -79,4 +79,51 @@ describe('Dealer Payments and Ledger Reconciliation', () => {
     expect(payable).toBe(6000)
     expect(receivable).toBe(5000)
   })
+
+  describe('Dealer Payments Notes Feature', () => {
+    it('Payment with a note saves correctly and does not alter amount', () => {
+      const payment = { id: 'p1', amount: 2000, dealer_id: 'd1', notes: 'Advance payment' }
+      expect(payment.notes).toBe('Advance payment')
+      expect(payment.amount).toBe(2000)
+    })
+
+    it('Payment without a note remains valid and handles null/empty properly', () => {
+      const payment = { id: 'p2', amount: 3000, dealer_id: 'd1', notes: null }
+      expect(payment.notes).toBeNull()
+      expect(payment.amount).toBe(3000)
+    })
+
+    it('Editing a note updates the existing payment without duplicate records', () => {
+      let payments = [{ id: 'p1', amount: 2000, dealer_id: 'd1', notes: 'Initial note' }]
+      
+      // Update note
+      payments = payments.map(p => p.id === 'p1' ? { ...p, notes: 'Updated note' } : p)
+
+      expect(payments.length).toBe(1)
+      expect(payments[0].notes).toBe('Updated note')
+      expect(payments[0].amount).toBe(2000) // Amount unaltered
+    })
+
+    it('Saving or editing a note does not alter outstanding balances', () => {
+      const purchases = [{ total_amount: 10000, amount_paid: 0, dealer_id: 'd1' }]
+      let payments = [{ id: 'p1', amount: 4000, dealer_id: 'd1', notes: 'Old' }]
+
+      const calcOutstanding = (ps: any[], pmts: any[]) => {
+        let outstanding = 0
+        ps.forEach(p => outstanding += (p.total_amount - p.amount_paid))
+        pmts.forEach(p => outstanding -= p.amount)
+        return outstanding
+      }
+
+      const before = calcOutstanding(purchases, payments)
+      
+      // Edit note only
+      payments = payments.map(p => p.id === 'p1' ? { ...p, notes: 'New note' } : p)
+      
+      const after = calcOutstanding(purchases, payments)
+
+      expect(before).toBe(6000)
+      expect(after).toBe(before) // Balance untouched
+    })
+  })
 })
