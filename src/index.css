@@ -81,4 +81,11 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+
+  /* Responsive Touch Targets for Mobile */
+  @media (max-width: 768px) {
+    select, input[type="text"], input[type="number"], input[type="search"], input[type="date"], input[type="password"], input[type="email"], textarea {
+      min-height: 44px !important;
+    }
+  }
 }

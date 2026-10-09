@@ -96,7 +96,8 @@ export default function ResellerDetailPage() {
             <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Sales History</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -123,6 +124,7 @@ export default function ResellerDetailPage() {
                 ))}
               </TableBody>
             </Table>
+</div>
           </CardContent>
         </Card>
 
@@ -132,7 +134,8 @@ export default function ResellerDetailPage() {
             <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Separate Payments Recorded</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -153,6 +156,7 @@ export default function ResellerDetailPage() {
                 ))}
               </TableBody>
             </Table>
+</div>
           </CardContent>
         </Card>
       </div>

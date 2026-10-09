@@ -252,9 +252,10 @@ export default function PurchasesPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
+            <div className="overflow-x-auto w-full">
+              <Table className="min-w-[800px]">
+                <TableHeader>
+                  <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Dealer</TableHead>
                   <TableHead>Product</TableHead>
@@ -299,6 +300,7 @@ export default function PurchasesPage() {
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
         </CardContent>
       </Card>

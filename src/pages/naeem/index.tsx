@@ -637,7 +637,8 @@ export default function NaeemUnclePage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table>
+                  <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
                     <TableHeader className="bg-white">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="font-semibold text-slate-600 whitespace-nowrap">Date</TableHead>
@@ -692,6 +693,7 @@ export default function NaeemUnclePage() {
                       ))}
                     </TableBody>
                   </Table>
+</div>
                 </div>
               )}
             </CardContent>
@@ -732,7 +734,8 @@ export default function NaeemUnclePage() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <Table>
+                  <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
                     <TableHeader className="bg-white">
                       <TableRow className="hover:bg-transparent">
                         <TableHead className="font-semibold text-slate-600 whitespace-nowrap">Date</TableHead>
@@ -770,6 +773,7 @@ export default function NaeemUnclePage() {
                       ))}
                     </TableBody>
                   </Table>
+</div>
                 </div>
               )}
             </CardContent>

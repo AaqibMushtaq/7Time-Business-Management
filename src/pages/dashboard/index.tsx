@@ -224,7 +224,7 @@ export default function DashboardPage() {
               <CardHeader className="border-b bg-red-50/50">
                 <CardTitle className="text-base text-red-900">DEALER POSITION</CardTitle>
               </CardHeader>
-              <CardContent className="p-0 max-h-[300px] overflow-y-auto">
+              <CardContent className="p-0 max-h-[300px] overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 sticky top-0">
                     <tr>
@@ -250,7 +250,7 @@ export default function DashboardPage() {
               <CardHeader className="border-b bg-green-50/50">
                 <CardTitle className="text-base text-green-900">RESELLER POSITION</CardTitle>
               </CardHeader>
-              <CardContent className="p-0 max-h-[300px] overflow-y-auto">
+              <CardContent className="p-0 max-h-[300px] overflow-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 sticky top-0">
                     <tr>

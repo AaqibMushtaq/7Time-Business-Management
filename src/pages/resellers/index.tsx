@@ -101,7 +101,8 @@ export default function ResellersPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Customer Name</TableHead>
@@ -148,6 +149,7 @@ export default function ResellersPage() {
                 )}
               </TableBody>
             </Table>
+</div>
           )}
         </CardContent>
       </Card>

@@ -115,7 +115,8 @@ export default function ProductDetailPage() {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" /> Stock Additions (Purchases)</CardTitle></CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -134,6 +135,7 @@ export default function ProductDetailPage() {
                 ))}
               </TableBody>
             </Table>
+</div>
           </CardContent>
         </Card>
 
@@ -141,7 +143,8 @@ export default function ProductDetailPage() {
         <Card className="lg:col-span-2">
           <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Stock Reductions (Wholesale Sales)</CardTitle></CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -164,6 +167,7 @@ export default function ProductDetailPage() {
                 ))}
               </TableBody>
             </Table>
+</div>
           </CardContent>
         </Card>
       </div>

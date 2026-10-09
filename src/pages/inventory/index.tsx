@@ -46,7 +46,8 @@ export default function InventoryPage() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <Table>
+              <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>Product</TableHead>
@@ -106,6 +107,7 @@ export default function InventoryPage() {
                   )}
                 </TableBody>
               </Table>
+</div>
             </div>
           )}
         </CardContent>

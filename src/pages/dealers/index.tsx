@@ -225,11 +225,11 @@ export default function DealersPage() {
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
             {searchQuery ? `Search Results (${filteredDealers.length})` : `All Dealers (${dealers?.length || 0})`}
           </h2>
-          <div className="flex flex-wrap justify-center sm:justify-start gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-6">
             {filteredDealers.map(dealer => (
               <Card 
                 key={dealer.id} 
-                className="w-full sm:w-[360px] min-h-[460px] flex flex-col overflow-hidden hover:-translate-y-1 transition-all duration-200 cursor-pointer border border-slate-200 hover:border-primary hover:shadow-xl focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 rounded-[24px] bg-white"
+                className="w-full min-h-[460px] flex flex-col overflow-hidden hover:-translate-y-1 transition-all duration-200 cursor-pointer border border-slate-200 hover:border-primary hover:shadow-xl focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 rounded-[24px] bg-white"
                 onClick={() => setSelectedDealerId(dealer.id)}
                 tabIndex={0}
                 onKeyDown={(e) => {

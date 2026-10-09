@@ -129,7 +129,8 @@ export default function ResellerPaymentsPage() {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -161,6 +162,7 @@ export default function ResellerPaymentsPage() {
                 )}
               </TableBody>
             </Table>
+</div>
           )}
         </CardContent>
       </Card>

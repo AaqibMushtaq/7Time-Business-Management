@@ -144,7 +144,7 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-6 -mb-6 border-b">
+        <div className="flex items-center gap-6 -mb-6 border-b overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab("overview")}
             className={`pb-3 pt-2 font-medium text-sm transition-colors relative whitespace-nowrap ${activeTab === 'overview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-900'}`}

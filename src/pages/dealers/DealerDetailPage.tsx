@@ -107,7 +107,8 @@ export default function DealerDetailPage() {
             <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Associated Products</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Product</TableHead>
@@ -128,6 +129,7 @@ export default function DealerDetailPage() {
                 ))}
               </TableBody>
             </Table>
+</div>
           </CardContent>
         </Card>
 
@@ -137,7 +139,8 @@ export default function DealerDetailPage() {
             <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Purchase History</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -166,6 +169,7 @@ export default function DealerDetailPage() {
                 ))}
               </TableBody>
             </Table>
+</div>
           </CardContent>
         </Card>
 
@@ -175,7 +179,8 @@ export default function DealerDetailPage() {
             <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Payment History</CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
+            <div className="overflow-x-auto w-full">
+<Table className="min-w-[800px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -206,6 +211,7 @@ export default function DealerDetailPage() {
                 ))}
               </TableBody>
             </Table>
+</div>
           </CardContent>
         </Card>
       </div>
