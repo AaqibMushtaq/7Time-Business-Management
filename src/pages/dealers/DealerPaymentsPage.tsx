@@ -157,21 +157,21 @@ export default function DealerPaymentsPage() {
               <Input placeholder="Transaction ID" value={reference} onChange={e => setReference(e.target.value)} />
             </div>
 
+            <div className="space-y-2">
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="w-full h-10">
+                {createMutation.isPending || updateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (editingId ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />)}
+                {editingId ? "Update Payment" : "Record Payment"}
+              </Button>
+            </div>
+
             <div className="space-y-2 lg:col-span-3">
               <Label>Note</Label>
               <textarea
                 className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Enter payment details or remarks"
+                placeholder="Enter payment note or remarks"
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
               />
-            </div>
-
-            <div className="space-y-2 lg:col-span-3">
-              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="w-full">
-                {createMutation.isPending || updateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (editingId ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />)}
-                {editingId ? "Update Payment" : "Record Payment"}
-              </Button>
             </div>
           </form>
         </CardContent>
