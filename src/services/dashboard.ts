@@ -69,9 +69,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   const { data: allPurchases } = await supabase.from("purchases").select("total_amount, amount_paid, dealer_id").limit(999999)
   const { data: allDealerPayments } = await supabase.from("dealer_payments").select("amount, dealer_id").limit(999999)
   
-  const allPurchasesTotal = allPurchases?.reduce((acc: number, p: any) => acc + Number(p.total_amount || 0), 0) || 0
-  const allPurchasesPaid = allPurchases?.reduce((acc: number, p: any) => acc + Number(p.amount_paid || 0), 0) || 0
-  const allSeparatePaid = allDealerPayments?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
+
   // totalPayable is calculated later per-dealer to prevent negatives from skewing the total
 
   // 3. Dealer Payments Stats
@@ -91,9 +89,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   const { data: allSales } = await supabase.from("wholesale_sales").select("total_sale, amount_received, customer_id").limit(999999)
   const { data: allResellerPayments } = await supabase.from("reseller_payments").select("amount, customer_id").limit(999999)
   
-  const allSalesTotal = allSales?.reduce((acc: number, s: any) => acc + Number(s.total_sale || 0), 0) || 0
-  const allSalesReceived = allSales?.reduce((acc: number, s: any) => acc + Number(s.amount_received || 0), 0) || 0
-  const allSeparateReceived = allResellerPayments?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
+
 
   // 5. Reseller Payments Stats
   const resellerPaymentsQuery = supabase.from("reseller_payments").select("*, customer:reseller_customers(name)")
