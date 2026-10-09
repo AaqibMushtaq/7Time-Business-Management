@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, ArrowLeft, Package, Wallet, ShoppingCart } from "lucide-react"
+import { Loader2, ArrowLeft, Package, Wallet, ShoppingCart, Pencil } from "lucide-react"
 
 export default function DealerDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -55,44 +55,54 @@ export default function DealerDetailPage() {
   }
 
   // Calculate totals
-  const totalPurchases = purchases?.reduce((sum: number, p: any) => sum + p.total_amount, 0) || 0
-  const totalPaidAtPurchase = purchases?.reduce((sum: number, p: any) => sum + p.amount_paid, 0) || 0
-  const totalSeparatePaid = payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0
+  const totalPurchases = purchases?.reduce((sum: number, p: any) => sum + Number(p.total_amount || 0), 0) || 0
+  const totalPaidAtPurchase = purchases?.reduce((sum: number, p: any) => sum + Number(p.amount_paid || 0), 0) || 0
+  const totalSeparatePaid = payments?.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0) || 0
   const totalPaid = totalPaidAtPurchase + totalSeparatePaid
   const outstandingBalance = totalPurchases - totalPaid
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link to="/dealers">
-          <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">{dealer.name}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link to="/dealers">
+            <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+          </Link>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">{dealer.name}</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link to="/purchases">
+            <Button variant="outline"><ShoppingCart className="mr-2 h-4 w-4" /> Add Purchase</Button>
+          </Link>
+          <Link to="/dealer-payments">
+            <Button><Wallet className="mr-2 h-4 w-4" /> Record Payment</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm">
           <CardHeader className="pb-2"><CardTitle className="text-sm opacity-90">Total Purchases</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-bold">{formatMoney(totalPurchases)}</div></CardContent>
         </Card>
         
-        <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm">
           <CardHeader className="pb-2"><CardTitle className="text-sm opacity-90">Total Paid</CardTitle></CardHeader>
           <CardContent><div className="text-3xl font-bold">{formatMoney(totalPaid)}</div></CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-red-500 to-red-600 text-white">
+        <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-sm">
           <CardHeader className="pb-2"><CardTitle className="text-sm opacity-90">Outstanding Balance</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{formatMoney(outstandingBalance)}</div>
-            <p className="text-xs font-semibold uppercase mt-1 tracking-wider opacity-90">7Time Owes Dealer</p>
+            <p className="text-xs font-semibold uppercase mt-1 tracking-wider opacity-90">We Owe Dealer</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Products */}
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Associated Products</CardTitle>
           </CardHeader>
@@ -106,7 +116,7 @@ export default function DealerDetailPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No products found.</TableCell></TableRow>}
+                {products?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No products found.</TableCell></TableRow>}
                 {products?.map((p: any) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-medium">
@@ -122,7 +132,7 @@ export default function DealerDetailPage() {
         </Card>
 
         {/* Purchase History */}
-        <Card>
+        <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Purchase History</CardTitle>
           </CardHeader>
@@ -132,16 +142,26 @@ export default function DealerDetailPage() {
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead>Product</TableHead>
+                  <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchases?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No purchases yet.</TableCell></TableRow>}
+                {purchases?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No purchases yet.</TableCell></TableRow>}
                 {purchases?.map((p: any) => (
                   <TableRow key={p.id}>
                     <TableCell>{formatDate(p.purchase_date)}</TableCell>
-                    <TableCell>{p.product?.name}</TableCell>
+                    <TableCell className="truncate max-w-[120px]" title={p.product?.name}>{p.product?.name}</TableCell>
+                    <TableCell className="text-right">{p.quantity_bought} {p.product?.unit}</TableCell>
                     <TableCell className="text-right font-medium">{formatMoney(p.total_amount)}</TableCell>
+                    <TableCell className="text-right">
+                      <Link to="/purchases">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-slate-900" title="Edit Purchase in Purchases page">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -150,7 +170,7 @@ export default function DealerDetailPage() {
         </Card>
 
         {/* Payment History */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Payment History</CardTitle>
           </CardHeader>
@@ -161,17 +181,27 @@ export default function DealerDetailPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead>Reference</TableHead>
+                  <TableHead>Note</TableHead>
                   <TableHead className="text-right">Amount Paid</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {payments?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No payments yet.</TableCell></TableRow>}
+                {payments?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No payments yet.</TableCell></TableRow>}
                 {payments?.map((p: any) => (
                   <TableRow key={p.id}>
                     <TableCell>{formatDate(p.payment_date)}</TableCell>
                     <TableCell>{p.payment_method}</TableCell>
                     <TableCell>{p.reference || "-"}</TableCell>
-                    <TableCell className="text-right font-bold text-green-600">{formatMoney(p.amount)}</TableCell>
+                    <TableCell className="max-w-[150px] truncate" title={p.notes || ""}>{p.notes || "—"}</TableCell>
+                    <TableCell className="text-right font-bold text-emerald-600">{formatMoney(p.amount)}</TableCell>
+                    <TableCell className="text-right">
+                      <Link to="/dealer-payments">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-slate-900" title="Edit Payment in Dealer Payments page">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
