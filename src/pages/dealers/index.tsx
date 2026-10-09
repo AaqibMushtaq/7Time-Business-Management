@@ -206,11 +206,11 @@ export default function DealersPage() {
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
             {searchQuery ? `Search Results (${filteredDealers.length})` : `All Dealers (${dealers?.length || 0})`}
           </h2>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,360px),1fr))] gap-6">
+          <div className="flex flex-wrap justify-center sm:justify-start gap-6">
             {filteredDealers.map(dealer => (
               <Card 
                 key={dealer.id} 
-                className="flex flex-col overflow-hidden hover:-translate-y-1 transition-all duration-200 cursor-pointer border border-slate-200 hover:border-primary hover:shadow-xl focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 rounded-2xl bg-white"
+                className="w-full sm:w-[360px] min-h-[460px] flex flex-col overflow-hidden hover:-translate-y-1 transition-all duration-200 cursor-pointer border border-slate-200 hover:border-primary hover:shadow-xl focus-within:ring-2 focus-within:ring-primary focus-within:ring-offset-2 rounded-[24px] bg-white"
                 onClick={() => setSelectedDealerId(dealer.id)}
                 tabIndex={0}
                 onKeyDown={(e) => {
@@ -221,70 +221,78 @@ export default function DealersPage() {
                 }}
               >
                 <div 
-                  className="pt-6 pb-5 px-6 flex flex-col items-center text-center relative"
-                  style={{ background: 'linear-gradient(135deg, #33C5F3 0%, #2D7FF9 52%, #4A39D6 100%)' }}
+                  className="pt-8 pb-6 px-6 flex flex-col items-center text-center relative shrink-0"
+                  style={{ background: 'linear-gradient(140deg, #33C5F3 0%, #2D7FF9 52%, #4A39D6 100%)' }}
                 >
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="absolute top-3 right-3 h-8 w-8 text-white/80 hover:text-white hover:bg-white/20 shrink-0 rounded-full"
+                    className="absolute top-4 right-4 h-9 w-9 text-white/80 hover:text-white hover:bg-white/20 shrink-0 rounded-full"
                     onClick={(e) => openEditForm(dealer, e)}
                     title="Edit Dealer"
                     aria-label={`Edit ${dealer.name}`}
                   >
-                    <Pencil className="h-4 w-4" />
+                    <Pencil className="h-5 w-5" />
                   </Button>
                   
-                  <div className="h-16 w-16 rounded-full bg-white/20 border-2 border-white/40 flex items-center justify-center text-white font-bold uppercase shrink-0 shadow-sm text-2xl mb-3 backdrop-blur-sm">
+                  <div className="h-20 w-20 rounded-full bg-white border-2 border-white/40 flex items-center justify-center text-[#2D7FF9] font-bold uppercase shrink-0 shadow-md text-3xl mb-4">
                     {dealer.name.substring(0, 2)}
                   </div>
                   
-                  <div className="flex flex-col items-center gap-1 w-full">
-                    <CardTitle className="text-xl font-bold truncate text-white w-full" title={dealer.name}>{dealer.name}</CardTitle>
-                    <span className="bg-white/20 text-white text-[10px] uppercase font-bold px-2 py-0.5 rounded tracking-wider backdrop-blur-sm">Dealer</span>
+                  <div className="flex flex-col items-center gap-1.5 w-full">
+                    <CardTitle className="text-2xl font-bold truncate text-white w-full leading-tight" title={dealer.name}>{dealer.name}</CardTitle>
+                    <span className="bg-white/20 text-white text-[11px] uppercase font-bold px-2.5 py-1 rounded-md tracking-widest backdrop-blur-sm shadow-sm">Business Dealer</span>
                   </div>
                 </div>
                 
-                <CardContent className="py-5 px-6 flex-grow flex flex-col gap-5">
-                  <div className="space-y-2.5">
-                    {dealer.phone ? (
-                      <div className="flex items-center gap-2.5 text-slate-600 text-sm">
-                        <Phone className="h-4 w-4 text-blue-500 shrink-0" />
-                        <span className="truncate">{dealer.phone}</span>
+                <div className="px-6 py-6 flex flex-col gap-3.5">
+                  {dealer.phone ? (
+                    <div className="flex items-center gap-3 text-slate-600 text-sm">
+                      <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                         <Phone className="h-4 w-4 text-slate-500" />
                       </div>
-                    ) : (
-                      <p className="text-xs text-amber-600 flex items-center bg-amber-50 w-fit px-2 py-0.5 rounded-full border border-amber-200">
-                         Add contact details
-                      </p>
-                    )}
-                    
-                    {dealer.whatsapp && dealer.whatsapp !== dealer.phone && (
-                      <div className="flex items-center gap-2.5 text-slate-600 text-sm">
-                        <MessageCircle className="h-4 w-4 text-emerald-500 shrink-0" />
-                        <span className="truncate">{dealer.whatsapp}</span>
-                      </div>
-                    )}
-                    
-                    {dealer.address && (
-                      <div className="flex items-start gap-2.5 text-slate-600 text-sm line-clamp-2 pt-1 border-t border-slate-100">
-                        <MapPin className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
-                        <span title={dealer.address}>{dealer.address}</span>
-                      </div>
-                    )}
-                  </div>
+                      <span className="truncate font-medium">{dealer.phone}</span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-600 flex items-center bg-amber-50 w-fit px-3 py-1.5 rounded-full border border-amber-200">
+                       Add contact details
+                    </p>
+                  )}
+                  
+                  {dealer.whatsapp && dealer.whatsapp !== dealer.phone && (
+                    <div className="flex items-center gap-3 text-slate-600 text-sm">
+                       <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0">
+                         <MessageCircle className="h-4 w-4 text-slate-500" />
+                       </div>
+                      <span className="truncate font-medium">{dealer.whatsapp}</span>
+                    </div>
+                  )}
+                  
+                  {dealer.address && (
+                    <div className="flex items-start gap-3 text-slate-600 text-sm">
+                       <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center shrink-0 mt-0.5">
+                         <MapPin className="h-4 w-4 text-slate-500" />
+                       </div>
+                      <span className="line-clamp-2 leading-relaxed" title={dealer.address}>{dealer.address}</span>
+                    </div>
+                  )}
+                </div>
 
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mt-auto">
-                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-wider mb-1">Outstanding Balance</p>
+                <div className="flex-grow"></div>
+
+                <div className="px-6 mb-6">
+                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 text-center">
+                    <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">Outstanding Balance</p>
                     <p className={`text-2xl font-bold ${Number(dealer.outstanding) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                       {formatMoney(dealer.outstanding || 0)}
                     </p>
                   </div>
-                </CardContent>
+                </div>
                 
-                <CardFooter className="bg-white p-4 border-t border-slate-100 flex justify-center gap-4">
+                <CardFooter className="bg-slate-50/80 p-4 border-t border-slate-100 grid grid-cols-3 gap-2 shrink-0">
                   <Button
                     variant="outline"
-                    className={`rounded-full h-11 w-11 p-0 shadow-sm border-0 ${dealer.phone ? 'bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700' : 'bg-slate-50 text-slate-300'}`}
+                    className={`flex flex-col items-center justify-center gap-1.5 h-auto py-2.5 rounded-xl border-0 shadow-sm ${dealer.phone ? 'bg-blue-50 text-blue-700 hover:bg-blue-100' : 'bg-slate-100 text-slate-400'}`}
                     title={dealer.phone ? `Call ${dealer.phone}` : "No phone number available"}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -294,10 +302,11 @@ export default function DealersPage() {
                     aria-label={`Call ${dealer.name}`}
                   >
                     <Phone className="h-5 w-5" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider">Call</span>
                   </Button>
                   <Button
                     variant="outline"
-                    className={`rounded-full h-11 w-11 p-0 shadow-sm border-0 ${dealer.whatsapp || dealer.phone ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700' : 'bg-slate-50 text-slate-300'}`}
+                    className={`flex flex-col items-center justify-center gap-1.5 h-auto py-2.5 rounded-xl border-0 shadow-sm ${dealer.whatsapp || dealer.phone ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-400'}`}
                     title={(dealer.whatsapp || dealer.phone) ? `WhatsApp ${(dealer.whatsapp || dealer.phone)}` : "No WhatsApp number available"}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -308,10 +317,11 @@ export default function DealersPage() {
                     aria-label={`WhatsApp ${dealer.name}`}
                   >
                     <MessageCircle className="h-5 w-5" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider">WhatsApp</span>
                   </Button>
                   <Button
                     variant="outline"
-                    className={`rounded-full h-11 w-11 p-0 shadow-sm border-0 ${dealer.address ? 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700' : 'bg-slate-50 text-slate-300'}`}
+                    className={`flex flex-col items-center justify-center gap-1.5 h-auto py-2.5 rounded-xl border-0 shadow-sm ${dealer.address ? 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-100 text-slate-400'}`}
                     title={dealer.address ? `Map to ${dealer.address}` : "No address available"}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -321,6 +331,7 @@ export default function DealersPage() {
                     aria-label={`Directions to ${dealer.name}`}
                   >
                     <MapPin className="h-5 w-5" />
+                    <span className="text-[10px] uppercase font-bold tracking-wider">Directions</span>
                   </Button>
                 </CardFooter>
               </Card>
