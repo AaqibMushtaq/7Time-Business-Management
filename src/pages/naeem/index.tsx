@@ -6,6 +6,8 @@ import {
   recordnaeemPayment, deletenaeemPayment, upsertnaeemMonthlyBalance, deletenaeemMonthlyBalance,
   type naeemPaymentAllocation 
 } from "@/services/naeemDeliveries"
+import { processRecords, calculateSummary } from "@/lib/naeemCalculations"
+import { getPreviousMonth, getNextMonth } from "@/lib/dateUtils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -32,16 +34,8 @@ export default function NaeemUnclePage() {
   }, [selectedMonth])
 
   // Navigation handlers
-  const handlePrevMonth = () => {
-    const [y, m] = selectedMonth.split('-').map(Number)
-    const prev = new Date(y, m - 2, 1)
-    setSelectedMonth(`${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`)
-  }
-  const handleNextMonth = () => {
-    const [y, m] = selectedMonth.split('-').map(Number)
-    const next = new Date(y, m, 1)
-    setSelectedMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`)
-  }
+  const handlePrevMonth = () => setSelectedMonth(getPreviousMonth(selectedMonth))
+  const handleNextMonth = () => setSelectedMonth(getNextMonth(selectedMonth))
   
   const [yStr, mStr] = selectedMonth.split('-')
   const currentYear = parseInt(yStr)
@@ -99,45 +93,11 @@ export default function NaeemUnclePage() {
 
   // Data Processing
   const processedRecords = useMemo(() => {
-    if (!records) return []
-    return records.map(r => {
-      const isNoOrderStat = r.status === "No Order" || (r.route?.name.toLowerCase() === "no order")
-      if (isNoOrderStat) {
-        return { ...r, calculatedReceived: 0, calculatedBalance: 0, calculatedStatus: "No Order" }
-      }
-      const allocated = r.allocations?.reduce((sum, a) => sum + a.allocated_amount, 0) || 0
-      const balance = r.final_fare - allocated
-      const status = balance <= 0 ? "Paid" : allocated > 0 ? "Partially Paid" : "Pending"
-      return { ...r, calculatedReceived: allocated, calculatedBalance: balance, calculatedStatus: status }
-    })
+    return processRecords(records)
   }, [records])
 
   const summary = useMemo(() => {
-    const openingBalance = Number(balanceData?.opening_balance) || 0
-    const isManualOverride = balanceData?.is_manual_override === true
-    const currentMonthBilled = processedRecords.reduce((s, r) => s + (r.calculatedStatus === "No Order" ? 0 : r.final_fare), 0)
-    const totalDue = openingBalance + currentMonthBilled
-    const totalReceived = (payments || []).reduce((s, p) => s + p.amount, 0)
-    const outstanding = totalDue - totalReceived
-    
-    const noOrderDays = processedRecords.filter(r => r.calculatedStatus === "No Order").length
-    const tripCount = processedRecords.length - noOrderDays
-
-    const collectionPercentage = totalDue > 0 ? Math.round((totalReceived / totalDue) * 100) : 0
-    const outstandingPercentage = totalDue > 0 ? Math.round((outstanding / totalDue) * 100) : 0
-
-    return {
-      openingBalance,
-      isManualOverride,
-      currentMonthBilled,
-      totalDue,
-      totalReceived,
-      outstanding,
-      collectionPercentage,
-      outstandingPercentage,
-      tripCount,
-      noOrderDays
-    }
+    return calculateSummary(balanceData, processedRecords, payments)
   }, [balanceData, processedRecords, payments])
 
   const unpaidDeliveries = useMemo(() => {

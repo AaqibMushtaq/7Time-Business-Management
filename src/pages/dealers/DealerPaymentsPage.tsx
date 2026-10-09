@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getDealerPayments, createDealerPayment } from "@/services/dealerPayments"
+import { getDealerPayments, createDealerPayment, updateDealerPayment, deleteDealerPayment } from "@/services/dealerPayments"
 import { getDealers } from "@/services/dealers"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, X } from "lucide-react"
 
 export default function DealerPaymentsPage() {
   const queryClient = useQueryClient()
@@ -19,6 +19,7 @@ export default function DealerPaymentsPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [reference, setReference] = useState("")
   const [notes, setNotes] = useState("")
+  const [editingId, setEditingId] = useState<string | null>(null)
 
   const { data: payments, isLoading: isLoadingPayments } = useQuery({
     queryKey: ["dealerPayments"],
@@ -30,29 +31,69 @@ export default function DealerPaymentsPage() {
     queryFn: getDealers,
   })
 
+  const invalidateAndReset = () => {
+    queryClient.invalidateQueries({ queryKey: ["dealerPayments"] })
+    queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
+    queryClient.invalidateQueries({ queryKey: ["dealerPurchases"] })
+    queryClient.invalidateQueries({ queryKey: ["dealerPaymentsHistory"] })
+    queryClient.invalidateQueries({ queryKey: ["dealer"] })
+    setEditingId(null)
+    setAmount("")
+    setReference("")
+    setNotes("")
+  }
+
   const createMutation = useMutation({
     mutationFn: createDealerPayment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["dealerPayments"] })
-      setAmount("")
-      setReference("")
-      setNotes("")
-    },
+    onSuccess: invalidateAndReset,
   })
 
-  const handleCreate = (e: React.FormEvent) => {
+  const updateMutation = useMutation({
+    mutationFn: (data: { id: string, payment: any }) => updateDealerPayment(data.id, data.payment),
+    onSuccess: invalidateAndReset,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteDealerPayment,
+    onSuccess: invalidateAndReset,
+  })
+
+  const handleEdit = (p: any) => {
+    setEditingId(p.id)
+    setDealerId(p.dealer_id)
+    setPaymentDate(p.payment_date)
+    setAmount(p.amount.toString())
+    setPaymentMethod(p.payment_method || "CASH")
+    setReference(p.reference || "")
+    setNotes(p.notes || "")
+    window.scrollTo({ top: 0, behavior: "smooth" })
+  }
+
+  const handleDelete = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this payment? This will affect the dealer's outstanding balance.")) {
+      deleteMutation.mutate(id)
+    }
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const amt = parseFloat(amount)
     if (!dealerId || !paymentDate || !amt || amt <= 0) return
 
-    createMutation.mutate({
+    const payload = {
       dealer_id: dealerId,
       payment_date: paymentDate,
       amount: amt,
       payment_method: paymentMethod,
       reference: reference || null,
       notes: notes || null,
-    })
+    }
+
+    if (editingId) {
+      updateMutation.mutate({ id: editingId, payment: payload })
+    } else {
+      createMutation.mutate(payload)
+    }
   }
 
   return (
@@ -63,10 +104,17 @@ export default function DealerPaymentsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Record Payment to Dealer</CardTitle>
+          <CardTitle className="flex items-center justify-between">
+            {editingId ? "Edit Payment" : "Record Payment to Dealer"}
+            {editingId && (
+              <Button variant="ghost" size="sm" onClick={invalidateAndReset}>
+                <X className="h-4 w-4 mr-2" /> Cancel Edit
+              </Button>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
             <div className="space-y-2">
               <Label>Dealer</Label>
               <select
@@ -110,9 +158,9 @@ export default function DealerPaymentsPage() {
             </div>
 
             <div className="space-y-2">
-              <Button type="submit" disabled={createMutation.isPending} className="w-full">
-                {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                Record Payment
+              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="w-full">
+                {createMutation.isPending || updateMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (editingId ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />)}
+                {editingId ? "Update Payment" : "Record Payment"}
               </Button>
             </div>
           </form>
@@ -137,6 +185,7 @@ export default function DealerPaymentsPage() {
                   <TableHead>Method</TableHead>
                   <TableHead>Reference</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -155,6 +204,14 @@ export default function DealerPaymentsPage() {
                       <TableCell>{payment.reference || "-"}</TableCell>
                       <TableCell className="text-right font-bold text-green-600">
                         {formatMoney(payment.amount)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(payment)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700" onClick={() => handleDelete(payment.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))

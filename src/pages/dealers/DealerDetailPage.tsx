@@ -31,7 +31,7 @@ export default function DealerDetailPage() {
   const { data: purchases } = useQuery({
     queryKey: ["dealerPurchases", id],
     queryFn: async () => {
-      const { data, error } = await (supabase.from("purchases").select(`*, product:products(name)`) as any).eq("dealer_id", id).order("purchase_date", { ascending: false })
+      const { data, error } = await (supabase.from("purchases").select(`*, product:products(name)`) as any).eq("dealer_id", id).order("purchase_date", { ascending: false }).limit(999999)
       if (error) throw new Error(error.message)
       return data
     },
@@ -40,7 +40,7 @@ export default function DealerDetailPage() {
   const { data: payments } = useQuery({
     queryKey: ["dealerPaymentsHistory", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("dealer_payments").select("*").eq("dealer_id", id).order("payment_date", { ascending: false })
+      const { data, error } = await supabase.from("dealer_payments").select("*").eq("dealer_id", id).order("payment_date", { ascending: false }).limit(999999)
       if (error) throw new Error(error.message)
       return data
     },
@@ -56,7 +56,9 @@ export default function DealerDetailPage() {
 
   // Calculate totals
   const totalPurchases = purchases?.reduce((sum: number, p: any) => sum + p.total_amount, 0) || 0
-  const totalPaid = payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0
+  const totalPaidAtPurchase = purchases?.reduce((sum: number, p: any) => sum + p.amount_paid, 0) || 0
+  const totalSeparatePaid = payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0
+  const totalPaid = totalPaidAtPurchase + totalSeparatePaid
   const outstandingBalance = totalPurchases - totalPaid
 
   return (
