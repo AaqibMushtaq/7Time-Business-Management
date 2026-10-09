@@ -29,27 +29,26 @@
 }
 
 :root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 210 40% 98%; /* #F8FAFC */
+  --foreground: 211 67% 17%; /* #0E2A47 */
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
+  --card-foreground: 211 67% 17%;
   --popover: 0 0% 100%;
-  --popover-foreground: 222.2 84% 4.9%;
-  /* 7TIME Blue Primary */
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  /* Purple Accent */
-  --accent: 262.1 83.3% 57.8%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 84.2% 60.2%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 221 83% 53%;
+  --popover-foreground: 211 67% 17%;
+  /* 7TIME Brand Colors */
+  --primary: 216 93% 58%; /* #2D7FF9 */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 247 67% 53%; /* #4A39D6 */
+  --secondary-foreground: 0 0% 100%;
+  --muted: 210 40% 96%; /* #F1F5F9 */
+  --muted-foreground: 215 16% 47%; /* #64748B */
+  --accent: 194 89% 58%; /* #33C5F3 */
+  --accent-foreground: 211 67% 17%;
+  --destructive: 0 84% 60%; /* #EF4444 */
+  --destructive-foreground: 0 0% 100%;
+  --border: 220 13% 91%; /* #E5E7EB */
+  --input: 220 13% 91%;
+  --ring: 216 93% 58%;
   --radius: 0.5rem;
 }
 

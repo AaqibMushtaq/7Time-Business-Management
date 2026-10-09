@@ -222,7 +222,7 @@ export default function DealersPage() {
               >
                 <CardHeader className="pb-4 pt-5 px-5 flex flex-row items-start justify-between space-y-0 border-b border-slate-100 bg-slate-50/50">
                   <div className="flex items-center gap-4 overflow-hidden">
-                    <div className="h-12 w-12 rounded-full bg-white border border-slate-200 flex items-center justify-center text-blue-700 font-bold uppercase shrink-0 shadow-sm text-lg">
+                    <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold uppercase shrink-0 shadow-sm text-lg">
                       {dealer.name.substring(0, 2)}
                     </div>
                     <div className="overflow-hidden">

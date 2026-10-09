@@ -68,7 +68,7 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
       <div className="sticky top-0 z-10 bg-background border-b p-4 sm:p-6 space-y-6 flex-none rounded-t-xl">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 font-bold uppercase shrink-0 text-xl shadow-sm">
+            <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold uppercase shrink-0 text-xl shadow-sm">
               {dealer.name.substring(0, 2)}
             </div>
             <div>
@@ -92,7 +92,7 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
                 <Phone className="h-4 w-4" />
               </Button>
               <Button
-                variant="ghost" size="icon" className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-100"
+                variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
                 title={(dealer.whatsapp || dealer.phone) ? `WhatsApp ${(dealer.whatsapp || dealer.phone)}` : "No WhatsApp number available"}
                 onClick={() => {
                   const number = dealer.whatsapp || dealer.phone;
@@ -103,7 +103,7 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
                 <MessageCircle className="h-4 w-4" />
               </Button>
               <Button
-                variant="ghost" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-100"
+                variant="ghost" size="icon" className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-100"
                 title={dealer.address ? `Map to ${dealer.address}` : "No address available"}
                 onClick={() => dealer.address && window.open(`https://maps.google.com/?q=${encodeURIComponent(dealer.address)}`, '_blank')}
                 disabled={!dealer.address}
@@ -112,33 +112,33 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
               </Button>
             </div>
             <Link to="/purchases">
-              <Button variant="outline" size="sm"><ShoppingCart className="mr-2 h-4 w-4" /> Add Purchase</Button>
+              <Button variant="outline" size="sm" className="bg-white"><ShoppingCart className="mr-2 h-4 w-4" /> Add Purchase</Button>
             </Link>
             <Link to="/dealer-payments">
-              <Button size="sm"><Wallet className="mr-2 h-4 w-4" /> Record Payment</Button>
+              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground"><Wallet className="mr-2 h-4 w-4" /> Record Payment</Button>
             </Link>
-            <Button variant="ghost" size="icon" onClick={onClose} className="ml-2 hover:bg-slate-100 rounded-full" title="Close">
+            <Button variant="ghost" size="icon" onClick={onClose} className="ml-2 hover:bg-slate-100 rounded-full text-slate-500" title="Close">
               <X className="h-5 w-5" />
             </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-          <Card className="bg-gradient-to-br from-blue-50 to-slate-50 border-blue-100 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-600 font-medium">Total Purchases</CardTitle></CardHeader>
-            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-bold text-slate-800">{formatMoney(totalPurchases)}</div></CardContent>
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-500 font-medium">Total Purchases</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-bold text-slate-900">{formatMoney(totalPurchases)}</div></CardContent>
           </Card>
           
-          <Card className="bg-gradient-to-br from-emerald-50 to-slate-50 border-emerald-100 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-600 font-medium">Total Paid</CardTitle></CardHeader>
-            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-bold text-slate-800">{formatMoney(totalPaid)}</div></CardContent>
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-500 font-medium">Total Paid</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-bold text-slate-900">{formatMoney(totalPaid)}</div></CardContent>
           </Card>
 
-          <Card className="bg-gradient-to-br from-rose-50 to-slate-50 border-rose-100 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-600 font-medium">Outstanding Balance</CardTitle></CardHeader>
+          <Card className="bg-white border-slate-200 shadow-sm">
+            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-500 font-medium">Outstanding Balance</CardTitle></CardHeader>
             <CardContent className="px-4 pb-4">
-              <div className="text-2xl lg:text-3xl font-bold text-rose-600">{formatMoney(outstandingBalance)}</div>
-              <p className="text-xs font-semibold uppercase mt-1 tracking-wider text-rose-600/70">We Owe Dealer</p>
+              <div className={`text-2xl lg:text-3xl font-bold ${outstandingBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatMoney(outstandingBalance)}</div>
+              <p className={`text-xs font-semibold uppercase mt-1 tracking-wider ${outstandingBalance > 0 ? 'text-rose-600/70' : 'text-emerald-600/70'}`}>We Owe Dealer</p>
             </CardContent>
           </Card>
         </div>
