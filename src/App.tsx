@@ -6,8 +6,9 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute"
 import { AppLayout } from "./components/layout/AppLayout"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 
+import { Login } from "./pages/auth/Login"
+
 // Route-level code splitting for production bundle reduction
-const Login = lazy(() => import("./pages/auth/Login").then(m => ({ default: m.Login })))
 const DashboardPage = lazy(() => import("./pages/dashboard"))
 const ProductsPage = lazy(() => import("./pages/products"))
 const ProductDetailPage = lazy(() => import("./pages/products/ProductDetailPage"))

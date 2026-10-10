@@ -18,10 +18,13 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+// Fast synchronous check to eliminate startup blocking for unauthenticated visitors and Lighthouse audits
+const hasStoredSession = typeof window !== "undefined" && typeof localStorage !== "undefined" && Object.keys(localStorage).some(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(hasStoredSession);
 
   useEffect(() => {
     // Get active session

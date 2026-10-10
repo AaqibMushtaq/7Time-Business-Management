@@ -14,29 +14,50 @@ export default defineConfig({
   },
   build: {
     target: 'esnext',
+    modulePreload: false,
     cssCodeSplit: true,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules')) {
-            if (id.includes('recharts') || id.includes('d3-')) {
-              return 'vendor-charts'
+          const norm = id.replace(/\\/g, '/')
+          if (norm.includes('/node_modules/')) {
+            // Core react runtime (first to prevent any leakage)
+            if (
+              norm.includes('/react/') || 
+              norm.includes('/react-dom/') || 
+              norm.includes('/react-router/') || 
+              norm.includes('/react-router-dom/') || 
+              norm.includes('/scheduler/')
+            ) {
+              return 'vendor-react'
             }
-            if (id.includes('@supabase')) {
-              return 'vendor-supabase'
+            // Shared styling utilities
+            if (
+              norm.includes('/clsx/') || 
+              norm.includes('/tailwind-merge/') || 
+              norm.includes('/class-variance-authority/')
+            ) {
+              return 'vendor-utils'
             }
-            if (id.includes('@tanstack/react-query')) {
+            // TanStack Query
+            if (norm.includes('/@tanstack/react-query/')) {
               return 'vendor-query'
             }
-            if (id.includes('lucide-react')) {
+            // Supabase client SDK
+            if (norm.includes('/@supabase/')) {
+              return 'vendor-supabase'
+            }
+            // UI & Icons
+            if (norm.includes('/lucide-react/')) {
               return 'vendor-icons'
             }
-            if (id.includes('@radix-ui')) {
+            if (norm.includes('/@radix-ui/')) {
               return 'vendor-ui'
             }
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-              return 'vendor-react'
+            // Charts (strictly isolated, only loaded when charts render)
+            if (norm.includes('/recharts/') || norm.includes('/d3-')) {
+              return 'vendor-charts'
             }
             return 'vendor-misc'
           }
