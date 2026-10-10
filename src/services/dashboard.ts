@@ -17,9 +17,10 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       startDate.setHours(0,0,0,0)
       endDate.setHours(23,59,59,999)
     } else if (range === "THIS_WEEK") {
-      const day = now.getDay()
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is sunday
-      startDate = new Date(now.setDate(diff))
+      const currentDay = new Date(now)
+      const day = currentDay.getDay()
+      const diff = currentDay.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is sunday
+      startDate = new Date(currentDay.setDate(diff))
       startDate.setHours(0,0,0,0)
       endDate = new Date()
     } else if (range === "THIS_MONTH") {
@@ -42,12 +43,58 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       .lte(dateColumn, endDate.toISOString().split('T')[0])
   }
 
-  // Fetch dynamic settings
-  const { data: settings } = await supabase.from("app_settings").select("low_stock_threshold").single()
+  // Calculate NAEEM target period
+  let targetYear = now.getFullYear()
+  let targetMonth = now.getMonth() + 1
+  if (range === "LAST_MONTH") {
+    const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    targetYear = lastM.getFullYear()
+    targetMonth = lastM.getMonth() + 1
+  } else if (range === "CUSTOM" && customStart) {
+    const cDate = new Date(customStart)
+    targetYear = cDate.getFullYear()
+    targetMonth = cDate.getMonth() + 1
+  }
+
+  // 1-6. Fetch all required datasets concurrently to avoid sequential network waterfall
+  const [
+    settingsRes,
+    inventoryRes,
+    purchasesRes,
+    allPurchasesRes,
+    allDealerPaymentsRes,
+    dealerPaymentsRes,
+    salesRes,
+    allSalesRes,
+    allResellerPaymentsRes,
+    resellerPaymentsRes,
+    generalDelRes,
+    naeemDelRes,
+    naeemPayRes,
+    balRes
+  ] = await Promise.all([
+    supabase.from("app_settings").select("low_stock_threshold").single(),
+    supabase.from("products").select("id, name, buying_cost, wholesale_price, stock_quantity"),
+    applyDateFilter(supabase.from("purchases").select("*, dealer:dealers(id, name)"), "purchase_date"),
+    supabase.from("purchases").select("total_amount, amount_paid, dealer_id").limit(999999),
+    supabase.from("dealer_payments").select("amount, dealer_id").limit(999999),
+    applyDateFilter(supabase.from("dealer_payments").select("*, dealer:dealers(name)"), "payment_date"),
+    applyDateFilter(supabase.from("wholesale_sales").select("*, customer:reseller_customers(id, name)"), "sale_date"),
+    supabase.from("wholesale_sales").select("total_sale, amount_received, customer_id").limit(999999),
+    supabase.from("reseller_payments").select("amount, customer_id").limit(999999),
+    applyDateFilter(supabase.from("reseller_payments").select("*, customer:reseller_customers(name)"), "payment_date"),
+    applyDateFilter(supabase.from("general_daily_records").select("*, entries:general_delivery_entries(amount)"), "record_date"),
+    applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id"), "delivery_date"),
+    applyDateFilter(supabase.from("naeem_payments").select("amount"), "payment_date"),
+    getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false }))
+  ])
+
+  // Extract results safely
+  const settings = settingsRes?.data
   const lowStockThreshold = settings?.low_stock_threshold || 2
 
-  // 1. Inventory Stats (Always current, no date filter for stock)
-  const { data: inventory } = await supabase.from("products").select("id, name, buying_cost, wholesale_price, stock_quantity")
+  // 1. Inventory Stats
+  const inventory = inventoryRes?.data
   const totalInventoryValue = inventory?.reduce((acc: number, p: any) => acc + (p.buying_cost * p.stock_quantity), 0) || 0
   const totalStockItems = inventory?.reduce((acc: number, p: any) => acc + p.stock_quantity, 0) || 0
   const potentialWholesaleRevenue = inventory?.reduce((acc: number, p: any) => acc + (p.wholesale_price * p.stock_quantity), 0) || 0
@@ -62,82 +109,51 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   const lowStock = inventory?.filter((p: any) => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold) || []
 
   // 2. Purchases Stats
-  const purchasesQuery = supabase.from("purchases").select("*, dealer:dealers(id, name)")
-  const { data: purchases } = await applyDateFilter(purchasesQuery, "purchase_date")
+  const purchases = purchasesRes?.data
   const totalPurchases = purchases?.reduce((acc: number, p: any) => acc + p.total_amount, 0) || 0
   const currentPeriodPurchasesPaid = purchases?.reduce((acc: number, p: any) => acc + (p.amount_paid || 0), 0) || 0
   
-  // Outstanding Purchases (We Owe) - This uses ALL purchases regardless of date filter to show true balance
-  const { data: allPurchases } = await supabase.from("purchases").select("total_amount, amount_paid, dealer_id").limit(999999)
-  const { data: allDealerPayments } = await supabase.from("dealer_payments").select("amount, dealer_id").limit(999999)
-  
-
-  // totalPayable is calculated later per-dealer to prevent negatives from skewing the total
+  // Outstanding Purchases (We Owe)
+  const allPurchases = allPurchasesRes?.data
+  const allDealerPayments = allDealerPaymentsRes?.data
 
   // 3. Dealer Payments Stats
-  const dealerPaymentsQuery = supabase.from("dealer_payments").select("*, dealer:dealers(name)")
-  const { data: dealerPayments } = await applyDateFilter(dealerPaymentsQuery, "payment_date")
+  const dealerPayments = dealerPaymentsRes?.data
   const totalDealerPayments = dealerPayments?.reduce((acc: number, p: any) => acc + p.amount, 0) || 0
 
   // 4. Wholesale Sales Stats
-  const salesQuery = supabase.from("wholesale_sales").select("*, customer:reseller_customers(id, name)")
-  const { data: sales } = await applyDateFilter(salesQuery, "sale_date")
+  const sales = salesRes?.data
   const totalSales = sales?.reduce((acc: number, s: any) => acc + s.total_sale, 0) || 0
   const totalSalesReceived = sales?.reduce((acc: number, s: any) => acc + s.amount_received, 0) || 0
   const totalProfit = sales?.reduce((acc: number, s: any) => acc + s.profit, 0) || 0
   const totalProductsSold = sales?.reduce((acc: number, s: any) => acc + s.quantity, 0) || 0
 
-  // Outstanding Sales (They Owe Us) - This uses ALL sales regardless of date filter
-  const { data: allSales } = await supabase.from("wholesale_sales").select("total_sale, amount_received, customer_id").limit(999999)
-  const { data: allResellerPayments } = await supabase.from("reseller_payments").select("amount, customer_id").limit(999999)
-  
-
+  // Outstanding Sales (They Owe Us)
+  const allSales = allSalesRes?.data
+  const allResellerPayments = allResellerPaymentsRes?.data
 
   // 5. Reseller Payments Stats
-  const resellerPaymentsQuery = supabase.from("reseller_payments").select("*, customer:reseller_customers(name)")
-  const { data: resellerPayments } = await applyDateFilter(resellerPaymentsQuery, "payment_date")
+  const resellerPayments = resellerPaymentsRes?.data
   const totalResellerPayments = resellerPayments?.reduce((acc: number, p: any) => acc + p.amount, 0) || 0
 
   // 6. Delivery Stats
-  const generalDelQuery = supabase.from("general_daily_records").select("*, entries:general_delivery_entries(amount)")
-  const { data: generalDel } = await applyDateFilter(generalDelQuery, "record_date")
+  const generalDel = generalDelRes?.data
   const generalRevenue = generalDel?.reduce((acc: number, d: any) => acc + (d.entries?.reduce((a: number, e: any) => a + e.amount, 0) || 0), 0) || 0
   const generalFuel = generalDel?.reduce((acc: number, d: any) => acc + (d.fuel_expenses || 0), 0) || 0
   const generalNet = generalRevenue - generalFuel
   const generalActiveDays = generalDel?.filter((d: any) => (d.entries?.length || 0) > 0).length || 0
 
-  const naeemDelQuery = supabase.from("naeem_daily_records").select("final_fare, status, route_id")
-  const { data: naeemDel } = await applyDateFilter(naeemDelQuery, "delivery_date")
+  const naeemDel = naeemDelRes?.data
   const naeemRevenue = naeemDel?.reduce((acc: number, d: any) => acc + (d.status === "No Order" ? 0 : Number(d.final_fare || 0)), 0) || 0
   const naeemTrips = naeemDel?.filter((d: any) => d.status !== "No Order").length || 0
 
-  const naeemPayQuery = supabase.from("naeem_payments").select("amount")
-  const { data: naeemPay } = await applyDateFilter(naeemPayQuery, "payment_date")
+  const naeemPay = naeemPayRes?.data
   const naeemReceived = naeemPay?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
   
-  // Calculate NAEEM opening balance, total due, and outstanding for the period to synchronize with NAEEM module
-  let targetYear = now.getFullYear()
-  let targetMonth = now.getMonth() + 1
-  if (range === "LAST_MONTH") {
-    const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    targetYear = lastM.getFullYear()
-    targetMonth = lastM.getMonth() + 1
-  } else if (range === "CUSTOM" && customStart) {
-    const cDate = new Date(customStart)
-    targetYear = cDate.getFullYear()
-    targetMonth = cDate.getMonth() + 1
-  }
-
-  let naeemOpeningBalance = 0
-  try {
-    const balRes = await getnaeemMonthlyBalance(targetYear, targetMonth)
-    naeemOpeningBalance = Number(balRes?.opening_balance) || 0
-  } catch (_e) {
-    naeemOpeningBalance = 0
-  }
-
+  const naeemOpeningBalance = Number(balRes?.opening_balance) || 0
   const naeemTotalDue = naeemOpeningBalance + naeemRevenue
   const naeemPending = naeemTotalDue - naeemReceived
+
 
   // Aggregations by Dealer
   const dealerAgg: Record<string, { id: string, name: string, purchases: number, paid: number, outstanding: number }> = {}

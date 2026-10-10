@@ -66,23 +66,21 @@ const navGroups = [
   }
 ]
 
-export function AppLayout() {
-  const { signOut, user } = useAuth()
-  const location = useLocation()
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+interface SidebarContentProps {
+  user: any
+  signOut: () => Promise<void>
+  pathname: string
+  onClose: () => void
+}
 
-  // Close mobile menu on route change
-  useEffect(() => {
-    setIsMobileMenuOpen(false)
-  }, [location.pathname])
-
-  const SidebarContent = () => (
+function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProps) {
+  return (
     <>
       <div className="h-16 flex items-center justify-between px-6 border-b border-slate-800 bg-slate-950">
         <span className="text-white font-bold text-lg tracking-tight">7TIME MANAGER</span>
         <button 
           className="lg:hidden text-slate-400 hover:text-white"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={onClose}
         >
           <X className="h-6 w-6" />
         </button>
@@ -99,8 +97,8 @@ export function AppLayout() {
               )}
               <div className="space-y-1">
                 {group.items.map((item) => {
-                  const isActive = location.pathname === item.href || 
-                    (item.href !== "/" && location.pathname.startsWith(item.href))
+                  const isActive = pathname === item.href || 
+                    (item.href !== "/" && pathname.startsWith(item.href))
 
                   return (
                     <Link
@@ -146,6 +144,17 @@ export function AppLayout() {
       </div>
     </>
   )
+}
+
+export function AppLayout() {
+  const { signOut, user } = useAuth()
+  const location = useLocation()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [location.pathname])
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">
@@ -165,7 +174,12 @@ export function AppLayout() {
           ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        <SidebarContent />
+        <SidebarContent 
+          user={user} 
+          signOut={signOut} 
+          pathname={location.pathname} 
+          onClose={() => setIsMobileMenuOpen(false)} 
+        />
       </div>
 
       {/* Main Content Area */}

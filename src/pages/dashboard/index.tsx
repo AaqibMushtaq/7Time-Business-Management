@@ -37,7 +37,7 @@ export default function DashboardPage() {
   const { data: prevData, isLoading: prevLoading } = useQuery({
     queryKey: ["dashboardStats", prevRange],
     queryFn: () => getDashboardStats(prevRange),
-    enabled: prevRange !== dateRange,
+    enabled: Boolean(data) && prevRange !== dateRange,
   })
 
   if (isLoading) {
