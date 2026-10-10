@@ -549,21 +549,33 @@ export default function DashboardPage() {
               Ledger
             </Link>
           </CardHeader>
-          <CardContent className="p-4 space-y-2.5 text-xs sm:text-sm">
+          <CardContent className="p-4 space-y-2 text-xs sm:text-sm">
             <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span className="text-slate-500">Total Route Trips</span>
+              <span className="text-slate-500">Route Trips</span>
               <span className="font-bold text-slate-900">{data.naeem.trips} trips</span>
             </div>
+            {data.naeem.openingBalance !== undefined && data.naeem.openingBalance !== 0 && (
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500">Opening Balance</span>
+                <span className="font-bold text-slate-700">{formatMoney(data.naeem.openingBalance)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center py-1 border-b border-slate-100">
-              <span className="text-slate-500">Total Billed</span>
+              <span className="text-slate-500">Current Billed</span>
               <span className="font-bold text-purple-700">{formatMoney(data.naeem.total)}</span>
             </div>
+            {data.naeem.totalDue !== undefined && (
+              <div className="flex justify-between items-center py-1 border-b border-slate-100">
+                <span className="text-slate-500">Total Due</span>
+                <span className="font-bold text-blue-900">{formatMoney(data.naeem.totalDue)}</span>
+              </div>
+            )}
             <div className="flex justify-between items-center py-1 border-b border-slate-100">
               <span className="text-slate-500">Total Received</span>
               <span className="font-bold text-green-700">{formatMoney(data.naeem.received)}</span>
             </div>
             <div className="flex justify-between items-center py-1">
-              <span className="text-slate-500">Pending Balance</span>
+              <span className="text-slate-500">Outstanding</span>
               <span className={`font-bold ${data.naeem.pending > 0 ? 'text-red-600' : 'text-slate-700'}`}>
                 {formatMoney(data.naeem.pending)}
               </span>

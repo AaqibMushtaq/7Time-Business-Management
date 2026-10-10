@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getDashboardStats } from './dashboard'
 import { supabase } from '@/lib/supabase'
+import { getnaeemMonthlyBalance } from '@/services/naeemDeliveries'
 
 vi.mock('@/lib/supabase', () => ({
   supabase: {
@@ -8,9 +9,14 @@ vi.mock('@/lib/supabase', () => ({
   }
 }))
 
+vi.mock('@/services/naeemDeliveries', () => ({
+  getnaeemMonthlyBalance: vi.fn(),
+}))
+
 describe('Dashboard Stats Calculations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ;(getnaeemMonthlyBalance as any).mockResolvedValue({ opening_balance: 0, is_manual_override: false })
   })
 
   it('calculates dealer payable correctly for basic reconciliation (Test A)', async () => {
@@ -155,4 +161,51 @@ describe('Dashboard Stats Calculations', () => {
     expect(stats.purchases.paymentsMade).toBe(5000)
     expect(stats.purchases.total).toBe(3000) // this month
   })
+
+  it('synchronizes NAEEM delivery, opening balance, and payments to dashboard stats (Test E)', async () => {
+    ;(getnaeemMonthlyBalance as any).mockResolvedValue({ opening_balance: 1180, is_manual_override: true })
+
+    const mockNaeemDeliveries = [
+      { id: '1', final_fare: 2850, status: 'Completed', delivery_date: '2026-10-05', route_id: 'r1' },
+      { id: '2', final_fare: 0, status: 'No Order', delivery_date: '2026-10-06', route_id: 'r2' }
+    ]
+    const mockNaeemPayments = [
+      { id: '1', amount: 1000, payment_date: '2026-10-08' }
+    ]
+
+    const fromMock = vi.fn().mockImplementation((table) => {
+      const queryBuilder: any = {
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null }),
+        limit: vi.fn().mockResolvedValue({ data: [] }),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ data: [] }),
+        then: function(resolve: any) { resolve({ data: [] }); }
+      }
+
+      if (table === 'app_settings') {
+        queryBuilder.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+      } else if (table === 'naeem_daily_records') {
+        queryBuilder.lte = vi.fn().mockResolvedValue({ data: mockNaeemDeliveries })
+        queryBuilder.then = function(resolve: any) { resolve({ data: mockNaeemDeliveries }); }
+      } else if (table === 'naeem_payments') {
+        queryBuilder.lte = vi.fn().mockResolvedValue({ data: mockNaeemPayments })
+        queryBuilder.then = function(resolve: any) { resolve({ data: mockNaeemPayments }); }
+      }
+
+      return queryBuilder
+    })
+
+    ;(supabase.from as any) = fromMock
+
+    const stats = await getDashboardStats('THIS_MONTH')
+
+    expect(stats.naeem.openingBalance).toBe(1180)
+    expect(stats.naeem.total).toBe(2850)
+    expect(stats.naeem.totalDue).toBe(4030)
+    expect(stats.naeem.received).toBe(1000)
+    expect(stats.naeem.pending).toBe(3030)
+    expect(stats.naeem.trips).toBe(1) // "No Order" trip excluded
+  })
 })
+

@@ -1,13 +1,15 @@
 import { supabase } from "@/lib/supabase"
+import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
 
 export type DateRange = "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR" | "ALL" | "CUSTOM"
 
 export const getDashboardStats = async (range: DateRange = "ALL", customStart?: string, customEnd?: string) => {
+  const now = new Date()
+
   // Helper to apply date filters to queries based on date column name
   const applyDateFilter = (query: any, dateColumn: string) => {
     if (range === "ALL") return query
     
-    const now = new Date()
     let startDate = new Date()
     let endDate = new Date()
 
@@ -106,15 +108,36 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
 
   const naeemDelQuery = supabase.from("naeem_daily_records").select("final_fare, status, route_id")
   const { data: naeemDel } = await applyDateFilter(naeemDelQuery, "delivery_date")
-  const naeemRevenue = naeemDel?.reduce((acc: number, d: any) => acc + (d.status === "No Order" ? 0 : d.final_fare), 0) || 0
+  const naeemRevenue = naeemDel?.reduce((acc: number, d: any) => acc + (d.status === "No Order" ? 0 : Number(d.final_fare || 0)), 0) || 0
+  const naeemTrips = naeemDel?.filter((d: any) => d.status !== "No Order").length || 0
 
   const naeemPayQuery = supabase.from("naeem_payments").select("amount")
   const { data: naeemPay } = await applyDateFilter(naeemPayQuery, "payment_date")
-  const naeemReceived = naeemPay?.reduce((acc: number, p: any) => acc + p.amount, 0) || 0
+  const naeemReceived = naeemPay?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
   
-  // Pending for the selected period (Revenue - Received in that period)
-  // For total pending, it would require calculating opening balances, but dashboard shows period stats
-  const naeemPending = naeemRevenue - naeemReceived
+  // Calculate NAEEM opening balance, total due, and outstanding for the period to synchronize with NAEEM module
+  let targetYear = now.getFullYear()
+  let targetMonth = now.getMonth() + 1
+  if (range === "LAST_MONTH") {
+    const lastM = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    targetYear = lastM.getFullYear()
+    targetMonth = lastM.getMonth() + 1
+  } else if (range === "CUSTOM" && customStart) {
+    const cDate = new Date(customStart)
+    targetYear = cDate.getFullYear()
+    targetMonth = cDate.getMonth() + 1
+  }
+
+  let naeemOpeningBalance = 0
+  try {
+    const balRes = await getnaeemMonthlyBalance(targetYear, targetMonth)
+    naeemOpeningBalance = Number(balRes?.opening_balance) || 0
+  } catch (_e) {
+    naeemOpeningBalance = 0
+  }
+
+  const naeemTotalDue = naeemOpeningBalance + naeemRevenue
+  const naeemPending = naeemTotalDue - naeemReceived
 
   // Aggregations by Dealer
   const dealerAgg: Record<string, { id: string, name: string, purchases: number, paid: number, outstanding: number }> = {}
@@ -294,7 +317,9 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       total: naeemRevenue,
       received: naeemReceived,
       pending: naeemPending,
-      trips: naeemDel?.length || 0
+      trips: naeemTrips,
+      openingBalance: naeemOpeningBalance,
+      totalDue: naeemTotalDue
     },
     dealers: Object.values(dealerAgg),
     resellers: Object.values(resellerAgg),

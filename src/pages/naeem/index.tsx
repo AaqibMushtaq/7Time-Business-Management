@@ -79,9 +79,10 @@ export default function NaeemUnclePage() {
   const [payNotes, setPayNotes] = useState("")
   const [payAllocations, setPayAllocations] = useState<Record<string, number>>({})
 
-  // Deletion States
+  // Deletion & Edit States
   const [deleteDeliveryId, setDeleteDeliveryId] = useState<string | null>(null)
   const [deletePaymentId, setDeletePaymentId] = useState<string | null>(null)
+  const [editingRecord, setEditingRecord] = useState<any>(null)
 
   // Filters
   const [searchRoute, setSearchRoute] = useState("")
@@ -131,6 +132,8 @@ export default function NaeemUnclePage() {
     mutationFn: recordnaeemDelivery,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemRecords"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
+      setEditingRecord(null)
       setRouteId(""); setExtraCharge(""); setNotes("")
     }
   })
@@ -139,7 +142,12 @@ export default function NaeemUnclePage() {
     mutationFn: deletenaeemRecord,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemRecords"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       setDeleteDeliveryId(null)
+      if (editingRecord && editingRecord.id === deleteDeliveryId) {
+        setEditingRecord(null)
+        setRouteId(""); setExtraCharge(""); setNotes("")
+      }
     }
   })
 
@@ -148,6 +156,7 @@ export default function NaeemUnclePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemRecords"] })
       queryClient.invalidateQueries({ queryKey: ["naeemPayments"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       setIsPaymentModalOpen(false)
       resetPaymentForm()
     }
@@ -158,6 +167,7 @@ export default function NaeemUnclePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemRecords"] })
       queryClient.invalidateQueries({ queryKey: ["naeemPayments"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       setDeletePaymentId(null)
     }
   })
@@ -166,8 +176,8 @@ export default function NaeemUnclePage() {
     mutationFn: (val: number) => upsertnaeemMonthlyBalance(currentYear, currentMonth, val),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemMonthlyBalance"] })
-      // Explicitly refetch just in case
       queryClient.refetchQueries({ queryKey: ["naeemMonthlyBalance"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       setIsBalanceModalOpen(false)
     },
     onError: (err: any) => {
@@ -180,6 +190,7 @@ export default function NaeemUnclePage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemMonthlyBalance"] })
       queryClient.refetchQueries({ queryKey: ["naeemMonthlyBalance"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       setIsBalanceModalOpen(false)
     },
     onError: (err: any) => {
@@ -187,19 +198,36 @@ export default function NaeemUnclePage() {
     }
   })
 
+  const handleStartEditDelivery = (record: any) => {
+    setEditingRecord(record)
+    setDate(record.delivery_date)
+    setRouteId(record.route_id)
+    setExtraCharge(record.extra_charge ? record.extra_charge.toString() : "")
+    setNotes(record.notes || "")
+    document.getElementById('delivery-form')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleCancelEditDelivery = () => {
+    setEditingRecord(null)
+    setRouteId("")
+    setExtraCharge("")
+    setNotes("")
+  }
+
   const handleRecordDelivery = (e: React.FormEvent) => {
     e.preventDefault()
     if (!routeId) return
     createDeliveryMut.mutate({
+      id: editingRecord ? editingRecord.id : undefined,
       route_id: routeId,
       delivery_date: date,
       standard_fare: standardFare,
       extra_charge: extraChargeNumeric,
       final_fare: finalFare,
-      cash_received: 0,
-      payment_method: null,
+      cash_received: editingRecord ? (editingRecord.cash_received || 0) : 0,
+      payment_method: editingRecord ? editingRecord.payment_method : null,
       balance: finalFare,
-      status: isNoOrder ? "No Order" : "Pending",
+      status: isNoOrder ? "No Order" : (editingRecord?.status === "Paid" ? "Paid" : "Pending"),
       notes
     })
   }
@@ -475,9 +503,16 @@ export default function NaeemUnclePage() {
             {/* LEFT: DELIVERY ENTRY (~65%) */}
             <div className="lg:col-span-8 space-y-6" id="delivery-form">
               <Card className="shadow-sm border-slate-200">
-                <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4">
-                  <CardTitle className="text-lg text-slate-800">Record Daily Delivery</CardTitle>
-                  <CardDescription>Add a completed delivery to the ledger</CardDescription>
+                <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-4 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg text-slate-800">{editingRecord ? "Edit Daily Delivery" : "Record Daily Delivery"}</CardTitle>
+                    <CardDescription>{editingRecord ? `Editing record from ${formatDate(editingRecord.delivery_date)}` : "Add a completed delivery to the ledger"}</CardDescription>
+                  </div>
+                  {editingRecord && (
+                    <Button type="button" variant="outline" size="sm" onClick={handleCancelEditDelivery}>
+                      Cancel Edit
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent className="p-6">
                   <form onSubmit={handleRecordDelivery} className="space-y-5">
@@ -553,8 +588,8 @@ export default function NaeemUnclePage() {
 
                     <div className="pt-2">
                       <Button type="submit" disabled={createDeliveryMut.isPending || !routeId} className="w-full bg-slate-900 hover:bg-slate-800 text-white h-11">
-                        {createDeliveryMut.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Plus className="mr-2 h-5 w-5" />}
-                        {createDeliveryMut.isPending ? "Saving..." : "Record Delivery"}
+                        {createDeliveryMut.isPending ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : editingRecord ? <Edit3 className="mr-2 h-5 w-5" /> : <Plus className="mr-2 h-5 w-5" />}
+                        {createDeliveryMut.isPending ? "Saving..." : editingRecord ? "Update Delivery" : "Record Delivery"}
                       </Button>
                     </div>
                   </form>
@@ -715,9 +750,14 @@ export default function NaeemUnclePage() {
                             </div>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDeleteDeliveryId(record.id)}>
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" title="Edit delivery" className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleStartEditDelivery(record)}>
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" title="Delete delivery" className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setDeleteDeliveryId(record.id)}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
