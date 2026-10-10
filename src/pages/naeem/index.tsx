@@ -8,6 +8,7 @@ import {
 } from "@/services/naeemDeliveries"
 import { processRecords, calculateSummary } from "@/lib/naeemCalculations"
 import { getPreviousMonth, getNextMonth } from "@/lib/dateUtils"
+import { parseArithmeticExpression } from "@/lib/arithmeticParser"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -65,7 +66,7 @@ export default function NaeemUnclePage() {
   // Form States
   const [date, setDate] = useState(today)
   const [routeId, setRouteId] = useState("")
-  const [extraCharge, setExtraCharge] = useState<number | "">("")
+  const [extraCharge, setExtraCharge] = useState<string>("")
   const [notes, setNotes] = useState("")
 
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
@@ -89,7 +90,19 @@ export default function NaeemUnclePage() {
   const selectedRouteInfo = useMemo(() => routes?.find(r => r.id === routeId), [routes, routeId])
   const standardFare = selectedRouteInfo?.standard_fare || 0
   const isNoOrder = selectedRouteInfo?.name.toLowerCase() === "no order"
-  const finalFare = standardFare + (Number(extraCharge) || 0)
+  const parsedExtra = useMemo(() => {
+    if (!extraCharge || !extraCharge.trim()) return null
+    return parseArithmeticExpression(extraCharge.trim())
+  }, [extraCharge])
+
+  const extraChargeNumeric = useMemo(() => {
+    if (parsedExtra?.isValid && parsedExtra.value !== null) {
+      return parsedExtra.value
+    }
+    return parseFloat(extraCharge) || 0
+  }, [parsedExtra, extraCharge])
+
+  const finalFare = standardFare + extraChargeNumeric
 
   // Data Processing
   const processedRecords = useMemo(() => {
@@ -181,7 +194,7 @@ export default function NaeemUnclePage() {
       route_id: routeId,
       delivery_date: date,
       standard_fare: standardFare,
-      extra_charge: Number(extraCharge) || 0,
+      extra_charge: extraChargeNumeric,
       final_fare: finalFare,
       cash_received: 0,
       payment_method: null,
@@ -497,15 +510,32 @@ export default function NaeemUnclePage() {
                             <Label className="text-slate-600">Extra Charge (Optional)</Label>
                             <div className="relative">
                               <span className="absolute left-3 top-2.5 text-slate-500">₹</span>
-                              <Input type="number" placeholder="0.00" value={extraCharge} onChange={e => setExtraCharge(e.target.value ? Number(e.target.value) : "")} min="0" className="pl-8 bg-slate-50 focus:bg-white" />
+                              <Input type="text" placeholder="0.00 or e.g. 50+20" value={extraCharge} onChange={e => setExtraCharge(e.target.value)} className="pl-8 bg-slate-50 focus:bg-white text-sm font-mono" />
                             </div>
+                            {parsedExtra && (
+                              <div className="mt-1 text-xs">
+                                {parsedExtra.isValid && parsedExtra.value !== null ? (
+                                  <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200 font-semibold inline-block">
+                                    = {formatMoney(parsedExtra.value)}
+                                  </span>
+                                ) : parsedExtra.isIncomplete ? (
+                                  <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block">
+                                    Typing '+'
+                                  </span>
+                                ) : (
+                                  <span className="text-red-600 bg-red-50 px-2 py-0.5 rounded border border-red-200 inline-block">
+                                    Invalid
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                         
                         <div className="bg-slate-50 rounded-lg p-4 border border-slate-100 flex justify-between items-center">
                           <div className="space-y-1">
                             <div className="text-sm text-slate-500 flex justify-between w-40"><span>Standard Fare</span> <span>{formatMoney(standardFare)}</span></div>
-                            <div className="text-sm text-slate-500 flex justify-between w-40 border-b border-slate-200 pb-1"><span>+ Extra</span> <span>{formatMoney(Number(extraCharge) || 0)}</span></div>
+                            <div className="text-sm text-slate-500 flex justify-between w-40 border-b border-slate-200 pb-1"><span>+ Extra</span> <span>{formatMoney(extraChargeNumeric)}</span></div>
                             <div className="text-sm font-bold text-slate-800 flex justify-between w-40 pt-1"><span>Final Fare</span> <span>{formatMoney(finalFare)}</span></div>
                           </div>
                           <div className="text-right">
@@ -639,17 +669,17 @@ export default function NaeemUnclePage() {
                 <div className="overflow-x-auto">
                   <div className="overflow-x-auto w-full">
 <Table className="min-w-[800px]">
-                    <TableHeader className="bg-white">
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="font-semibold text-slate-600 whitespace-nowrap">Date</TableHead>
-                        <TableHead className="font-semibold text-slate-600">Route</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-600">Fare</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-600">Extra</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-900 bg-slate-50/50">Total</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-600">Received</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-600">Balance</TableHead>
-                        <TableHead className="font-semibold text-slate-600">Status</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-600">Action</TableHead>
+                    <TableHeader className="bg-[#0E2A47] text-white">
+                      <TableRow className="border-b border-[#1E3A5F] hover:bg-[#0E2A47]">
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase whitespace-nowrap">Date</TableHead>
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase">Route</TableHead>
+                        <TableHead className="text-right font-semibold text-white/90 text-xs tracking-wider uppercase">Fare</TableHead>
+                        <TableHead className="text-right font-semibold text-white/90 text-xs tracking-wider uppercase">Extra</TableHead>
+                        <TableHead className="text-right font-semibold text-white text-xs tracking-wider uppercase bg-[#163659]">Total</TableHead>
+                        <TableHead className="text-right font-semibold text-white/90 text-xs tracking-wider uppercase">Received</TableHead>
+                        <TableHead className="text-right font-semibold text-white/90 text-xs tracking-wider uppercase">Balance</TableHead>
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase">Status</TableHead>
+                        <TableHead className="text-right font-semibold text-white/90 text-xs tracking-wider uppercase">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -736,15 +766,15 @@ export default function NaeemUnclePage() {
                 <div className="overflow-x-auto">
                   <div className="overflow-x-auto w-full">
 <Table className="min-w-[800px]">
-                    <TableHeader className="bg-white">
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="font-semibold text-slate-600 whitespace-nowrap">Date</TableHead>
-                        <TableHead className="font-semibold text-slate-600">Method</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-900">Amount</TableHead>
-                        <TableHead className="font-semibold text-slate-600">Reference</TableHead>
-                        <TableHead className="font-semibold text-slate-600">Applied</TableHead>
-                        <TableHead className="font-semibold text-slate-600">Notes</TableHead>
-                        <TableHead className="text-right font-semibold text-slate-600">Actions</TableHead>
+                    <TableHeader className="bg-[#0E2A47] text-white">
+                      <TableRow className="border-b border-[#1E3A5F] hover:bg-[#0E2A47]">
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase whitespace-nowrap">Date</TableHead>
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase">Method</TableHead>
+                        <TableHead className="text-right font-semibold text-white text-xs tracking-wider uppercase">Amount</TableHead>
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase">Reference</TableHead>
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase">Applied</TableHead>
+                        <TableHead className="font-semibold text-white/90 text-xs tracking-wider uppercase">Notes</TableHead>
+                        <TableHead className="text-right font-semibold text-white/90 text-xs tracking-wider uppercase">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>

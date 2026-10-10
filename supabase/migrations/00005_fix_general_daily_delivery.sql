@@ -13,12 +13,16 @@ DROP TABLE IF EXISTS public.general_daily_delivery_records CASCADE;
 CREATE TABLE IF NOT EXISTS public.general_daily_records (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     record_date DATE NOT NULL UNIQUE,
+    delivery_expression TEXT,
     fuel_expenses NUMERIC(10, 2) DEFAULT 0,
     opening_balance NUMERIC(10, 2) DEFAULT 0,
     remarks TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure delivery_expression column exists if table was created previously
+ALTER TABLE public.general_daily_records ADD COLUMN IF NOT EXISTS delivery_expression TEXT;
 
 -- 2. Create table for individual delivery entries (general_delivery_entries)
 CREATE TABLE IF NOT EXISTS public.general_delivery_entries (

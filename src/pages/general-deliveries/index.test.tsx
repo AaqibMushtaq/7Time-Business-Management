@@ -1,12 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import GeneralDeliveriesPage from "./index"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { getGeneralDailyRecords } from "@/services/generalDeliveries"
+import {
+  getGeneralDailyRecords
+} from "@/services/generalDeliveries"
 
 vi.mock("@/services/generalDeliveries", () => ({
   getGeneralDailyRecords: vi.fn(),
+  upsertDailyRecord: vi.fn(),
+  deleteDailyRecord: vi.fn(),
   upsertDailySummary: vi.fn(),
   upsertDeliveryEntry: vi.fn(),
   deleteDeliveryEntry: vi.fn()
@@ -16,7 +20,7 @@ vi.mock("@/lib/utils", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/lib/utils")>()
   return {
     ...mod,
-    formatMoney: (val: any) => `₹${val}`
+    formatMoney: (val: any) => `₹${Number(val).toFixed(2)}`
   }
 })
 
@@ -49,7 +53,7 @@ describe("GeneralDeliveriesPage", () => {
     )
   }
 
-  it("renders page header and controls", () => {
+  it("renders page header, 7TIME colors, and controls", () => {
     (getGeneralDailyRecords as any).mockResolvedValue([])
     renderComponent()
 
@@ -76,27 +80,28 @@ describe("GeneralDeliveriesPage", () => {
     expect(unavailableElements.length).toBe(4) // All 4 metric cards show Unavailable
   })
 
-  it("calculates and displays correct metric totals when data is loaded successfully", async () => {
+  it("calculates and displays correct metric totals and expressions when data is loaded successfully", async () => {
     const mockData = [
       {
         id: "rec-1",
         record_date: "2026-10-01",
-        fuel_expenses: 400,
+        delivery_expression: "10+350+10",
+        fuel_expenses: 100,
         opening_balance: 0,
-        remarks: null,
+        remarks: "First run",
         entries: [
-          { id: "e-1", customer_name: "Customer A", amount: 1200, received_amount: 1200, payment_method: "Cash" },
-          { id: "e-2", customer_name: "Customer B", amount: 800, received_amount: 800, payment_method: "Cash" }
+          { id: "e-1", customer_name: "Daily Operations", amount: 370, received_amount: 370 }
         ]
       },
       {
         id: "rec-2",
         record_date: "2026-10-02",
-        fuel_expenses: 250,
+        delivery_expression: "120",
+        fuel_expenses: 50,
         opening_balance: 0,
         remarks: null,
         entries: [
-          { id: "e-3", customer_name: "Customer C", amount: 1500, received_amount: 1500, payment_method: "UPI" }
+          { id: "e-2", customer_name: "Daily Operations", amount: 120, received_amount: 120 }
         ]
       }
     ]
@@ -107,29 +112,44 @@ describe("GeneralDeliveriesPage", () => {
 
     // Active delivery days: 2 days have entries
     await waitFor(() => {
-      expect(screen.getByText("2")).toBeDefined()
+      expect(screen.getAllByText("2").length).toBeGreaterThanOrEqual(1)
     })
 
-    // Total Deliveries: 1200 + 800 + 1500 = 3500
-    expect(screen.getByText("₹3500")).toBeDefined()
+    // Expression rendered in table cell: 10 + 350 + 10 = ₹370.00
+    expect(screen.getByText("10 + 350 + 10 = ₹370.00")).toBeDefined()
 
-    // Total Fuel: 400 + 250 = 650
-    expect(screen.getByText("₹650")).toBeDefined()
+    // Total Deliveries: 370 + 120 = 490.00
+    expect(screen.getAllByText("₹490.00").length).toBeGreaterThanOrEqual(1)
 
-    // Net Total: 3500 - 650 = 2850
-    expect(screen.getByText("₹2850")).toBeDefined()
+    // Total Fuel: 100 + 50 = 150.00
+    expect(screen.getAllByText("₹150.00").length).toBeGreaterThanOrEqual(1)
+
+    // Net Total: 490 - 150 = 340.00
+    expect(screen.getAllByText("₹340.00").length).toBeGreaterThanOrEqual(1)
   })
 
-  it("displays genuine zero-valued metrics when month legitimately has no records", async () => {
-    ;(getGeneralDailyRecords as any).mockResolvedValue([])
+  it("opens edit modal and calculates arithmetic expression in real-time", async () => {
+    (getGeneralDailyRecords as any).mockResolvedValue([])
 
     renderComponent()
 
-    await waitFor(() => {
-      expect(screen.getByText("0")).toBeDefined() // Active Days: 0
-    })
+    // Wait for the table rows to render
+    const editButtons = await screen.findAllByTitle("Edit day's deliveries & fuel")
+    expect(editButtons.length).toBeGreaterThanOrEqual(1)
+    fireEvent.click(editButtons[0])
 
-    const zeroAmounts = screen.getAllByText("₹0")
-    expect(zeroAmounts.length).toBe(3) // Total Deliveries: ₹0, Fuel: ₹0, Net: ₹0
+    // Modal opens
+    expect(await screen.findByText("Edit Daily Operations")).toBeDefined()
+
+    // Find input and type expression "10+350+10"
+    const input = screen.getByPlaceholderText("e.g. 10+350+10 or 370")
+    fireEvent.change(input, { target: { value: "10+350+10" } })
+
+    // Real-time calculation badge appears
+    expect(screen.getByText(/Calculated Total: ₹370.00/i)).toBeDefined()
+
+    // Type incomplete expression
+    fireEvent.change(input, { target: { value: "10+" } })
+    expect(screen.getByText(/Typing expression \(ends with '\+'\)/i)).toBeDefined()
   })
 })

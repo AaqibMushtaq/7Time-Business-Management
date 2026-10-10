@@ -119,12 +119,70 @@ This comprehensive audit covers all delivery-related modules within the 7TIME Bu
   - `opening_balance` (NUMERIC)
   - `is_manual_override` (BOOLEAN, DEFAULT FALSE)
 
+### 2.9 Arithmetic Expression Entry & Persistence
+- **Parser (`src/lib/arithmeticParser.ts`):** Evaluates arithmetic additions safely without `eval()` or `Function()`. Supports formats like `10+350+10`, decimal values, optional whitespace, and detects incomplete inputs (e.g. `10+`).
+- **Persistence Column:** `delivery_expression TEXT` added to `public.general_daily_records` via migration `00005_fix_general_daily_delivery.sql`.
+- **Sync with Entries:** `upsertDailyRecord` synchronizes `general_delivery_entries` so that Dashboard widgets and Reports aggregations stay accurate even when deliveries are recorded as mathematical expressions.
+- **Display Format:** Saved table cells format as `10 + 350 + 10 = ₹370.00`, remaining visible on page refresh and restored when editing.
+
+### 2.10 UI/UX Mini Dashboard & Daily Operations Table
+- **Mini-Dashboard Header:** 7TIME color system (`#0E2A47` Dark Navy, `#2D7FF9` Royal Blue, `#F8FAFC` background) with active period navigation and month selector.
+- **Summary Cards (4 balanced cards):** Active Days (Neutral), Total Deliveries (Royal Blue), Fuel Expenses (Amber), Net Total (Success Green) with explicit "Unavailable" on failure.
+- **Ledger Operations Table:** Dark Navy table header with subtle blue accents (`#163659`), compact row height, S. No., date, arithmetic expression + amount, fuel expenses, net total, notes preview / inline add, and monthly totals footer.
+
+---
+
+## 3. Module B: NAEEM Dedicated Delivery Operations
+
+### 3.1 Route & Entry Point
+- **Page Component:** `src/pages/naeem/index.tsx`
+- **Route:** `#/naeem` (registered in `src/App.tsx`)
+- **Service Layer:** `src/services/naeemDeliveries.ts`
+- **Calculation Engine:** `src/lib/naeemCalculations.ts`
+
+### 3.2 Authoritative Database Schema
+- **Routes Table:** `public.naeem_routes`
+  - `id` (UUID, PK)
+  - `name` (TEXT, NOT NULL)
+  - `standard_fare` (NUMERIC(12, 2), NOT NULL)
+  - `is_active` (BOOLEAN, DEFAULT TRUE)
+- **Daily Records Table:** `public.naeem_daily_records`
+  - `id` (UUID, PK)
+  - `route_id` (UUID, FK → `naeem_routes.id`)
+  - `delivery_date` (DATE, DEFAULT CURRENT_DATE)
+  - `standard_fare` (NUMERIC(12, 2))
+  - `extra_charge` (NUMERIC(12, 2), DEFAULT 0)
+  - `final_fare` (NUMERIC(12, 2))
+  - `cash_received` (NUMERIC(12, 2), DEFAULT 0)
+  - `payment_method` (TEXT)
+  - `balance` (NUMERIC(12, 2), DEFAULT 0)
+  - `status` (TEXT: 'Paid', 'Partially Paid', 'Pending', 'No Order')
+  - `notes` (TEXT)
+- **Payments Table:** `public.naeem_payments`
+  - `id` (UUID, PK)
+  - `payment_date` (DATE)
+  - `amount` (NUMERIC(12, 2))
+  - `payment_method` (TEXT)
+  - `reference_number`, `cheque_number`, `cheque_date`, `bank_name`, `notes`
+- **Payment Allocations Table:** `public.naeem_payment_allocations`
+  - `id` (UUID, PK)
+  - `payment_id` (UUID, FK → `naeem_payments.id` ON DELETE CASCADE)
+  - `daily_record_id` (UUID, FK → `naeem_daily_records.id` ON DELETE RESTRICT)
+  - `allocated_amount` (NUMERIC(12, 2))
+- **Monthly Balances Table:** `public.naeem_monthly_balances`
+  - `id` (UUID, PK)
+  - `year` (INT), `month` (INT)
+  - `opening_balance` (NUMERIC)
+  - `is_manual_override` (BOOLEAN, DEFAULT FALSE)
+
 ### 3.3 Accounting Integrity
 - **Formulas Preserved:**
   - `Total Due = Opening Balance + Current Month Billed`
   - `Outstanding = Total Due − Total Received`
 - **Zero-Billed Semantics:** Routes named "No Order" or records with status "No Order" contribute ₹0 to billed amounts and do not count toward billable trips.
 - **Carry-Forward & Overrides:** Carries forward dynamic balance from the latest manual override before the target month. Overrides take precedence immediately.
+- **Arithmetic Entry in Extra Charge:** Form input accepts arithmetic expressions (e.g. `50+20`) with live evaluation preview, saving evaluated extra charge without disrupting accounting rules.
+- **Unified Table Styling:** Table headers styled in Dark Navy `#0E2A47` with crisp white uppercase labels.
 
 ### 3.4 Automated Test Coverage
 - `src/lib/naeemCalculations.test.ts` (6 tests passing)
@@ -150,8 +208,12 @@ This comprehensive audit covers all delivery-related modules within the 7TIME Bu
 
 | Area | Status | Verified Behavior |
 |---|---|---|
-| `public.general_daily_records` Schema | REPAIRED | Migration `00005_fix_general_daily_delivery.sql` defined and runner prepared. |
-| General Delivery Summary Cards | RESOLVED | Failed queries no longer present fake `0` / `₹0`; explicit Unavailable/Error state displayed. |
+| `public.general_daily_records` Schema | REPAIRED | Migration `00005_fix_general_daily_delivery.sql` defined with `delivery_expression` and runner prepared. |
+| General Delivery Summary Cards | RESOLVED | 4-card mini dashboard (Active Days, Deliveries, Fuel, Net) with explicit Unavailable/Error state on query failure. |
+| Arithmetic Expression Persistence | VERIFIED PASS | `10+350+10` calculates ₹370.00 and displays `10 + 350 + 10 = ₹370.00`, persisting across page reloads. |
+| Daily Operations Ledger Table | RESOLVED | Compact table with Dark Navy header (`#0E2A47`), readable typography, notes editing, and monthly footer totals. |
 | General Delivery Entry CRUD | RESOLVED | Upsert safely handles parent record creation, ID preservation, and cascade deletion. |
-| NAEEM Accounting Rules | VERIFIED PASS | `Total Due = Opening + Billed`, `Outstanding = Total Due − Received` verified. |
+| NAEEM Accounting Rules | VERIFIED PASS | `Total Due = Opening + Billed`, `Outstanding = Total Due − Received` preserved. Extra charge supports arithmetic expressions. |
 | PostgREST Schema Cache Reload | PREPARED | `NOTIFY pgrst, 'reload schema'` integrated into migration scripts. |
+| Responsive Layouts | VERIFIED | Layouts tested across mobile (320px-430px), tablet (768px-1024px), and desktop (1280px-1920px) without body overflow. |
+

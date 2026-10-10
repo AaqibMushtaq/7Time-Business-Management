@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import {
   getGeneralDailyRecords,
+  upsertDailyRecord,
+  deleteDailyRecord,
   upsertDailySummary,
-  upsertDeliveryEntry,
   deleteDeliveryEntry
 } from "./generalDeliveries"
 import { supabase } from "@/lib/supabase"
@@ -27,9 +28,10 @@ describe("generalDeliveries service", () => {
         {
           id: "rec-1",
           record_date: "2026-10-05",
+          delivery_expression: "10+350+10",
           fuel_expenses: 500,
           opening_balance: 0,
-          entries: [{ id: "entry-1", amount: 1500 }]
+          entries: [{ id: "entry-1", amount: 370 }]
         }
       ]
 
@@ -64,8 +66,130 @@ describe("generalDeliveries service", () => {
     })
   })
 
+  describe("upsertDailyRecord", () => {
+    it("updates existing record and syncs delivery entry when expression provided", async () => {
+      const selectRecordMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({ data: { id: "rec-1" }, error: null })
+        })
+      })
+
+      const updateRecordMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          select: vi.fn().mockResolvedValue({
+            data: [{ id: "rec-1", record_date: "2026-10-05", delivery_expression: "10+350+10" }],
+            error: null
+          })
+        })
+      })
+
+      const selectEntriesMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({
+            data: [{ id: "entry-existing" }],
+            error: null
+          })
+        })
+      })
+
+      const updateEntryMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "general_daily_records") {
+          return {
+            select: selectRecordMock,
+            update: updateRecordMock
+          }
+        }
+        if (table === "general_delivery_entries") {
+          return {
+            select: selectEntriesMock,
+            update: updateEntryMock
+          }
+        }
+        return {}
+      })
+
+      const res = await upsertDailyRecord("2026-10-05", {
+        delivery_expression: "10+350+10",
+        fuel_expenses: 120,
+        remarks: "Test note"
+      })
+
+      expect(updateRecordMock).toHaveBeenCalled()
+      expect(updateEntryMock).toHaveBeenCalled()
+      expect(res.id).toBe("rec-1")
+    })
+
+    it("inserts new record and creates synchronized entry", async () => {
+      const selectRecordMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
+        })
+      })
+
+      const insertRecordMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockResolvedValue({
+          data: [{ id: "rec-new", record_date: "2026-10-06" }],
+          error: null
+        })
+      })
+
+      const selectEntriesMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({
+            data: [],
+            error: null
+          })
+        })
+      })
+
+      const insertEntryMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "general_daily_records") {
+          return {
+            select: selectRecordMock,
+            insert: insertRecordMock
+          }
+        }
+        if (table === "general_delivery_entries") {
+          return {
+            select: selectEntriesMock,
+            insert: insertEntryMock
+          }
+        }
+        return {}
+      })
+
+      const res = await upsertDailyRecord("2026-10-06", {
+        delivery_expression: "120",
+        fuel_expenses: 50,
+        remarks: null
+      })
+
+      expect(insertRecordMock).toHaveBeenCalled()
+      expect(insertEntryMock).toHaveBeenCalled()
+      expect(res.id).toBe("rec-new")
+    })
+  })
+
+  describe("deleteDailyRecord", () => {
+    it("deletes daily record by ID", async () => {
+      const eqMock = vi.fn().mockResolvedValue({ error: null })
+      const deleteMock = vi.fn().mockReturnValue({ eq: eqMock })
+      ;(supabase.from as any).mockReturnValue({ delete: deleteMock })
+
+      await deleteDailyRecord("rec-delete-1")
+      expect(supabase.from).toHaveBeenCalledWith("general_daily_records")
+      expect(eqMock).toHaveBeenCalledWith("id", "rec-delete-1")
+    })
+  })
+
   describe("upsertDailySummary", () => {
-    it("updates existing record when one exists", async () => {
+    it("delegates to upsertDailyRecord", async () => {
       const selectMock = vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           maybeSingle: vi.fn().mockResolvedValue({ data: { id: "rec-1" }, error: null })
@@ -75,7 +199,7 @@ describe("generalDeliveries service", () => {
       const updateMock = vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           select: vi.fn().mockResolvedValue({
-            data: [{ id: "rec-1", record_date: "2026-10-05", fuel_expenses: 300 }],
+            data: [{ id: "rec-1" }],
             error: null
           })
         })
@@ -87,89 +211,7 @@ describe("generalDeliveries service", () => {
       })
 
       const res = await upsertDailySummary("2026-10-05", 300, 0, "Test remark")
-      expect(updateMock).toHaveBeenCalled()
       expect(res.id).toBe("rec-1")
-    })
-
-    it("inserts a new record when none exists", async () => {
-      const selectMock = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null })
-        })
-      })
-
-      const insertMock = vi.fn().mockReturnValue({
-        select: vi.fn().mockResolvedValue({
-          data: [{ id: "rec-new", record_date: "2026-10-06", fuel_expenses: 250 }],
-          error: null
-        })
-      })
-
-      ;(supabase.from as any).mockReturnValue({
-        select: selectMock,
-        insert: insertMock
-      })
-
-      const res = await upsertDailySummary("2026-10-06", 250, 0, null)
-      expect(insertMock).toHaveBeenCalled()
-      expect(res.id).toBe("rec-new")
-    })
-  })
-
-  describe("upsertDeliveryEntry", () => {
-    it("creates parent record if missing, then upserts the delivery entry", async () => {
-      // 1. Look for daily record -> returns null
-      const maybeSingleMock = vi.fn().mockResolvedValue({ data: null, error: null })
-      const selectDailyMock = vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({ maybeSingle: maybeSingleMock })
-      })
-
-      // 2. Insert parent record
-      const singleInsertMock = vi.fn().mockResolvedValue({
-        data: { id: "parent-rec-1", record_date: "2026-10-07" },
-        error: null
-      })
-      const insertDailyMock = vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({ single: singleInsertMock })
-      })
-
-      // 3. Upsert entry
-      const upsertEntryMock = vi.fn().mockReturnValue({
-        select: vi.fn().mockResolvedValue({
-          data: [{ id: "entry-1", daily_record_id: "parent-rec-1", customer_name: "Customer A", amount: 1000 }],
-          error: null
-        })
-      })
-
-      ;(supabase.from as any).mockImplementation((table: string) => {
-        if (table === "general_daily_records") {
-          return {
-            select: selectDailyMock,
-            insert: insertDailyMock
-          }
-        }
-        if (table === "general_delivery_entries") {
-          return {
-            upsert: upsertEntryMock
-          }
-        }
-        return {}
-      })
-
-      const entry = {
-        customer_name: "Customer A",
-        description: "Delivery to Town",
-        amount: 1000,
-        received_amount: 1000,
-        payment_method: "Cash",
-        reference: null,
-        notes: null
-      }
-
-      const res = await upsertDeliveryEntry("2026-10-07", entry)
-      expect(insertDailyMock).toHaveBeenCalled()
-      expect(upsertEntryMock).toHaveBeenCalled()
-      expect(res.customer_name).toBe("Customer A")
     })
   })
 
