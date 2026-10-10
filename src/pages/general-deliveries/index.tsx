@@ -41,7 +41,7 @@ export default function GeneralDeliveriesPage() {
     localStorage.setItem("general_delivery_month", selectedMonth)
   }, [selectedMonth])
 
-  const { data: dbRecords, isLoading, isError, error } = useQuery({
+  const { data: dbRecords, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["generalDailyRecords", selectedMonth],
     queryFn: () => getGeneralDailyRecords(selectedMonth)
   })
@@ -98,28 +98,83 @@ export default function GeneralDeliveriesPage() {
         <Card className="bg-slate-50 border-slate-200">
           <CardContent className="p-4 pt-6">
             <div className="text-sm font-medium text-slate-500 mb-1">Active Delivery Days</div>
-            <div className="text-2xl font-bold text-slate-900">{activeDays}</div>
+            <div className="text-2xl font-bold text-slate-900">
+              {isLoading ? (
+                <span className="text-slate-400 text-lg">Loading...</span>
+              ) : isError ? (
+                <span className="text-red-500 text-lg flex items-center gap-1 font-semibold">
+                  <AlertCircle className="w-4 h-4 inline" /> Unavailable
+                </span>
+              ) : (
+                activeDays
+              )}
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-blue-50 border-blue-200">
           <CardContent className="p-4 pt-6">
             <div className="text-sm font-medium text-blue-800 mb-1">Total Deliveries</div>
-            <div className="text-2xl font-bold text-blue-900">{formatMoney(totalDeliveries)}</div>
+            <div className="text-2xl font-bold text-blue-900">
+              {isLoading ? (
+                <span className="text-slate-400 text-lg">Loading...</span>
+              ) : isError ? (
+                <span className="text-red-500 text-lg flex items-center gap-1 font-semibold">
+                  <AlertCircle className="w-4 h-4 inline" /> Unavailable
+                </span>
+              ) : (
+                formatMoney(totalDeliveries)
+              )}
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-orange-50 border-orange-200">
           <CardContent className="p-4 pt-6">
             <div className="text-sm font-medium text-orange-800 mb-1">Fuel Expenses</div>
-            <div className="text-2xl font-bold text-orange-900">{formatMoney(totalFuel)}</div>
+            <div className="text-2xl font-bold text-orange-900">
+              {isLoading ? (
+                <span className="text-slate-400 text-lg">Loading...</span>
+              ) : isError ? (
+                <span className="text-red-500 text-lg flex items-center gap-1 font-semibold">
+                  <AlertCircle className="w-4 h-4 inline" /> Unavailable
+                </span>
+              ) : (
+                formatMoney(totalFuel)
+              )}
+            </div>
           </CardContent>
         </Card>
         <Card className="bg-green-50 border-green-200">
           <CardContent className="p-4 pt-6">
             <div className="text-sm font-medium text-green-800 mb-1">Net Total</div>
-            <div className="text-2xl font-bold text-green-900">{formatMoney(netTotal)}</div>
+            <div className="text-2xl font-bold text-green-900">
+              {isLoading ? (
+                <span className="text-slate-400 text-lg">Loading...</span>
+              ) : isError ? (
+                <span className="text-red-500 text-lg flex items-center gap-1 font-semibold">
+                  <AlertCircle className="w-4 h-4 inline" /> Unavailable
+                </span>
+              ) : (
+                formatMoney(netTotal)
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {isError && (
+        <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+            <div>
+              <p className="font-semibold">Unable to load delivery data for {selectedMonth}</p>
+              <p className="text-sm text-red-600">Database error: {(error as Error)?.message || "Failed to load records."}</p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="border-red-300 text-red-700 hover:bg-red-100 shrink-0">
+            Retry Query
+          </Button>
+        </div>
+      )}
 
       {!isError && (
         <Card>
@@ -163,7 +218,10 @@ export default function GeneralDeliveriesPage() {
             ) : isError ? (
               <div className="p-8 text-center text-red-500 flex flex-col items-center font-medium">
                 <AlertCircle className="h-8 w-8 mb-4 text-red-500" />
-                Database error: {(error as Error)?.message || "Unable to load records."}
+                <p className="mb-2">Database error: {(error as Error)?.message || "Unable to load records."}</p>
+                <Button variant="outline" size="sm" onClick={() => refetch()} className="mt-2">
+                  Retry
+                </Button>
               </div>
             ) : (
               <table className="w-full text-sm text-left">

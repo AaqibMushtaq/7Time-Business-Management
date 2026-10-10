@@ -47,25 +47,27 @@ export async function upsertDailySummary(record_date: string, fuel_expenses: num
     .from("general_daily_records")
     .select("id")
     .eq("record_date", record_date)
-    .single()
+    .maybeSingle()
+
+  if (findError) {
+    throw new Error(findError.message)
+  }
 
   if (existing) {
     const { data, error } = await supabase
       .from("general_daily_records")
-      .update({ fuel_expenses, opening_balance, remarks })
+      .update({ fuel_expenses, opening_balance, remarks, updated_at: new Date().toISOString() })
       .eq("id", existing.id)
       .select()
     if (error) throw new Error(error.message)
     return data[0]
-  } else if (findError?.code === "PGRST116") {
+  } else {
     const { data, error } = await supabase
       .from("general_daily_records")
-      .insert([{ record_date, fuel_expenses, opening_balance, remarks }])
+      .insert([{ record_date, fuel_expenses: fuel_expenses ?? 0, opening_balance: opening_balance ?? 0, remarks }])
       .select()
     if (error) throw new Error(error.message)
     return data[0]
-  } else if (findError) {
-    throw new Error(findError.message)
   }
 }
 
@@ -75,9 +77,13 @@ export async function upsertDeliveryEntry(record_date: string, entry: GeneralDel
     .from("general_daily_records")
     .select("id")
     .eq("record_date", record_date)
-    .single()
+    .maybeSingle()
 
-  if (!dailyRecord && findError?.code === "PGRST116") {
+  if (findError) {
+    throw new Error(findError.message)
+  }
+
+  if (!dailyRecord) {
     const { data: newRec, error: insertError } = await supabase
       .from("general_daily_records")
       .insert([{ record_date, fuel_expenses: 0, opening_balance: 0, remarks: null }])
@@ -85,15 +91,13 @@ export async function upsertDeliveryEntry(record_date: string, entry: GeneralDel
       .single()
     if (insertError) throw new Error(insertError.message)
     dailyRecord = newRec
-  } else if (findError && findError.code !== "PGRST116") {
-    throw new Error(findError.message)
   }
 
   // Insert or Update the entry
   const { data, error } = await supabase
     .from("general_delivery_entries")
     .upsert([{
-      id: entry.id, // UUID idempotency
+      id: entry.id || crypto.randomUUID(),
       daily_record_id: dailyRecord!.id,
       customer_name: entry.customer_name,
       description: entry.description,
