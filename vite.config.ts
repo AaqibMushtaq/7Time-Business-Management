@@ -22,13 +22,30 @@ export default defineConfig({
         manualChunks(id) {
           const norm = id.replace(/\\/g, '/')
           if (norm.includes('/node_modules/')) {
-            // Core react runtime (first to prevent any leakage)
+            // Recharts, d3, redux-toolkit, immer, etc. must remain 100% dynamic (loaded only on chart routes)
+            if (
+              norm.includes('/recharts/') || 
+              norm.includes('/d3-') || 
+              norm.includes('/victory-vendor/') ||
+              norm.includes('/decimal.js-light/') ||
+              norm.includes('/internmap/') ||
+              norm.includes('/redux') ||
+              norm.includes('/immer/') ||
+              norm.includes('/reselect/') ||
+              norm.includes('/es-toolkit/') ||
+              norm.includes('/eventemitter3/')
+            ) {
+              return undefined
+            }
+            // Core react runtime
             if (
               norm.includes('/react/') || 
               norm.includes('/react-dom/') || 
               norm.includes('/react-router/') || 
               norm.includes('/react-router-dom/') || 
-              norm.includes('/scheduler/')
+              norm.includes('/scheduler/') ||
+              norm.includes('/use-sync-external-store/') ||
+              norm.includes('/react-is/')
             ) {
               return 'vendor-react'
             }
@@ -40,8 +57,8 @@ export default defineConfig({
             ) {
               return 'vendor-utils'
             }
-            // TanStack Query
-            if (norm.includes('/@tanstack/react-query/')) {
+            // TanStack Query runtime & core
+            if (norm.includes('/@tanstack/')) {
               return 'vendor-query'
             }
             // Supabase client SDK
@@ -54,10 +71,6 @@ export default defineConfig({
             }
             if (norm.includes('/@radix-ui/')) {
               return 'vendor-ui'
-            }
-            // Charts (strictly isolated, only loaded when charts render)
-            if (norm.includes('/recharts/') || norm.includes('/d3-')) {
-              return 'vendor-charts'
             }
             return 'vendor-misc'
           }
