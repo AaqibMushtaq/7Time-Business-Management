@@ -68,10 +68,16 @@ export async function upsertDailyRecord(
 
   if (existing) {
     const updatePayload: Record<string, any> = {
-      fuel_expenses: params.fuel_expenses ?? 0,
-      opening_balance: params.opening_balance ?? 0,
-      remarks: params.remarks ?? null,
       updated_at: new Date().toISOString()
+    }
+    if (params.fuel_expenses !== undefined) {
+      updatePayload.fuel_expenses = params.fuel_expenses
+    }
+    if (params.opening_balance !== undefined) {
+      updatePayload.opening_balance = params.opening_balance
+    }
+    if (params.remarks !== undefined) {
+      updatePayload.remarks = params.remarks
     }
     if (params.delivery_expression !== undefined) {
       updatePayload.delivery_expression = params.delivery_expression
