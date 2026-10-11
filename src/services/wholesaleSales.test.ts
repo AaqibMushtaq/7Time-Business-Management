@@ -98,8 +98,8 @@ describe("wholesaleSales service", () => {
     })
   })
 
-  describe("3. Saving notes and the selected payment method", () => {
-    it("preserves both custom notes and selected payment method", async () => {
+  describe("3. Note persistence and editing", () => {
+    it("preserves custom notes and selected payment method on creation", async () => {
       const customSale = {
         ...baseSaleFixture,
         payment_method: "UPI",
@@ -120,6 +120,39 @@ describe("wholesaleSales service", () => {
       ])
       expect(result.notes).toBe("Delivered via express vehicle - transaction ref #98765")
       expect(result.payment_method).toBe("UPI")
+    })
+
+    it("updates only note on existing sale without altering financial values", async () => {
+      const updatedSale = { ...baseSaleFixture, notes: "Updated delivery note" }
+      const singleMock = vi.fn().mockResolvedValue({ data: updatedSale, error: null })
+      const selectMock = vi.fn().mockReturnValue({ single: singleMock })
+      const eqMock = vi.fn().mockReturnValue({ select: selectMock })
+      const updateMock = vi.fn().mockReturnValue({ eq: eqMock })
+      ;(supabase.from as any).mockReturnValue({ update: updateMock })
+
+      const result = await updateWholesaleSale("sale-uuid-001", {
+        notes: "Updated delivery note"
+      })
+
+      expect(updateMock).toHaveBeenCalledWith({ notes: "Updated delivery note" })
+      expect(eqMock).toHaveBeenCalledWith("id", "sale-uuid-001")
+      expect(result.notes).toBe("Updated delivery note")
+      expect(result.total_sale).toBe(800)
+      expect(result.profit).toBe(300)
+    })
+
+    it("persists null when note is blank or cleared", async () => {
+      const clearedNoteSale = { ...baseSaleFixture, notes: null }
+      const singleMock = vi.fn().mockResolvedValue({ data: clearedNoteSale, error: null })
+      const selectMock = vi.fn().mockReturnValue({ single: singleMock })
+      const eqMock = vi.fn().mockReturnValue({ select: selectMock })
+      const updateMock = vi.fn().mockReturnValue({ eq: eqMock })
+      ;(supabase.from as any).mockReturnValue({ update: updateMock })
+
+      const result = await updateWholesaleSale("sale-uuid-001", { notes: null })
+
+      expect(updateMock).toHaveBeenCalledWith({ notes: null })
+      expect(result.notes).toBeNull()
     })
   })
 
@@ -207,17 +240,34 @@ describe("wholesaleSales service", () => {
     })
   })
 
-  describe("8. Product stock changes", () => {
-    it("calculates expected inventory reduction after sale", () => {
+  describe("8. Product stock changes and reconciliation", () => {
+    it("calculates expected inventory reduction on new sale", () => {
       const initialStock = 100
       const soldQty = 15
       const newStock = initialStock - soldQty
       expect(newStock).toBe(85)
     })
+
+    it("calculates inventory stock reconciliation when quantity is edited", () => {
+      const initialStock = 85
+      const oldSoldQty = 10
+      const newSoldQty = 15
+      // Database trigger: stock_quantity + old_qty - new_qty
+      const reconciledStock = initialStock + oldSoldQty - newSoldQty
+      expect(reconciledStock).toBe(80)
+    })
+
+    it("calculates inventory stock reconciliation when quantity is decreased", () => {
+      const initialStock = 85
+      const oldSoldQty = 10
+      const newSoldQty = 6
+      const reconciledStock = initialStock + oldSoldQty - newSoldQty
+      expect(reconciledStock).toBe(89)
+    })
   })
 
   describe("9. Reloading Wholesale Transactions after saving", () => {
-    it("fetches updated transaction list joining customers, products, dealers", async () => {
+    it("fetches updated transaction list joining customers, products, dealers and notes", async () => {
       const mockSales: WholesaleSale[] = [
         {
           ...baseSaleFixture,
@@ -239,6 +289,7 @@ describe("wholesaleSales service", () => {
       expect(result[0].customer?.name).toBe("Ahmed Trader")
       expect(result[0].product?.name).toBe("Grade A Almonds")
       expect(result[0].payment_method).toBe("CASH")
+      expect(result[0].notes).toBe("First test sale")
     })
   })
 
@@ -257,6 +308,21 @@ describe("wholesaleSales service", () => {
 
       await expect(createWholesaleSale(baseSaleFixture)).rejects.toThrow(
         "Could not find the 'payment_method' column of 'wholesale_sales' in the schema cache"
+      )
+    })
+
+    it("throws error when Supabase rejects an update", async () => {
+      const singleMock = vi.fn().mockResolvedValue({
+        data: null,
+        error: { message: "Database constraint error on update" }
+      })
+      const selectMock = vi.fn().mockReturnValue({ single: singleMock })
+      const eqMock = vi.fn().mockReturnValue({ select: selectMock })
+      const updateMock = vi.fn().mockReturnValue({ eq: eqMock })
+      ;(supabase.from as any).mockReturnValue({ update: updateMock })
+
+      await expect(updateWholesaleSale("sale-uuid-001", { quantity: 20 })).rejects.toThrow(
+        "Database constraint error on update"
       )
     })
   })
@@ -297,11 +363,12 @@ describe("wholesaleSales service", () => {
     })
   })
 
-  describe("12. Preserving historical records without fabricated payment methods", () => {
-    it("allows existing records with null or absent payment_method", async () => {
+  describe("12. Preserving historical records without fabricated payment methods or notes", () => {
+    it("allows existing records with null payment_method and null notes", async () => {
       const historicalSale: WholesaleSale = {
         ...baseSaleFixture,
-        payment_method: null
+        payment_method: null,
+        notes: null
       }
 
       const orderMock = vi.fn().mockResolvedValue({ data: [historicalSale], error: null })
@@ -310,6 +377,7 @@ describe("wholesaleSales service", () => {
 
       const result = await getWholesaleSales()
       expect(result[0].payment_method).toBeNull()
+      expect(result[0].notes).toBeNull()
       expect(result[0].total_sale).toBe(800)
       expect(result[0].profit).toBe(300)
     })

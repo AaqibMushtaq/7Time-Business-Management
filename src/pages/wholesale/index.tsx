@@ -1,6 +1,12 @@
 import { useState, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getWholesaleSales, createWholesaleSale } from "@/services/wholesaleSales"
+import { 
+  getWholesaleSales, 
+  createWholesaleSale, 
+  updateWholesaleSale, 
+  deleteWholesaleSale, 
+  type WholesaleSale 
+} from "@/services/wholesaleSales"
 import { getResellers } from "@/services/resellers"
 import { getProducts } from "@/services/products"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, Plus } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, X } from "lucide-react"
 
 export default function WholesaleSalesPage() {
   const queryClient = useQueryClient()
@@ -22,6 +28,17 @@ export default function WholesaleSalesPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [notes, setNotes] = useState("")
   const [idempotencyKey, setIdempotencyKey] = useState(crypto.randomUUID())
+
+  // Edit State
+  const [editingSale, setEditingSale] = useState<WholesaleSale | null>(null)
+  const [editCustomerId, setEditCustomerId] = useState("")
+  const [editProductId, setEditProductId] = useState("")
+  const [editSaleDate, setEditSaleDate] = useState("")
+  const [editQuantity, setEditQuantity] = useState("")
+  const [editAmountReceived, setEditAmountReceived] = useState("")
+  const [editPaymentMethod, setEditPaymentMethod] = useState("CASH")
+  const [editNotes, setEditNotes] = useState("")
+  const [editError, setEditError] = useState<string | null>(null)
 
   const { data: sales, isLoading: isLoadingSales } = useQuery({
     queryKey: ["wholesaleSales"],
@@ -46,6 +63,7 @@ export default function WholesaleSalesPage() {
       queryClient.invalidateQueries({ queryKey: ["wholesaleSales"] })
       queryClient.invalidateQueries({ queryKey: ["products"] }) // stock updates
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] }) // dashboard totals
+      queryClient.invalidateQueries({ queryKey: ["inventory_page"] })
       setFormError(null)
       setProductId("")
       setQuantity("")
@@ -56,6 +74,35 @@ export default function WholesaleSalesPage() {
     onError: (error) => {
       setFormError(error.message)
       alert("Failed to create sale: " + error.message)
+    }
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, ...data }: { id: string } & Partial<WholesaleSale>) => updateWholesaleSale(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wholesaleSales"] })
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory_page"] })
+      setEditingSale(null)
+      setEditError(null)
+    },
+    onError: (error) => {
+      setEditError(error.message)
+      alert("Failed to update sale: " + error.message)
+    }
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteWholesaleSale,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["wholesaleSales"] })
+      queryClient.invalidateQueries({ queryKey: ["products"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
+      queryClient.invalidateQueries({ queryKey: ["inventory_page"] })
+    },
+    onError: (error) => {
+      alert("Failed to delete sale: " + error.message)
     }
   })
 
@@ -74,6 +121,20 @@ export default function WholesaleSalesPage() {
   const profit = totalSale - buyingCostTotal
   
   const paymentStatus = balance <= 0 ? "PAID" : receivedNum > 0 ? "PARTIAL" : "UNPAID"
+
+  // Edit Calculated Values
+  const selectedEditProduct = products?.find(p => p.id === editProductId)
+  const editQtyNum = parseFloat(editQuantity) || 0
+  const editReceivedNum = parseFloat(editAmountReceived) || 0
+  const editBuyingCost = selectedEditProduct?.buying_cost ?? (editingSale?.buying_cost || 0)
+  const editWholesalePrice = selectedEditProduct?.wholesale_price ?? (editingSale?.wholesale_price || 0)
+  const editDealerId = selectedEditProduct?.dealer_id || editingSale?.dealer_id || ""
+
+  const editBuyingCostTotal = editQtyNum * editBuyingCost
+  const editTotalSale = editQtyNum * editWholesalePrice
+  const editBalance = editTotalSale - editReceivedNum
+  const editProfit = editTotalSale - editBuyingCostTotal
+  const editPaymentStatus = editBalance <= 0 ? "PAID" : editReceivedNum > 0 ? "PARTIAL" : "UNPAID"
 
   const [dateFilter, setDateFilter] = useState("ALL")
 
@@ -125,8 +186,64 @@ export default function WholesaleSalesPage() {
       profit: profit,
       payment_status: paymentStatus,
       payment_method: paymentMethod,
-      notes: notes || null,
+      notes: notes.trim() ? notes.trim() : null,
     })
+  }
+
+  const handleStartEdit = (sale: WholesaleSale) => {
+    setEditingSale(sale)
+    setEditCustomerId(sale.customer_id)
+    setEditProductId(sale.product_id)
+    setEditSaleDate(sale.sale_date)
+    setEditQuantity(sale.quantity.toString())
+    setEditAmountReceived(sale.amount_received.toString())
+    setEditPaymentMethod(sale.payment_method || "CASH")
+    setEditNotes(sale.notes || "")
+    setEditError(null)
+  }
+
+  const handleCancelEdit = () => {
+    setEditingSale(null)
+    setEditError(null)
+  }
+
+  const handleUpdate = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingSale || !editCustomerId || !editProductId || !editSaleDate || editQtyNum <= 0 || !editDealerId) return
+
+    // Calculate maximum available stock for this edit
+    const originalQty = editingSale.product_id === editProductId ? editingSale.quantity : 0
+    const availableStock = (selectedEditProduct?.stock_quantity || 0) + originalQty
+
+    if (selectedEditProduct && editQtyNum > availableStock) {
+      alert(`Insufficient stock. Available stock: ${availableStock} ${selectedEditProduct.unit}`)
+      return
+    }
+
+    updateMutation.mutate({
+      id: editingSale.id,
+      customer_id: editCustomerId,
+      product_id: editProductId,
+      dealer_id: editDealerId,
+      sale_date: editSaleDate,
+      quantity: editQtyNum,
+      buying_cost: editBuyingCost,
+      wholesale_price: editWholesalePrice,
+      total_sale: editTotalSale,
+      amount_received: editReceivedNum,
+      balance: editBalance,
+      profit: editProfit,
+      payment_status: editPaymentStatus,
+      payment_method: editPaymentMethod,
+      notes: editNotes.trim() ? editNotes.trim() : null,
+    })
+  }
+
+  const handleDelete = (sale: WholesaleSale) => {
+    const confirmMsg = `Are you sure you want to delete the sale of ${sale.quantity} ${sale.product?.unit || "units"} to ${sale.customer?.name || "customer"}? This will restore ${sale.quantity} units to inventory.`
+    if (window.confirm(confirmMsg)) {
+      deleteMutation.mutate(sale.id)
+    }
   }
 
   return (
@@ -223,15 +340,10 @@ export default function WholesaleSalesPage() {
               <Input type="number" step="0.01" value={amountReceived} onChange={e => setAmountReceived(e.target.value)} />
             </div>
 
-            <div className="space-y-2 lg:col-span-3">
-              <Label>Notes (Optional)</Label>
-              <Input placeholder="e.g. Delivered - Settled" value={notes} onChange={e => setNotes(e.target.value)} />
-            </div>
-            
             <div className="space-y-2">
               <Label>Payment Method</Label>
               <select 
-                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
@@ -239,6 +351,11 @@ export default function WholesaleSalesPage() {
                 <option value="UPI">UPI</option>
                 <option value="BANK">Bank Transfer</option>
               </select>
+            </div>
+
+            <div className="space-y-2 md:col-span-2">
+              <Label>Notes (Optional)</Label>
+              <Input placeholder="e.g. Delivered - Settled" value={notes} onChange={e => setNotes(e.target.value)} />
             </div>
 
             {selectedProduct && (
@@ -285,7 +402,7 @@ export default function WholesaleSalesPage() {
             </div>
           ) : (
             <div className="overflow-x-auto w-full">
-              <Table className="min-w-[800px]">
+              <Table className="min-w-[1000px]">
                 <TableHeader>
                   <TableRow>
                   <TableHead>Date</TableHead>
@@ -298,17 +415,19 @@ export default function WholesaleSalesPage() {
                   <TableHead className="text-right">Profit</TableHead>
                   <TableHead>Method</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Notes</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sales?.length === 0 ? (
+                {filteredSales.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="text-center text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
                       No sales found.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  sales?.map((sale) => (
+                  filteredSales.map((sale) => (
                     <TableRow key={sale.id}>
                       <TableCell>{formatDate(sale.sale_date)}</TableCell>
                       <TableCell className="font-medium">{sale.customer?.name}</TableCell>
@@ -334,6 +453,44 @@ export default function WholesaleSalesPage() {
                           {sale.payment_status}
                         </span>
                       </TableCell>
+                      <TableCell className="max-w-[200px]">
+                        {sale.notes ? (
+                          <span 
+                            className="inline-block max-w-[180px] truncate text-slate-700 text-xs cursor-pointer hover:text-slate-900 hover:underline" 
+                            title={sale.notes}
+                            onClick={() => alert(`Transaction Note:\n\n${sale.notes}`)}
+                          >
+                            {sale.notes}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                            onClick={() => handleStartEdit(sale)}
+                            title="Edit Transaction"
+                            aria-label={`Edit transaction for ${sale.customer?.name || "customer"}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50"
+                            onClick={() => handleDelete(sale)}
+                            disabled={deleteMutation.isPending}
+                            title="Delete Transaction"
+                            aria-label={`Delete transaction for ${sale.customer?.name || "customer"}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -343,6 +500,167 @@ export default function WholesaleSalesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Wholesale Sale Modal Dialog */}
+      {editingSale && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-sale-title"
+        >
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl my-8 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h2 id="edit-sale-title" className="text-xl font-bold text-slate-900">Edit Wholesale Sale</h2>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCancelEdit}
+                aria-label="Close edit modal"
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {editError && (
+              <div className="p-3 rounded-md bg-destructive/15 text-destructive text-sm font-medium">
+                Failed to update sale: {editError}
+              </div>
+            )}
+
+            <form onSubmit={handleUpdate} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Date</Label>
+                  <Input 
+                    type="date" 
+                    required 
+                    value={editSaleDate} 
+                    onChange={e => setEditSaleDate(e.target.value)} 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Customer</Label>
+                  <select
+                    required
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={editCustomerId}
+                    onChange={e => setEditCustomerId(e.target.value)}
+                  >
+                    <option value="" disabled>Select Customer</option>
+                    {customers?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Product</Label>
+                  <select
+                    required
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={editProductId}
+                    onChange={e => setEditProductId(e.target.value)}
+                  >
+                    <option value="" disabled>Select Product</option>
+                    {products?.map(p => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Quantity</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    required 
+                    value={editQuantity} 
+                    onChange={e => setEditQuantity(e.target.value)} 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Amount Received</Label>
+                  <Input 
+                    type="number" 
+                    step="0.01" 
+                    value={editAmountReceived} 
+                    onChange={e => setEditAmountReceived(e.target.value)} 
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Payment Method</Label>
+                  <select 
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={editPaymentMethod}
+                    onChange={(e) => setEditPaymentMethod(e.target.value)}
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="UPI">UPI</option>
+                    <option value="BANK">Bank Transfer</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Notes (Optional)</Label>
+                  <Input 
+                    placeholder="e.g. Delivered - Settled" 
+                    value={editNotes} 
+                    onChange={e => setEditNotes(e.target.value)} 
+                  />
+                </div>
+              </div>
+
+              {selectedEditProduct && (
+                <div className="bg-slate-50 p-4 rounded-md grid grid-cols-2 md:grid-cols-4 gap-4 border border-slate-200">
+                  <div>
+                    <span className="text-xs text-slate-500 block">Wholesale Rate</span>
+                    <span className="text-base font-medium">{formatMoney(editWholesalePrice)}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-500 block">Total Sale</span>
+                    <span className="text-base font-bold text-primary">{formatMoney(editTotalSale)}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-500 block">Balance</span>
+                    <span className={`text-base font-bold ${editBalance > 0 ? "text-orange-600" : "text-green-600"}`}>
+                      {formatMoney(editBalance)}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-slate-500 block">Profit</span>
+                    <span className="text-base font-bold text-green-600">{formatMoney(editProfit)}</span>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={handleCancelEdit}
+                  disabled={updateMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={updateMutation.isPending || !editProductId || !editCustomerId || editQtyNum <= 0}
+                >
+                  {updateMutation.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
