@@ -1,25 +1,27 @@
 /**
- * Run the missing general_daily_records migration against Production Supabase.
+ * Run the wholesale_sales payment_method migration against Production Supabase.
  * 
  * Usage:
  *   node run_migration.js
  *   node run_migration.js "<postgresql-connection-uri>"
+ *   node run_migration.js "<postgresql-connection-uri>" "supabase/migrations/00003_add_payment_method_wholesale.sql"
  * 
  * Find connection string in: Supabase Dashboard → Project Settings → Database → Connection String → URI
  * 
  * This script:
- *   1. Creates general_daily_records table
- *   2. Creates general_delivery_entries table
- *   3. Sets up indexes, RLS policies, triggers
- *   4. Notifies PostgREST to reload schema cache
- *   5. Verifies the tables, columns, and RLS exist
+ *   1. Adds payment_method column to wholesale_sales (additive, IF NOT EXISTS)
+ *   2. Preserves all existing records and calculations
+ *   3. Notifies PostgREST to reload schema cache
+ *   4. Verifies the column, data type, and existing rows
  */
 
 import fs from 'fs';
 import readline from 'readline';
 import { execSync } from 'child_process';
 
-async function executeMigration(dbUrl) {
+const DEFAULT_MIGRATION = 'supabase/migrations/00003_add_payment_method_wholesale.sql';
+
+async function executeMigration(dbUrl, migrationFile = DEFAULT_MIGRATION) {
   if (!dbUrl || !dbUrl.trim().startsWith('postgresql')) {
     console.error("❌ Invalid database URL. Must start with 'postgresql://'");
     process.exit(1);
@@ -38,77 +40,58 @@ async function executeMigration(dbUrl) {
   console.log("✅ Connected to Postgres!\n");
 
   try {
-    console.log("📄 Reading supabase/migrations/00005_fix_general_daily_delivery.sql...");
-    const sql = fs.readFileSync('supabase/migrations/00005_fix_general_daily_delivery.sql', 'utf8');
+    console.log(`📄 Reading migration: ${migrationFile}...`);
+    const sql = fs.readFileSync(migrationFile, 'utf8');
     
     console.log("🚀 Running migration...\n");
     await client.query(sql);
     console.log("✅ Migration executed successfully!\n");
 
-    console.log("🔍 Verifying tables...");
+    console.log("🔍 Verifying public.wholesale_sales table...");
     const tableCheck = await client.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      AND table_name IN ('general_daily_records', 'general_delivery_entries');
+      SELECT to_regclass('public.wholesale_sales') AS table_regclass;
     `);
 
-    const foundTables = tableCheck.rows.map(r => r.table_name);
-    console.log("   Found tables:", foundTables);
-
-    if (foundTables.includes('general_daily_records')) {
-      console.log("   ✅ general_daily_records EXISTS");
+    const tableExists = tableCheck.rows[0]?.table_regclass;
+    if (tableExists) {
+      console.log("   ✅ public.wholesale_sales EXISTS");
     } else {
-      console.log("   ❌ general_daily_records MISSING");
+      console.log("   ❌ public.wholesale_sales MISSING");
     }
 
-    if (foundTables.includes('general_delivery_entries')) {
-      console.log("   ✅ general_delivery_entries EXISTS");
-    } else {
-      console.log("   ❌ general_delivery_entries MISSING");
-    }
-
-    // Verify columns
-    console.log("\n🔍 Verifying general_daily_records columns...");
+    // Verify payment_method column
+    console.log("\n🔍 Verifying payment_method column on wholesale_sales...");
     const colCheck = await client.query(`
       SELECT column_name, data_type, is_nullable
       FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'general_daily_records'
+      WHERE table_schema = 'public' AND table_name = 'wholesale_sales'
       ORDER BY ordinal_position;
     `);
+    
+    let hasPaymentMethod = false;
     colCheck.rows.forEach(col => {
-      console.log(`   ${col.column_name} (${col.data_type}, nullable: ${col.is_nullable})`);
+      const isTarget = col.column_name === 'payment_method';
+      if (isTarget) hasPaymentMethod = true;
+      console.log(`   ${isTarget ? '👉 ' : '   '}${col.column_name} (${col.data_type}, nullable: ${col.is_nullable})`);
     });
 
-    console.log("\n🔍 Verifying general_delivery_entries columns...");
-    const entryColCheck = await client.query(`
-      SELECT column_name, data_type, is_nullable
-      FROM information_schema.columns
-      WHERE table_schema = 'public' AND table_name = 'general_delivery_entries'
-      ORDER BY ordinal_position;
-    `);
-    entryColCheck.rows.forEach(col => {
-      console.log(`   ${col.column_name} (${col.data_type}, nullable: ${col.is_nullable})`);
-    });
+    if (hasPaymentMethod) {
+      console.log("\n   ✅ Column 'payment_method' EXISTS on 'wholesale_sales'");
+    } else {
+      console.log("\n   ❌ Column 'payment_method' NOT FOUND on 'wholesale_sales'");
+    }
 
-    // Verify RLS
-    console.log("\n🔍 Verifying RLS policies...");
-    const rlsCheck = await client.query(`
-      SELECT tablename, policyname
-      FROM pg_policies
-      WHERE schemaname = 'public'
-      AND tablename IN ('general_daily_records', 'general_delivery_entries');
-    `);
-    rlsCheck.rows.forEach(pol => {
-      console.log(`   ✅ ${pol.tablename}: ${pol.policyname}`);
-    });
+    // Verify existing records preserved
+    console.log("\n🔍 Checking existing wholesale_sales record count...");
+    const countCheck = await client.query(`SELECT COUNT(*) AS count FROM public.wholesale_sales;`);
+    console.log(`   Total historical wholesale_sales records: ${countCheck.rows[0]?.count || 0}`);
 
     // Notify PostgREST to reload schema
     await client.query(`NOTIFY pgrst, 'reload schema';`);
     console.log("\n✅ Notified PostgREST schema cache reload");
 
     console.log("\n" + "=".repeat(60));
-    console.log("✅ GENERAL DELIVERY MIGRATION COMPLETE AND VERIFIED");
+    console.log("✅ WHOLESALE PAYMENT_METHOD MIGRATION COMPLETE AND VERIFIED");
     console.log("=".repeat(60));
   } catch (err) {
     console.error("\n❌ Error executing migration:", err.message);
@@ -120,8 +103,10 @@ async function executeMigration(dbUrl) {
 }
 
 const argUrl = process.argv[2] || process.env.DATABASE_URL;
+const argFile = process.argv[3] || DEFAULT_MIGRATION;
+
 if (argUrl) {
-  executeMigration(argUrl);
+  executeMigration(argUrl, argFile);
 } else {
   const rl = readline.createInterface({
     input: process.stdin,
@@ -130,6 +115,6 @@ if (argUrl) {
 
   rl.question('Enter your Supabase Database Connection String (postgresql://...): ', async (dbUrl) => {
     rl.close();
-    await executeMigration(dbUrl);
+    await executeMigration(dbUrl, argFile);
   });
 }

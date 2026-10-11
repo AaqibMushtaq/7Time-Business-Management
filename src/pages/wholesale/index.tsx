@@ -38,11 +38,15 @@ export default function WholesaleSalesPage() {
     queryFn: getProducts,
   })
 
+  const [formError, setFormError] = useState<string | null>(null)
+
   const createMutation = useMutation({
     mutationFn: createWholesaleSale,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["wholesaleSales"] })
       queryClient.invalidateQueries({ queryKey: ["products"] }) // stock updates
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] }) // dashboard totals
+      setFormError(null)
       setProductId("")
       setQuantity("")
       setAmountReceived("")
@@ -50,6 +54,7 @@ export default function WholesaleSalesPage() {
       setIdempotencyKey(crypto.randomUUID())
     },
     onError: (error) => {
+      setFormError(error.message)
       alert("Failed to create sale: " + error.message)
     }
   })
@@ -171,6 +176,11 @@ export default function WholesaleSalesPage() {
           <CardTitle>New Wholesale Sale</CardTitle>
         </CardHeader>
         <CardContent>
+          {formError && (
+            <div className="mb-4 p-3 rounded-md bg-destructive/15 text-destructive text-sm font-medium">
+              Failed to create sale: {formError}
+            </div>
+          )}
           <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
               <Label>Date</Label>
@@ -286,13 +296,14 @@ export default function WholesaleSalesPage() {
                   <TableHead className="text-right">Received</TableHead>
                   <TableHead className="text-right">Balance</TableHead>
                   <TableHead className="text-right">Profit</TableHead>
+                  <TableHead>Method</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sales?.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center text-muted-foreground">
                       No sales found.
                     </TableCell>
                   </TableRow>
@@ -309,6 +320,11 @@ export default function WholesaleSalesPage() {
                       <TableCell className="text-right text-green-600">{formatMoney(sale.amount_received)}</TableCell>
                       <TableCell className="text-right text-orange-600 font-medium">{formatMoney(sale.balance)}</TableCell>
                       <TableCell className="text-right text-green-600 font-medium">{formatMoney(sale.profit)}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                          {sale.payment_method || "—"}
+                        </span>
+                      </TableCell>
                       <TableCell>
                         <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
                           sale.payment_status === "PAID" ? "bg-green-100 text-green-800" :

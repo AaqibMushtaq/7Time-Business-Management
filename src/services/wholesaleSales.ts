@@ -52,11 +52,26 @@ export const createWholesaleSale = async (sale: Omit<WholesaleSale, "created_at"
   return data
 }
 
+export const updateWholesaleSale = async (
+  id: string,
+  sale: Partial<Omit<WholesaleSale, "id" | "created_at" | "customer" | "product" | "dealer">>
+): Promise<WholesaleSale> => {
+  const { data, error } = await supabase
+    .from("wholesale_sales")
+    .update(sale)
+    .eq("id", id)
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data
+}
+
 export const deleteWholesaleSale = async (id: string): Promise<void> => {
   const { error } = await supabase
     .from("wholesale_sales")
     .delete()
     .eq("id", id)
-
   if (error) throw new Error(error.message)
 }
+

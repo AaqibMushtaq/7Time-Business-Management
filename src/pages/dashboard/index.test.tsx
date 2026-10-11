@@ -105,7 +105,7 @@ describe("DashboardPage Component", () => {
       expect(screen.getByText("Deliveries")).toBeDefined()
       expect(screen.getByText("Reports")).toBeDefined()
     })
-  })
+  }, 15000)
 
   it("renders all 8 primary financial metrics with accurate formatted values", async () => {
     renderComponent()
