@@ -19,7 +19,6 @@ const DealerDetailPage = lazy(() => import("./pages/dealers/DealerDetailPage"))
 const DealerPaymentsPage = lazy(() => import("./pages/dealers/DealerPaymentsPage"))
 const ResellersPage = lazy(() => import("./pages/resellers"))
 const ResellerDetailPage = lazy(() => import("./pages/resellers/ResellerDetailPage"))
-const ResellerPaymentsPage = lazy(() => import("./pages/resellers/ResellerPaymentsPage"))
 const WholesaleSalesPage = lazy(() => import("./pages/wholesale"))
 const GeneralDeliveriesPage = lazy(() => import("./pages/general-deliveries"))
 const NaeemUnclePage = lazy(() => import("./pages/naeem"))
@@ -75,7 +74,7 @@ function App() {
                   <Route path="dealer-payments" element={<DealerPaymentsPage />} />
                   <Route path="resellers" element={<ResellersPage />} />
                   <Route path="resellers/:id" element={<ResellerDetailPage />} />
-                  <Route path="reseller-payments" element={<ResellerPaymentsPage />} />
+                  <Route path="reseller-payments" element={<Navigate to="/resellers" replace />} />
                   <Route path="wholesale" element={<WholesaleSalesPage />} />
                   <Route path="general-deliveries" element={<GeneralDeliveriesPage />} />
                   <Route path="naeem" element={<NaeemUnclePage />} />

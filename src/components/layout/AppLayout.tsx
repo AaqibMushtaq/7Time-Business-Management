@@ -40,7 +40,6 @@ const navGroups = [
     items: [
       { name: "Resellers", href: "/resellers", icon: Users },
       { name: "Wholesale Sales", href: "/wholesale", icon: ShoppingCart },
-      { name: "Reseller Payments", href: "/reseller-payments", icon: Wallet },
     ]
   },
   {

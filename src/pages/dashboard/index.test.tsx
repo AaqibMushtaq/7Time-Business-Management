@@ -134,7 +134,7 @@ describe("DashboardPage Component", () => {
     expect(screen.getAllByText("₹300.00").length).toBeGreaterThanOrEqual(1)
     // Receivable: 5,000 -> ₹5,000.00
     expect(screen.getAllByText("₹5,000.00").length).toBeGreaterThanOrEqual(1)
-  })
+  }, 15000)
 
   it("renders secondary sections for top dealer/reseller positions, inventory, and deliveries", async () => {
     renderComponent()

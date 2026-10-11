@@ -26,6 +26,20 @@ export const getResellerPayments = async (): Promise<ResellerPayment[]> => {
   return data || []
 }
 
+export const getResellerPaymentsByCustomer = async (customerId: string): Promise<ResellerPayment[]> => {
+  const { data, error } = await supabase
+    .from("reseller_payments")
+    .select(`
+      *,
+      customer:reseller_customers(id, name)
+    `)
+    .eq("customer_id", customerId)
+    .order("payment_date", { ascending: false })
+
+  if (error) throw new Error(error.message)
+  return data || []
+}
+
 export const createResellerPayment = async (payment: Omit<ResellerPayment, "id" | "created_at" | "customer">): Promise<ResellerPayment> => {
   const { data, error } = await supabase
     .from("reseller_payments")

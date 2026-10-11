@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
@@ -5,10 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, ArrowLeft, Wallet, ShoppingCart } from "lucide-react"
+import { Loader2, ArrowLeft, Wallet, ShoppingCart, Plus } from "lucide-react"
+import RecordResellerPaymentModal from "@/components/resellers/RecordResellerPaymentModal"
 
 export default function ResellerDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
 
   const { data: reseller, isLoading: isLoadingReseller } = useQuery({
     queryKey: ["reseller", id],
@@ -57,11 +60,35 @@ export default function ResellerDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link to="/resellers">
-          <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
-        </Link>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">{reseller.name}</h1>
+      {/* Record Payment Modal */}
+      <RecordResellerPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        selectedReseller={reseller}
+        resellers={[reseller]}
+      />
+
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link to="/resellers">
+            <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">{reseller.name}</h1>
+            {(reseller.phone || reseller.address) && (
+              <p className="text-xs text-slate-500 mt-1">
+                {[reseller.phone, reseller.address].filter(Boolean).join(" • ")}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <Button
+          onClick={() => setIsPaymentModalOpen(true)}
+          className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold shadow-xs"
+        >
+          <Wallet className="mr-2 h-4 w-4" /> Record Payment
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -97,66 +124,85 @@ export default function ResellerDetailPage() {
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Sale Total</TableHead>
-                  <TableHead className="text-right">Received</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-right">Profit</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sales?.length === 0 && <TableRow><TableCell colSpan={7} className="text-center">No sales yet.</TableCell></TableRow>}
-                {sales?.map((s: any) => (
-                  <TableRow key={s.id}>
-                    <TableCell>{formatDate(s.sale_date)}</TableCell>
-                    <TableCell className="font-medium">{s.product?.name}</TableCell>
-                    <TableCell className="text-right">{s.quantity} {s.product?.unit}</TableCell>
-                    <TableCell className="text-right">{formatMoney(s.total_sale)}</TableCell>
-                    <TableCell className="text-right text-green-600">{formatMoney(s.amount_received)}</TableCell>
-                    <TableCell className="text-right text-red-600">{formatMoney(s.balance)}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatMoney(s.profit)}</TableCell>
+              <Table className="min-w-[800px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Product</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead className="text-right">Sale Total</TableHead>
+                    <TableHead className="text-right">Received</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead className="text-right">Profit</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-</div>
+                </TableHeader>
+                <TableBody>
+                  {sales?.length === 0 && <TableRow><TableCell colSpan={7} className="text-center">No sales yet.</TableCell></TableRow>}
+                  {sales?.map((s: any) => (
+                    <TableRow key={s.id}>
+                      <TableCell>{formatDate(s.sale_date)}</TableCell>
+                      <TableCell className="font-medium">{s.product?.name}</TableCell>
+                      <TableCell className="text-right">{s.quantity} {s.product?.unit}</TableCell>
+                      <TableCell className="text-right">{formatMoney(s.total_sale)}</TableCell>
+                      <TableCell className="text-right text-green-600">{formatMoney(s.amount_received)}</TableCell>
+                      <TableCell className="text-right text-red-600">{formatMoney(s.balance)}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatMoney(s.profit)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
 
         {/* Separate Payment History */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Separate Payments Recorded</CardTitle>
+            <Button
+              size="sm"
+              onClick={() => setIsPaymentModalOpen(true)}
+              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white text-xs font-semibold"
+            >
+              <Plus className="mr-1 h-3.5 w-3.5" /> Record Payment
+            </Button>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead className="text-right">Amount Received</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments?.length === 0 && <TableRow><TableCell colSpan={4} className="text-center">No separate payments recorded.</TableCell></TableRow>}
-                {payments?.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{formatDate(p.payment_date)}</TableCell>
-                    <TableCell>{p.payment_method}</TableCell>
-                    <TableCell>{p.reference || "-"}</TableCell>
-                    <TableCell className="text-right font-bold text-green-600">{formatMoney(p.amount)}</TableCell>
+              <Table className="min-w-[800px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Method</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="text-right">Amount Received</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-</div>
+                </TableHeader>
+                <TableBody>
+                  {payments?.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-slate-500">
+                        No separate payments recorded.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {payments?.map((p: any) => (
+                    <TableRow key={p.id}>
+                      <TableCell>{formatDate(p.payment_date)}</TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                          {p.payment_method || "CASH"}
+                        </span>
+                      </TableCell>
+                      <TableCell>{p.reference || "-"}</TableCell>
+                      <TableCell className="text-slate-500 text-xs max-w-xs truncate">{p.notes || "-"}</TableCell>
+                      <TableCell className="text-right font-bold text-green-600">{formatMoney(p.amount)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
       </div>
