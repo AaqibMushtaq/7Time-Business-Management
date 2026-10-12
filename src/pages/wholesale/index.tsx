@@ -7,6 +7,7 @@ import {
   deleteWholesaleSale, 
   type WholesaleSale 
 } from "@/services/wholesaleSales"
+import { calculateWholesaleSale } from "@/lib/wholesaleCalculations"
 import { getResellers } from "@/services/resellers"
 import { getProducts } from "@/services/products"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -116,12 +117,12 @@ export default function WholesaleSalesPage() {
   const wholesalePrice = selectedProduct?.wholesale_price || 0
   const dealerId = selectedProduct?.dealer_id || ""
   
-  const buyingCostTotal = qtyNum * buyingCost
-  const totalSale = qtyNum * wholesalePrice
-  const balance = totalSale - receivedNum
-  const profit = totalSale - buyingCostTotal
-  
-  const paymentStatus = balance <= 0 ? "PAID" : receivedNum > 0 ? "PARTIAL" : "UNPAID"
+  const { totalSale, balance, profit, paymentStatus } = calculateWholesaleSale({
+    quantity: qtyNum,
+    buyingCost,
+    wholesalePrice,
+    amountReceived: receivedNum
+  })
 
   // Edit Calculated Values
   const selectedEditProduct = products?.find(p => p.id === editProductId)
@@ -131,11 +132,17 @@ export default function WholesaleSalesPage() {
   const editWholesalePrice = selectedEditProduct?.wholesale_price ?? (editingSale?.wholesale_price || 0)
   const editDealerId = selectedEditProduct?.dealer_id || editingSale?.dealer_id || ""
 
-  const editBuyingCostTotal = editQtyNum * editBuyingCost
-  const editTotalSale = editQtyNum * editWholesalePrice
-  const editBalance = editTotalSale - editReceivedNum
-  const editProfit = editTotalSale - editBuyingCostTotal
-  const editPaymentStatus = editBalance <= 0 ? "PAID" : editReceivedNum > 0 ? "PARTIAL" : "UNPAID"
+  const {
+    totalSale: editTotalSale,
+    balance: editBalance,
+    profit: editProfit,
+    paymentStatus: editPaymentStatus
+  } = calculateWholesaleSale({
+    quantity: editQtyNum,
+    buyingCost: editBuyingCost,
+    wholesalePrice: editWholesalePrice,
+    amountReceived: editReceivedNum
+  })
 
   const [dateFilter, setDateFilter] = useState("ALL")
 

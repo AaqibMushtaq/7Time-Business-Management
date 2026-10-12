@@ -15,6 +15,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DatabaseErrorBanner } from "@/components/common/DatabaseErrorBanner"
+import { DeleteConfirmDialog } from "@/components/common/DeleteConfirmDialog"
+import { EmptyState } from "@/components/common/EmptyState"
+import { NaeemMonthPickerModal } from "./NaeemMonthPickerModal"
+import { NaeemBalanceModal } from "./NaeemBalanceModal"
+import { NaeemPaymentModal } from "./NaeemPaymentModal"
 import { formatMoney, formatDate } from "@/lib/utils"
 import { 
   Loader2, Plus, Trash2, CreditCard, 
@@ -338,16 +344,10 @@ export default function NaeemUnclePage() {
       </div>
 
       {(recError || payError || balError) && (
-        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-start gap-3">
-          <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-          <div>
-            <h4 className="font-semibold">Unable to load delivery history</h4>
-            <p className="text-sm mt-1">Please try again. If the problem persists, check your connection.</p>
-            <Button variant="outline" size="sm" className="mt-3 bg-white hover:bg-slate-50" onClick={() => queryClient.invalidateQueries()}>
-              Retry
-            </Button>
-          </div>
-        </div>
+        <DatabaseErrorBanner
+          message="Unable to load delivery history"
+          onRetry={() => queryClient.invalidateQueries()}
+        />
       )}
 
       {/* KPI SECTION */}
@@ -693,13 +693,12 @@ export default function NaeemUnclePage() {
                   <p className="text-red-700 max-w-sm">A database error occurred. Please try again.</p>
                 </div>
               ) : filteredRecords.length === 0 ? (
-                <div className="py-16 flex flex-col items-center justify-center text-center">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                    <FileText className="w-6 h-6 text-slate-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-slate-900 mb-1">No deliveries matching filters</h3>
-                  <p className="text-slate-500 max-w-sm">Adjust your search or change the status filter.</p>
-                </div>
+                <EmptyState
+                  icon={FileText}
+                  title="No deliveries matching filters"
+                  description="Adjust your search or change the status filter."
+                  className="py-16"
+                />
               ) : (
                 <div className="overflow-x-auto">
                   <div className="overflow-x-auto w-full">
@@ -795,13 +794,11 @@ export default function NaeemUnclePage() {
                   <p className="text-red-700 max-w-sm mb-4">A database error occurred. Please try again.</p>
                 </div>
               ) : payments?.length === 0 ? (
-                <div className="py-12 flex flex-col items-center justify-center text-center">
-                  <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-4">
-                    <CreditCard className="w-6 h-6 text-slate-400" />
-                  </div>
-                  <h3 className="text-lg font-medium text-slate-900 mb-1">No payments recorded</h3>
-                  <p className="text-slate-500 max-w-sm mb-4">Payments manually recorded from NAEEM will appear here.</p>
-                </div>
+                <EmptyState
+                  icon={CreditCard}
+                  title="No payments recorded"
+                  description="Payments manually recorded from NAEEM will appear here."
+                />
               ) : (
                 <div className="overflow-x-auto">
                   <div className="overflow-x-auto w-full">
@@ -853,252 +850,71 @@ export default function NaeemUnclePage() {
 
 
       {/* RECORD PAYMENT MODAL */}
-      {isPaymentModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-slate-100 shrink-0">
-              <h2 className="text-xl font-bold text-slate-900 flex items-center">Record Payment</h2>
-              <p className="text-sm text-slate-500 mt-1.5 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                <span>Record a payment received from NAEEM.<br/>This does not process or transfer money.</span>
-              </p>
-            </div>
-
-            <div className="p-6 overflow-y-auto">
-              <form id="payment-form" onSubmit={handleRecordPayment} className="space-y-5">
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Amount Received (₹)</Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-slate-500">₹</span>
-                      <Input type="number" required min="1" max={summary.outstanding} step="0.01" placeholder="0.00" value={payAmount} onChange={e => setPayAmount(e.target.value ? Number(e.target.value) : "")} autoFocus className="pl-8 text-lg font-bold bg-slate-50 focus:bg-white border-slate-200 shadow-sm" />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Payment Date</Label>
-                    <Input type="date" required value={payDate} onChange={e => setPayDate(e.target.value)} className="bg-slate-50 focus:bg-white h-[42px]" />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Payment Method</Label>
-                    <Select value={payMethod} onValueChange={setPayMethod} className="bg-slate-50 focus:bg-white">
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Cash">Cash</SelectItem>
-                        <SelectItem value="Cheque">Cheque</SelectItem>
-                        <SelectItem value="UPI">UPI</SelectItem>
-                        <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Notes</Label>
-                    <Input placeholder="Optional" value={payNotes} onChange={e => setPayNotes(e.target.value)} className="bg-slate-50 focus:bg-white" />
-                  </div>
-                </div>
-
-                {payMethod === "Cheque" && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-lg">
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase text-slate-500 font-semibold">Cheque Number</Label>
-                      <Input required placeholder="CHQ-" value={payRef} onChange={e => setPayRef(e.target.value)} className="bg-white text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase text-slate-500 font-semibold">Bank Name</Label>
-                      <Input placeholder="e.g. HDFC" value={payBank} onChange={e => setPayBank(e.target.value)} className="bg-white text-sm" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase text-slate-500 font-semibold">Cheque Date</Label>
-                      <Input type="date" value={payChqDate} onChange={e => setPayChqDate(e.target.value)} className="bg-white text-sm" />
-                    </div>
-                  </div>
-                )}
-
-                {(payMethod === "UPI" || payMethod === "Bank Transfer") && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-100 rounded-lg">
-                    <div className="space-y-2">
-                      <Label className="text-xs uppercase text-slate-500 font-semibold">Transaction Reference</Label>
-                      <Input placeholder="Ref ID" value={payRef} onChange={e => setPayRef(e.target.value)} className="bg-white text-sm" />
-                    </div>
-                    {payMethod === "Bank Transfer" && (
-                      <div className="space-y-2">
-                        <Label className="text-xs uppercase text-slate-500 font-semibold">Bank Name</Label>
-                        <Input placeholder="e.g. SBI" value={payBank} onChange={e => setPayBank(e.target.value)} className="bg-white text-sm" />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Allocation live calculation */}
-                {payAmount && Number(payAmount) > 0 ? (
-                  <div className="mt-6 bg-slate-50 border border-slate-200 rounded-lg overflow-hidden">
-                    <div className="p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">Current Outstanding</span>
-                        <span className="font-medium text-slate-900">{formatMoney(summary.outstanding)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-slate-500">Payment</span>
-                        <span className="font-medium text-green-600">-{formatMoney(Number(payAmount) || 0)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm border-t border-slate-200 pt-2 mt-2">
-                        <span className="font-semibold text-slate-700">Remaining Outstanding</span>
-                        <span className="font-bold text-slate-900">{formatMoney(Math.max(0, summary.outstanding - (Number(payAmount) || 0)))}</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-
-              </form>
-            </div>
-
-            <div className="p-5 border-t border-slate-100 bg-slate-50/80 flex justify-end gap-3 shrink-0 rounded-b-xl">
-              <Button variant="outline" onClick={() => setIsPaymentModalOpen(false)} className="bg-white">Cancel</Button>
-              <Button type="submit" form="payment-form" disabled={createPaymentMut.isPending || !payAmount || Number(payAmount) <= 0} className="bg-blue-600 hover:bg-blue-700 text-white min-w-[140px]">
-                {createPaymentMut.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                {createPaymentMut.isPending ? "Recording..." : "Record Payment"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <NaeemPaymentModal
+        isOpen={isPaymentModalOpen}
+        onClose={() => setIsPaymentModalOpen(false)}
+        onSubmit={handleRecordPayment}
+        isPending={createPaymentMut.isPending}
+        outstanding={summary.outstanding}
+        payAmount={payAmount}
+        setPayAmount={setPayAmount}
+        payDate={payDate}
+        setPayDate={setPayDate}
+        payMethod={payMethod}
+        setPayMethod={setPayMethod}
+        payNotes={payNotes}
+        setPayNotes={setPayNotes}
+        payRef={payRef}
+        setPayRef={setPayRef}
+        payBank={payBank}
+        setPayBank={setPayBank}
+        payChqDate={payChqDate}
+        setPayChqDate={setPayChqDate}
+      />
 
       {/* MONTH PICKER MODAL */}
-      {isMonthPickerOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
-              <h3 className="font-bold text-slate-900">Select Month & Year</h3>
-              <Button variant="ghost" size="icon" className="w-8 h-8 text-slate-500" onClick={() => setIsMonthPickerOpen(false)}><X className="w-4 h-4" /></Button>
-            </div>
-            <div className="p-5 space-y-6">
-              <div className="space-y-2">
-                <Label className="text-slate-600 text-xs font-semibold uppercase tracking-wider">Year</Label>
-                <div className="flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg p-1">
-                  <Button variant="ghost" size="sm" onClick={() => setPickerYear(y => y - 1)}><ChevronLeft className="w-4 h-4" /></Button>
-                  <span className="font-bold text-lg text-slate-900">{pickerYear}</span>
-                  <Button variant="ghost" size="sm" onClick={() => setPickerYear(y => y + 1)}><ChevronRight className="w-4 h-4" /></Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const mStr = String(i + 1).padStart(2, '0')
-                  const isSelected = selectedMonth === `${pickerYear}-${mStr}`
-                  const monthName = new Date(2000, i, 1).toLocaleDateString('en-US', { month: 'short' })
-                  return (
-                    <Button 
-                      key={i} 
-                      variant={isSelected ? "default" : "outline"}
-                      className={isSelected ? "bg-blue-600 text-white" : "bg-white text-slate-700 hover:bg-slate-50"}
-                      onClick={() => {
-                        setSelectedMonth(`${pickerYear}-${mStr}`)
-                        setIsMonthPickerOpen(false)
-                      }}
-                    >
-                      {monthName}
-                    </Button>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <NaeemMonthPickerModal
+        isOpen={isMonthPickerOpen}
+        onClose={() => setIsMonthPickerOpen(false)}
+        pickerYear={pickerYear}
+        setPickerYear={setPickerYear}
+        selectedMonth={selectedMonth}
+        onSelectMonth={(month) => setSelectedMonth(month)}
+      />
 
       {/* EDIT PREVIOUS BALANCE MODAL */}
-      {isBalanceModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm animate-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
-              <h3 className="text-lg font-bold text-slate-900">Edit Previous Balance</h3>
-              <p className="text-sm text-slate-500 mt-1">{displayMonthYear}</p>
-            </div>
-            <div className="p-5">
-              <form id="balance-form" onSubmit={handleSaveBalance} className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-700">Opening Balance Amount</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-500 font-medium">₹</span>
-                    <Input 
-                      type="number" 
-                      required 
-                      min="0" 
-                      step="0.01" 
-                      value={balanceInput} 
-                      onChange={e => setBalanceInput(e.target.value)} 
-                      autoFocus 
-                      className="pl-8 text-lg font-bold bg-white" 
-                    />
-                  </div>
-                  <p className="text-xs text-slate-500 mt-2">
-                    This is the opening outstanding balance carried into {displayMonthYear} before any activity occurred.
-                  </p>
-                </div>
-              </form>
-            </div>
-            <div className="p-4 border-t border-slate-100 flex flex-col gap-2 bg-slate-50/50 rounded-b-xl">
-              <div className="flex gap-3">
-                <Button variant="outline" className="flex-1 bg-white" onClick={() => setIsBalanceModalOpen(false)}>Cancel</Button>
-                <Button type="submit" form="balance-form" disabled={saveBalanceMut.isPending} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white">
-                  {saveBalanceMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Save"}
-                </Button>
-              </div>
-              {summary.isManualOverride && (
-                <Button 
-                  variant="ghost" 
-                  className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 text-xs" 
-                  disabled={clearBalanceMut.isPending}
-                  onClick={() => clearBalanceMut.mutate()}
-                >
-                  {clearBalanceMut.isPending ? "Clearing..." : "Clear override & use automatic balance"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <NaeemBalanceModal
+        isOpen={isBalanceModalOpen}
+        onClose={() => setIsBalanceModalOpen(false)}
+        displayMonthYear={displayMonthYear}
+        balanceInput={balanceInput}
+        setBalanceInput={setBalanceInput}
+        onSave={handleSaveBalance}
+        isSaving={saveBalanceMut.isPending}
+        isManualOverride={summary.isManualOverride}
+        onClearOverride={() => clearBalanceMut.mutate()}
+        isClearing={clearBalanceMut.isPending}
+      />
 
       {/* DELETE DELIVERY MODAL */}
-      {deleteDeliveryId && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Delivery?</h3>
-            <p className="text-sm text-slate-500 mb-6">This will permanently remove this delivery record.</p>
-            <div className="flex gap-3 w-full">
-              <Button variant="outline" className="flex-1" onClick={() => setDeleteDeliveryId(null)}>Cancel</Button>
-              <Button variant="destructive" className="flex-1" disabled={deleteDeliveryMut.isPending} onClick={() => deleteDeliveryMut.mutate(deleteDeliveryId)}>
-                {deleteDeliveryMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmDialog
+        open={Boolean(deleteDeliveryId)}
+        onOpenChange={(open) => !open && setDeleteDeliveryId(null)}
+        title="Delete Delivery?"
+        description="This will permanently remove this delivery record."
+        onConfirm={() => deleteDeliveryId && deleteDeliveryMut.mutate(deleteDeliveryId)}
+        isDeleting={deleteDeliveryMut.isPending}
+      />
 
       {/* DELETE PAYMENT MODAL */}
-      {deletePaymentId && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-4">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Payment?</h3>
-            <p className="text-sm text-slate-500 mb-6">Deleting this payment will recalculate the affected delivery balances.</p>
-            <div className="flex gap-3 w-full">
-              <Button variant="outline" className="flex-1" onClick={() => setDeletePaymentId(null)}>Cancel</Button>
-              <Button variant="destructive" className="flex-1" disabled={deletePaymentMut.isPending} onClick={() => deletePaymentMut.mutate(deletePaymentId)}>
-                {deletePaymentMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Delete Payment"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmDialog
+        open={Boolean(deletePaymentId)}
+        onOpenChange={(open) => !open && setDeletePaymentId(null)}
+        title="Delete Payment?"
+        description="Deleting this payment will recalculate the affected delivery balances."
+        onConfirm={() => deletePaymentId && deletePaymentMut.mutate(deletePaymentId)}
+        isDeleting={deletePaymentMut.isPending}
+      />
 
     </div>
   )

@@ -26,6 +26,8 @@ export interface WholesaleSale {
   dealer?: Dealer
 }
 
+export { calculateWholesaleSale } from "@/lib/wholesaleCalculations"
+
 export const getWholesaleSales = async (): Promise<WholesaleSale[]> => {
   const { data, error } = await supabase
     .from("wholesale_sales")

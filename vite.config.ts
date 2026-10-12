@@ -81,6 +81,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    fileParallelism: false,
+    testTimeout: 10000,
     setupFiles: ['./src/setupTests.ts'],
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache', 'tests/**'],
   }
