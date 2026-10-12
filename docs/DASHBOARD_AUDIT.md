@@ -72,3 +72,36 @@ To guarantee strict accounting integrity in both the KPI cards and the new **Cas
 2. **Dynamic Cash Flow Chart Pipeline:** Implemented daily aggregation of cash inflows and outflows in `getDashboardStats`, populating the new **Cash Flow & Collections** interactive chart.
 3. **Code Splitting & Lazy Loading:** Both `SalesTrendChart` (Business Performance Trends) and `CashFlowChart` (Cash Flow & Collections) are dynamically lazy-loaded using `React.lazy()` and `Suspense`, preventing heavy Recharts SVG rendering logic from bloating the critical startup bundle.
 4. **7TIME Light Theme Compliance:** Strict styling with `#2D7FF9` (Royal Blue), `#4A39D6` (Indigo), `#33C5F3` (Sky Blue), `#0E2A47` (Navy), and semantic status colors.
+
+---
+
+## 6. Unified Executive Dashboard Architecture
+
+To eliminate dashboard clutter, redundant cards, and competing visual sections, the main dashboard was restructured into four clear executive layers:
+
+### Layer 1: Compact Executive KPI Cards (Top)
+- **Total Purchases:** Period-based gross supplier invoices.
+- **Sales / Delivery Revenue:** Consolidated commercial revenue (`Wholesale Sales + General Delivery Gross + NAEEM Billed`).
+- **Cash In:** Actual period collections (`Wholesale cash received + Reseller debt payments + General delivery cash + NAEEM payments received`).
+- **Cash Out:** Actual disbursements (`Purchase down-payments + Dealer debt payments + Delivery fuel expenses`).
+- **Receivables:** Genuine customer credit owed to the business (`Reseller receivables + NAEEM pending balance`).
+- **Payables:** Genuine supplier liabilities (`Dealer payables`).
+
+### Layer 2: ONE Unified Business Performance Container
+- Consolidates all four business areas (**Dealer Operations**, **Wholesale & Resellers**, **General Delivery**, **NAEEM Dedicated**) into one interactive container.
+- **Monthly vs All Time toggle:** Allows instant switching between selected monthly performance and all-time cumulative overview.
+- **Interactive Metric Selector:**
+  - `REVENUE`: Revenue & Billings comparative view.
+  - `CASH_FLOW`: Cash In vs Cash Out comparative view.
+  - `OUTSTANDING`: Receivables vs Payables comparative view.
+  - `PROFIT`: Realized Wholesale Margins and Operational Net contributions.
+- **Summary Breakdown Row:** 4 concise status tiles beneath the chart detailing unit-level performance.
+
+### Layer 3: Compact Accounts to Collect / Payments to Make
+- Replaced separate oversized 6-row tables with two balanced panels:
+  - **Accounts to Collect:** Top 3 customer credit balances + Total Due.
+  - **Payments to Make:** Top 3 supplier debt balances + Total Due.
+  - Includes positive empty state verification when all accounts are settled.
+
+### Layer 4: Compact Quick Actions
+- 6 essential icon-led actions with direct navigation to core business modules (`/purchases`, `/wholesale`, `/dealers`, `/general-deliveries`, `/naeem`, `/reports`).
