@@ -29,7 +29,7 @@ async function executeMigration(dbUrl, migrationFile = DEFAULT_MIGRATION) {
 
   try {
     execSync('npm install pg --save-dev', { stdio: 'ignore' });
-  } catch (e) {
+  } catch {
     console.log("Note: pg is available.");
   }
 

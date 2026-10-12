@@ -6,7 +6,7 @@ import { Save, Loader2 } from "lucide-react"
 import { RouteManagement } from "./RouteManagement"
 
 export default function SettingsPage() {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<any>({
     id: "",
@@ -18,17 +18,19 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
-    fetchSettings()
-  }, [])
-
-  const fetchSettings = async () => {
-    setLoading(true)
-    const { data, error } = await supabase.from("app_settings").select("*").limit(1).single()
-    if (!error && data) {
-      setSettings(data)
+    let isMounted = true
+    supabase.from("app_settings").select("*").limit(1).single().then(({ data, error }) => {
+      if (isMounted) {
+        if (!error && data) {
+          setSettings(data)
+        }
+        setLoading(false)
+      }
+    })
+    return () => {
+      isMounted = false
     }
-    setLoading(false)
-  }
+  }, [])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()

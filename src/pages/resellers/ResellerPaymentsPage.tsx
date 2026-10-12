@@ -14,7 +14,7 @@ export default function ResellerPaymentsPage() {
   const queryClient = useQueryClient()
   
   const [customerId, setCustomerId] = useState("")
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0])
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0])
   const [amount, setAmount] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [reference, setReference] = useState("")

@@ -22,12 +22,13 @@ export default function WholesaleSalesPage() {
   
   const [customerId, setCustomerId] = useState("")
   const [productId, setProductId] = useState("")
-  const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0])
+  const [saleDate, setSaleDate] = useState(() => new Date().toISOString().split("T")[0])
   const [quantity, setQuantity] = useState("")
   const [amountReceived, setAmountReceived] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [notes, setNotes] = useState("")
-  const [idempotencyKey, setIdempotencyKey] = useState(crypto.randomUUID())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
+  const [todayDate] = useState(() => new Date())
 
   // Edit State
   const [editingSale, setEditingSale] = useState<WholesaleSale | null>(null)
@@ -140,19 +141,18 @@ export default function WholesaleSalesPage() {
 
   const filteredSales = useMemo(() => {
     if (!sales) return []
-    const now = new Date()
     return sales.filter(s => {
       if (dateFilter === "ALL") return true
       const saleDate = new Date(s.sale_date)
       if (dateFilter === "TODAY") {
-        return saleDate.toDateString() === now.toDateString()
+        return saleDate.toDateString() === todayDate.toDateString()
       }
       if (dateFilter === "THIS_MONTH") {
-        return saleDate.getMonth() === now.getMonth() && saleDate.getFullYear() === now.getFullYear()
+        return saleDate.getMonth() === todayDate.getMonth() && saleDate.getFullYear() === todayDate.getFullYear()
       }
       return true
     })
-  }, [sales, dateFilter])
+  }, [sales, dateFilter, todayDate])
 
   // Dashboard Aggregates
   const totalSalesAmount = filteredSales.reduce((acc, s) => acc + s.total_sale, 0)

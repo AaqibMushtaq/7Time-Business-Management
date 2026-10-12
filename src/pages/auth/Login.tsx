@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useAuth } from "@/components/auth/AuthProvider"
+import { useAuth } from "@/components/auth/useAuth"
 import { Navigate, useLocation } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"

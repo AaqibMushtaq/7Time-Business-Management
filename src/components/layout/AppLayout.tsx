@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
-import { useAuth } from "../auth/AuthProvider"
+import { useAuth } from "../auth/useAuth"
 import { 
   LayoutDashboard, 
   Package, 
@@ -149,11 +149,13 @@ export function AppLayout() {
   const { signOut, user } = useAuth()
   const location = useLocation()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [prevPathname, setPrevPathname] = useState(location.pathname)
 
-  // Close mobile menu on route change
-  useEffect(() => {
+  // Close mobile menu on route change without cascading effect render
+  if (location.pathname !== prevPathname) {
+    setPrevPathname(location.pathname)
     setIsMobileMenuOpen(false)
-  }, [location.pathname])
+  }
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden">

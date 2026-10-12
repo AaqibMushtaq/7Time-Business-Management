@@ -1,22 +1,7 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
-
-interface AuthContextType {
-  user: User | null;
-  session: Session | null;
-  loading: boolean;
-  signOut: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  session: null,
-  loading: true,
-  signOut: async () => {},
-});
-
-export const useAuth = () => useContext(AuthContext);
+import { AuthContext } from "./AuthContext";
 
 // Fast synchronous check to eliminate startup blocking for unauthenticated visitors and Lighthouse audits
 const hasStoredSession = typeof window !== "undefined" && typeof localStorage !== "undefined" && Object.keys(localStorage).some(k => k.startsWith("sb-") && k.endsWith("-auth-token"));

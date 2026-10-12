@@ -24,7 +24,7 @@ import {
 
 export default function NaeemUnclePage() {
   const queryClient = useQueryClient()
-  const today = useMemo(() => new Date().toISOString().split("T")[0], [])
+  const [today] = useState(() => new Date().toISOString().split("T")[0])
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     return localStorage.getItem("naeem_selected_month") || today.substring(0, 7)

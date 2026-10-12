@@ -17,13 +17,13 @@ export default function PurchasesPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [dealerId, setDealerId] = useState("")
   const [productId, setProductId] = useState("")
-  const [purchaseDate, setPurchaseDate] = useState(new Date().toISOString().split("T")[0])
+  const [purchaseDate, setPurchaseDate] = useState(() => new Date().toISOString().split("T")[0])
   const [quantity, setQuantity] = useState("")
   const [buyingRate, setBuyingRate] = useState("")
   const [amountPaid, setAmountPaid] = useState("")
   const [reference, setReference] = useState("")
   const [notes, setNotes] = useState("")
-  const [idempotencyKey, setIdempotencyKey] = useState(crypto.randomUUID())
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
 
   const { data: purchases, isLoading: isLoadingPurchases } = useQuery({
     queryKey: ["purchases"],

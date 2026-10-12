@@ -14,10 +14,9 @@ import type { MetricType, ViewMode } from "./UnifiedBusinessPerformanceChart"
 const UnifiedBusinessPerformanceChart = lazy(() => import("./UnifiedBusinessPerformanceChart"))
 
 export default function DashboardPage() {
-  const now = new Date()
   const [viewMode, setViewMode] = useState<ViewMode>("MONTHLY")
-  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear())
-  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1) // 1 - 12
+  const [selectedYear, setSelectedYear] = useState<number>(() => new Date().getFullYear())
+  const [selectedMonth, setSelectedMonth] = useState<number>(() => new Date().getMonth() + 1) // 1 - 12
   const [metricType, setMetricType] = useState<MetricType>("REVENUE")
 
   // Generate date parameters for selected month

@@ -4,25 +4,25 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button"
 import { Download, Database, ShoppingCart, Users, Truck, Package, Loader2 } from "lucide-react"
 
+function downloadCSV(filename: string, csvData: string) {
+  const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.setAttribute("href", url)
+  link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+function escapeCSV(val: any) {
+  if (val === null || val === undefined) return '""'
+  const str = String(val).replace(/"/g, '""')
+  return `"${str}"`
+}
+
 export default function ReportsPage() {
   const [loading, setLoading] = useState<string | null>(null)
-
-  const downloadCSV = (filename: string, csvData: string) => {
-    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.setAttribute("href", url)
-    link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  const escapeCSV = (val: any) => {
-    if (val === null || val === undefined) return '""'
-    const str = String(val).replace(/"/g, '""')
-    return `"${str}"`
-  }
 
   const handleExport = async (type: string) => {
     setLoading(type)

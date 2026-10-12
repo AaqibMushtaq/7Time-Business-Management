@@ -1,6 +1,5 @@
 const fs = require('fs');
 const { glob } = require('glob');
-const path = require('path');
 
 const filePattern = 'src/pages/**/*.tsx';
 

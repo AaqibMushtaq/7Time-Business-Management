@@ -101,7 +101,7 @@ export default function BackupPage() {
             setRestoring(false)
           }, 1500)
         }
-      } catch (err) {
+      } catch {
         alert("Failed to parse backup file.")
       }
     }
