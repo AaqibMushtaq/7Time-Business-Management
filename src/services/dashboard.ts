@@ -71,7 +71,9 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     generalDelRes,
     naeemDelRes,
     naeemPayRes,
-    balRes
+    balRes,
+    dealersMasterRes,
+    resellersMasterRes
   ] = await Promise.all([
     supabase.from("app_settings").select("low_stock_threshold").single(),
     supabase.from("products").select("id, name, buying_cost, wholesale_price, stock_quantity"),
@@ -86,12 +88,25 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     applyDateFilter(supabase.from("general_daily_records").select("*, entries:general_delivery_entries(amount)"), "record_date"),
     applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id"), "delivery_date"),
     applyDateFilter(supabase.from("naeem_payments").select("amount"), "payment_date"),
-    getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false }))
+    getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false })),
+    supabase.from("dealers").select("id, name"),
+    supabase.from("reseller_customers").select("id, name")
   ])
 
   // Extract results safely
   const settings = settingsRes?.data
   const lowStockThreshold = settings?.low_stock_threshold || 2
+
+  // Master mappings to avoid 'Unknown' names for entities with prior period balances
+  const dealersMap: Record<string, string> = {}
+  dealersMasterRes?.data?.forEach((d: any) => {
+    if (d?.id && d?.name) dealersMap[d.id] = d.name
+  })
+
+  const resellersMap: Record<string, string> = {}
+  resellersMasterRes?.data?.forEach((r: any) => {
+    if (r?.id && r?.name) resellersMap[r.id] = r.name
+  })
 
   // 1. Inventory Stats
   const inventory = inventoryRes?.data
@@ -154,14 +169,13 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   const naeemTotalDue = naeemOpeningBalance + naeemRevenue
   const naeemPending = naeemTotalDue - naeemReceived
 
-
   // Aggregations by Dealer
   const dealerAgg: Record<string, { id: string, name: string, purchases: number, paid: number, outstanding: number }> = {}
   
   // Base setup from current filtered purchases
   purchases?.forEach((p: any) => {
     if (!dealerAgg[p.dealer_id]) {
-      dealerAgg[p.dealer_id] = { id: p.dealer_id, name: p.dealer?.name || 'Unknown', purchases: 0, paid: 0, outstanding: 0 }
+      dealerAgg[p.dealer_id] = { id: p.dealer_id, name: p.dealer?.name || dealersMap[p.dealer_id] || 'Unknown', purchases: 0, paid: 0, outstanding: 0 }
     }
     dealerAgg[p.dealer_id].purchases += p.total_amount
   })
@@ -169,7 +183,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   // Payments in current filter
   dealerPayments?.forEach((p: any) => {
     if (!dealerAgg[p.dealer_id]) {
-      dealerAgg[p.dealer_id] = { id: p.dealer_id, name: p.dealer?.name || 'Unknown', purchases: 0, paid: 0, outstanding: 0 }
+      dealerAgg[p.dealer_id] = { id: p.dealer_id, name: p.dealer?.name || dealersMap[p.dealer_id] || 'Unknown', purchases: 0, paid: 0, outstanding: 0 }
     }
     dealerAgg[p.dealer_id].paid += p.amount
   })
@@ -200,11 +214,11 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       dealerAgg[dealerId].outstanding = balance;
     } else {
       // If the dealer has an outstanding balance but no activity in the current period,
-      // they should still be included in the dealer list to show who we owe
+      // include with authentic name from master dictionary
       if (balance !== 0) {
         dealerAgg[dealerId] = {
           id: dealerId,
-          name: 'Unknown', // We would need to fetch dealer names if they aren't in current period
+          name: dealersMap[dealerId] || 'Unknown',
           purchases: 0,
           paid: 0,
           outstanding: balance
@@ -213,15 +227,13 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     }
   })
 
-  // We should also replace the previous global totalPayable calculation
-  // Let's modify the totalPayable to be our computed value
   const totalPayable = calculatedTotalPayable;
 
   // Aggregations by Reseller
   const resellerAgg: Record<string, { id: string, name: string, sales: number, received: number, profit: number, outstanding: number }> = {}
   sales?.forEach((s: any) => {
     if (!resellerAgg[s.customer_id]) {
-      resellerAgg[s.customer_id] = { id: s.customer_id, name: s.customer?.name || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
+      resellerAgg[s.customer_id] = { id: s.customer_id, name: s.customer?.name || resellersMap[s.customer_id] || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
     }
     resellerAgg[s.customer_id].sales += s.total_sale
     resellerAgg[s.customer_id].received += s.amount_received
@@ -229,7 +241,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   })
   resellerPayments?.forEach((p: any) => {
     if (!resellerAgg[p.customer_id]) {
-      resellerAgg[p.customer_id] = { id: p.customer_id, name: p.customer?.name || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
+      resellerAgg[p.customer_id] = { id: p.customer_id, name: p.customer?.name || resellersMap[p.customer_id] || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
     }
     resellerAgg[p.customer_id].received += p.amount
   })
@@ -260,7 +272,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       if (balance !== 0) {
         resellerAgg[resellerId] = {
           id: resellerId,
-          name: 'Unknown',
+          name: resellersMap[resellerId] || 'Unknown',
           sales: 0,
           received: 0,
           profit: 0,
@@ -270,17 +282,16 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     }
   })
 
-  // Override totalReceivable with the calculated sum of positive balances
   const totalReceivable = calculatedTotalReceivable;
 
-  // Charts data
+  // Chart 1: Business Performance Trends (Wholesale Sales, COGS Cost, Realized Profit)
   const salesByDate: Record<string, { sales: number, profit: number, cost: number }> = {}
   sales?.forEach((s: any) => {
     const key = s.sale_date.substring(0, 10)
     if (!salesByDate[key]) salesByDate[key] = { sales: 0, profit: 0, cost: 0 }
     salesByDate[key].sales += s.total_sale
     salesByDate[key].profit += s.profit
-    salesByDate[key].cost += s.buying_cost * s.quantity
+    salesByDate[key].cost += (s.buying_cost || 0) * (s.quantity || 0)
   })
   const salesChartData = Object.keys(salesByDate).sort().map(date => ({
     date,
@@ -289,12 +300,65 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     cost: salesByDate[date].cost,
   }))
 
+  // Chart 2: Cash Flow & Collections (Actual money collected vs paid out)
+  const cashFlowByDate: Record<string, { inflow: number, outflow: number, net: number }> = {}
+  const getCashEntry = (dateStr: string) => {
+    const key = dateStr.substring(0, 10)
+    if (!cashFlowByDate[key]) {
+      cashFlowByDate[key] = { inflow: 0, outflow: 0, net: 0 }
+    }
+    return cashFlowByDate[key]
+  }
+
+  // Inflows: Cash collected at wholesale sale + subsequent debt payments from resellers
+  sales?.forEach((s: any) => {
+    if (s.amount_received && s.sale_date) {
+      getCashEntry(s.sale_date).inflow += Number(s.amount_received || 0)
+    }
+  })
+  resellerPayments?.forEach((p: any) => {
+    if (p.amount && p.payment_date) {
+      getCashEntry(p.payment_date).inflow += Number(p.amount || 0)
+    }
+  })
+
+  // Outflows: Supplier down payment at purchase + Dealer debt payments + Delivery fuel expenses
+  purchases?.forEach((p: any) => {
+    if (p.amount_paid && p.purchase_date) {
+      getCashEntry(p.purchase_date).outflow += Number(p.amount_paid || 0)
+    }
+  })
+  dealerPayments?.forEach((p: any) => {
+    if (p.amount && p.payment_date) {
+      getCashEntry(p.payment_date).outflow += Number(p.amount || 0)
+    }
+  })
+  generalDel?.forEach((d: any) => {
+    if (d.fuel_expenses && d.record_date) {
+      getCashEntry(d.record_date).outflow += Number(d.fuel_expenses || 0)
+    }
+  })
+
+  const cashFlowChartData = Object.keys(cashFlowByDate).sort().map(date => {
+    const item = cashFlowByDate[date]
+    return {
+      date,
+      inflow: item.inflow,
+      outflow: item.outflow,
+      net: item.inflow - item.outflow,
+    }
+  })
+
+  const totalInflows = totalSalesReceived + totalResellerPayments
+  const totalOutflows = currentPeriodPurchasesPaid + totalDealerPayments + generalFuel
+  const netCashFlow = totalInflows - totalOutflows
+
   // Recent Activity merging
   const activities = [
-    ...(purchases?.map((p: any) => ({ type: 'PURCHASE', date: p.purchase_date, amount: p.total_amount, name: p.dealer?.name, id: p.id })) || []),
-    ...(dealerPayments?.map((p: any) => ({ type: 'DEALER PAYMENT', date: p.payment_date, amount: p.amount, name: dealerAgg[p.dealer_id]?.name || 'Dealer', id: p.id })) || []),
-    ...(sales?.map((s: any) => ({ type: 'WHOLESALE SALE', date: s.sale_date, amount: s.total_sale, name: s.customer?.name, id: s.id })) || []),
-    ...(resellerPayments?.map((p: any) => ({ type: 'RESELLER PAYMENT', date: p.payment_date, amount: p.amount, name: resellerAgg[p.customer_id]?.name || 'Reseller', id: p.id })) || []),
+    ...(purchases?.map((p: any) => ({ type: 'PURCHASE', date: p.purchase_date, amount: p.total_amount, name: p.dealer?.name || dealersMap[p.dealer_id] || 'Dealer', id: p.id })) || []),
+    ...(dealerPayments?.map((p: any) => ({ type: 'DEALER PAYMENT', date: p.payment_date, amount: p.amount, name: p.dealer?.name || dealersMap[p.dealer_id] || 'Dealer', id: p.id })) || []),
+    ...(sales?.map((s: any) => ({ type: 'WHOLESALE SALE', date: s.sale_date, amount: s.total_sale, name: s.customer?.name || resellersMap[s.customer_id] || 'Customer', id: s.id })) || []),
+    ...(resellerPayments?.map((p: any) => ({ type: 'RESELLER PAYMENT', date: p.payment_date, amount: p.amount, name: p.customer?.name || resellersMap[p.customer_id] || 'Reseller', id: p.id })) || []),
   ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10)
 
   return {
@@ -322,6 +386,12 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       resellerPayments: totalResellerPayments,
       chartData: salesChartData,
       transactions: sales?.length || 0
+    },
+    cashFlow: {
+      net: netCashFlow,
+      totalInflows,
+      totalOutflows,
+      chartData: cashFlowChartData,
     },
     generalDelivery: {
       total: generalRevenue,

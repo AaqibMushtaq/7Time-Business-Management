@@ -151,4 +151,46 @@ describe("DashboardPage Component", () => {
     // Reseller Kashmir Traders
     expect(screen.getAllByText("Kashmir Traders").length).toBeGreaterThanOrEqual(1)
   })
+
+  it("renders both interactive chart sections (Business Performance Trends & Cash Flow)", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText("Business Performance Trends")).toBeDefined()
+      expect(screen.getByText("Cash Flow & Collections")).toBeDefined()
+      expect(screen.getByText("Revenue, cost and profit over time")).toBeDefined()
+      expect(screen.getByText("Actual money received and paid over time")).toBeDefined()
+    })
+  })
+
+  it("renders honest empty states when all dealer and reseller accounts are settled", async () => {
+    const settledStats = {
+      ...mockStats,
+      dealers: [],
+      resellers: [],
+      purchases: { ...mockStats.purchases, totalPayable: 0 },
+      sales: { ...mockStats.sales, totalReceivable: 0 },
+    }
+    ;(getDashboardStats as any).mockResolvedValue(settledStats)
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText("All dealer accounts are settled.")).toBeDefined()
+      expect(screen.getByText("No outstanding reseller receivables.")).toBeDefined()
+    })
+  })
+
+  it("renders meaningful error state with retry button when query fails", async () => {
+    ;(getDashboardStats as any).mockRejectedValue(new Error("Supabase network failure"))
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText("Failed to Load Dashboard Data")).toBeDefined()
+      expect(screen.getByText("Supabase network failure")).toBeDefined()
+      expect(screen.getByText("Try Again")).toBeDefined()
+    })
+  })
 })
+
