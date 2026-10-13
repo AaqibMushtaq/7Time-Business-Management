@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react"
+import { useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { 
   getnaeemRoutes, getnaeemRecords, getnaeemPayments, getnaeemMonthlyBalance,
@@ -75,7 +76,8 @@ export default function NaeemUnclePage() {
   const [extraCharge, setExtraCharge] = useState<string>("")
   const [notes, setNotes] = useState("")
 
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
+  const [searchParams] = useSearchParams()
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(() => searchParams.get("action") === "payment")
   const [payDate, setPayDate] = useState(today)
   const [payAmount, setPayAmount] = useState<number | "">("")
   const [payMethod, setPayMethod] = useState("Cash")

@@ -1,11 +1,35 @@
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type Plugin } from 'vitest/config'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
+const appVersion = '1.2.0'
+const buildTime = new Date().toISOString()
+
+function versionPlugin(): Plugin {
+  return {
+    name: 'generate-version-file',
+    generateBundle() {
+      this.emitFile({
+        type: 'asset',
+        fileName: 'version.json',
+        source: JSON.stringify({
+          version: appVersion,
+          buildTime,
+          builtAt: Date.now()
+        }, null, 2)
+      })
+    }
+  }
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+    __BUILD_TIME__: JSON.stringify(buildTime),
+  },
+  plugins: [react(), tailwindcss(), versionPlugin()],
   base: '/7Time-Business-Management/',
   resolve: {
     alias: {

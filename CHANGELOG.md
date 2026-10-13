@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.2.0] - Unified Receivables & Mobile Cache Auto-Update
+### Added
+- Real-time client-side update detector and `UpdateNotificationBanner` prompting mobile users to refresh when new deployments land.
+- Cache-busting meta headers (`no-cache`, `no-store`, `must-revalidate`) in `index.html` preventing mobile browsers from loading stale cached bundles.
+- Proactive service worker deregulation and cache storage cleanup to resolve stuck mobile PWA/browser versions.
+- Interactive version badge and 1-tap "Force Reload / Check Updates" button in mobile header and desktop sidebar.
+- Unified Receivables debt collection across Wholesale, NAEEM, and General Delivery modules.
+- Reusable `UnifiedReceivePaymentModal` allowing instant payment recording directly from executive dashboard.
+
+### Fixed
+- Fixed bug where mobile devices (Safari / Chrome) showed previous updates due to aggressive browser HTML caching.
+- Resolved React compiler effect warning in payment modal by isolating state mount lifecycles.
+
 ## [v1.1.0] - Automated Testing & Change Management
 ### Added
 - Core CRM modules for managing routes, drivers, and daily cash tracking.

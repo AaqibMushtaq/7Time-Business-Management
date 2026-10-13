@@ -14,9 +14,12 @@ import {
   DatabaseBackup,
   ShieldAlert,
   Menu,
-  X
+  X,
+  RefreshCw
 } from "lucide-react"
 import { Button } from "../ui/button"
+import { UpdateNotificationBanner } from "../common/UpdateNotificationBanner"
+import { getCurrentAppVersion, forceAppReload } from "@/lib/versionManager"
 
 const navGroups = [
   {
@@ -137,8 +140,17 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
           <LogOut className="mr-3 h-5 w-5" />
           Sign Out
         </Button>
-        <div className="mt-4 text-center text-xs text-slate-600 font-medium tracking-wide">
-          v1.1.0
+        <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500 font-medium">
+          <span>v{getCurrentAppVersion()}</span>
+          <button
+            type="button"
+            onClick={() => forceAppReload()}
+            className="hover:text-slate-300 text-[11px] flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded hover:bg-slate-800"
+            title="Purge cache and reload latest version"
+          >
+            <RefreshCw className="h-3 w-3" />
+            <span>Check Updates</span>
+          </button>
         </div>
       </div>
     </>
@@ -185,15 +197,32 @@ export function AppLayout() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Real-time Update Notification Banner */}
+        <UpdateNotificationBanner />
+
         {/* Mobile Header */}
-        <header className="lg:hidden flex items-center h-16 px-4 bg-white border-b border-slate-200 shrink-0">
+        <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-slate-200 shrink-0">
+          <div className="flex items-center min-w-0">
+            <button
+              className="p-2 -ml-2 mr-2 text-slate-600 hover:bg-slate-100 rounded-md"
+              onClick={() => setIsMobileMenuOpen(true)}
+              aria-label="Open mobile navigation menu"
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+            <span className="font-bold text-lg text-slate-900 tracking-tight truncate">7TIME MANAGER</span>
+          </div>
+
+          {/* Mobile Force Reload / Version Indicator */}
           <button
-            className="p-2 -ml-2 mr-2 text-slate-600 hover:bg-slate-100 rounded-md"
-            onClick={() => setIsMobileMenuOpen(true)}
+            type="button"
+            onClick={() => forceAppReload()}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors border border-slate-200 shrink-0"
+            title="Tap to refresh app and clear cached update"
           >
-            <Menu className="h-6 w-6" />
+            <RefreshCw className="h-3 w-3 text-slate-500" />
+            <span>v{getCurrentAppVersion()}</span>
           </button>
-          <span className="font-bold text-lg text-slate-900 tracking-tight">7TIME MANAGER</span>
         </header>
 
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">

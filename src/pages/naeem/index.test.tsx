@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import NaeemUnclePage from "./index";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
 import {
   getnaeemRoutes,
   getnaeemRecords,
@@ -55,7 +56,9 @@ describe("NaeemUnclePage", () => {
   const renderComponent = () => {
     return render(
       <QueryClientProvider client={queryClient}>
-        <NaeemUnclePage />
+        <MemoryRouter>
+          <NaeemUnclePage />
+        </MemoryRouter>
       </QueryClientProvider>
     );
   };

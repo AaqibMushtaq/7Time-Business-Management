@@ -64,6 +64,33 @@ const mockStats = {
   recentActivity: [
     { id: "1", type: "PURCHASE", name: "Al Infaq", date: "2026-10-05", amount: 23300 },
   ],
+  receivables: {
+    totalOutstanding: 7700,
+    wholesaleOutstanding: 5000,
+    naeemOutstanding: 2700,
+    otherOutstanding: 0,
+    debtorsCount: 2,
+    debtors: [
+      {
+        id: "r1",
+        name: "Kashmir Traders",
+        source: "WHOLESALE_RESELLER" as const,
+        sourceLabel: "Wholesale Reseller",
+        outstanding: 5000,
+        lastPaymentDate: "2026-10-01",
+        routePath: "/resellers/r1",
+      },
+      {
+        id: "naeem-dedicated-route",
+        name: "NAEEM Dedicated Route",
+        source: "NAEEM" as const,
+        sourceLabel: "NAEEM Contract",
+        outstanding: 2700,
+        lastPaymentDate: "2026-10-02",
+        routePath: "/naeem?action=payment",
+      },
+    ],
+  },
 }
 
 describe("Executive DashboardPage Component", () => {
@@ -136,16 +163,18 @@ describe("Executive DashboardPage Component", () => {
     expect(screen.getByText("Dealer Operations")).toBeDefined()
     expect(screen.getByText("Wholesale & Resellers")).toBeDefined()
     expect(screen.getByText("General Delivery")).toBeDefined()
-    expect(screen.getByText("NAEEM Dedicated")).toBeDefined()
+    expect(screen.getAllByText("NAEEM Dedicated").length).toBeGreaterThanOrEqual(1)
   })
 
-  it("renders compact Accounts to Collect and Payments to Make sections with top balances", async () => {
+  it("renders compact Outstanding Receivables and Payments to Make sections with unified balances and debtors", async () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("Accounts to Collect")).toBeDefined()
+      expect(screen.getByText("Outstanding Receivables")).toBeDefined()
       expect(screen.getByText("Payments to Make")).toBeDefined()
-      expect(screen.getByText("Manage Resellers")).toBeDefined()
+      expect(screen.getByText("Wholesale/Resellers")).toBeDefined()
+      expect(screen.getAllByText("NAEEM Dedicated").length).toBeGreaterThanOrEqual(1)
+      expect(screen.getByText("Other Receivables")).toBeDefined()
       expect(screen.getByText("Manage Dealers")).toBeDefined()
     })
 
@@ -153,6 +182,10 @@ describe("Executive DashboardPage Component", () => {
     expect(screen.getAllByText("Al Infaq").length).toBeGreaterThanOrEqual(1)
     // Reseller Kashmir Traders
     expect(screen.getAllByText("Kashmir Traders").length).toBeGreaterThanOrEqual(1)
+    // NAEEM Dedicated debtor
+    expect(screen.getAllByText("NAEEM Dedicated Route").length).toBeGreaterThanOrEqual(1)
+    // Receive payment button available
+    expect(screen.getAllByText("Receive").length).toBeGreaterThanOrEqual(1)
   })
 
   it("renders compact quick action tiles linking to core operational modules", async () => {
@@ -176,6 +209,14 @@ describe("Executive DashboardPage Component", () => {
       purchases: { ...mockStats.purchases, totalPayable: 0 },
       sales: { ...mockStats.sales, totalReceivable: 0 },
       naeem: { ...mockStats.naeem, pending: 0 },
+      receivables: {
+        totalOutstanding: 0,
+        wholesaleOutstanding: 0,
+        naeemOutstanding: 0,
+        otherOutstanding: 0,
+        debtorsCount: 0,
+        debtors: [],
+      },
     }
     ;(getDashboardStats as any).mockResolvedValue(settledStats)
 

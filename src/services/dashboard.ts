@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
+import { getUnifiedReceivables } from "@/services/receivables"
 
 export type DateRange = "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR" | "ALL" | "CUSTOM"
 
@@ -409,6 +410,14 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     },
     dealers: Object.values(dealerAgg),
     resellers: Object.values(resellerAgg),
-    recentActivity: activities
+    recentActivity: activities,
+    receivables: await getUnifiedReceivables(targetYear, targetMonth).catch(() => ({
+      totalOutstanding: calculatedTotalReceivable + Math.max(0, naeemPending),
+      wholesaleOutstanding: calculatedTotalReceivable,
+      naeemOutstanding: Math.max(0, naeemPending),
+      otherOutstanding: 0,
+      debtorsCount: Object.values(resellerAgg).filter(r => r.outstanding > 0).length + (naeemPending > 0 ? 1 : 0),
+      debtors: []
+    }))
   }
 }
