@@ -93,6 +93,27 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     supabase.from("reseller_customers").select("id, name")
   ])
 
+  // Explicit check for database query errors to prevent silent data corruption or zero balances
+  const criticalQueries = [
+    purchasesRes,
+    allPurchasesRes,
+    allDealerPaymentsRes,
+    dealerPaymentsRes,
+    salesRes,
+    allSalesRes,
+    allResellerPaymentsRes,
+    resellerPaymentsRes,
+    generalDelRes,
+    naeemDelRes,
+    naeemPayRes,
+    dealersMasterRes,
+    resellersMasterRes
+  ]
+  const firstError = criticalQueries.find(q => q && q.error)?.error
+  if (firstError) {
+    throw new Error(`Failed to load accounting data: ${firstError.message || firstError}`)
+  }
+
   // Extract results safely
   const settings = settingsRes?.data
   const lowStockThreshold = settings?.low_stock_threshold || 2

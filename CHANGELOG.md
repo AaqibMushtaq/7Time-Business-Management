@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v1.2.1] - Performance Phase: Instant Shell Rendering, Modular Components & Supabase Realtime Sync
+### Added
+- **Instant Dashboard Shell Rendering**: Dashboard header, period selector, and live sync status render immediately without waiting for queries.
+- **Zero-CLS DashboardSkeleton**: Dimension-matched skeleton placeholders (`DashboardSkeleton`) preserve layout geometry during query resolution, eliminating layout shift.
+- **Supabase Realtime Live Synchronization**: Managed `RealtimeSyncProvider` and `useRealtimeSync` hook listening to postgres changes on `purchases`, `dealer_payments`, `dealers`, `wholesale_sales`, `reseller_payments`, `reseller_customers`, `general_daily_records`, `general_delivery_entries`, `naeem_daily_records`, `naeem_payments`, `naeem_monthly_balances`, and `products`.
+- **Debounced Query Invalidation**: Multi-event batches debounce into unified query cache invalidations (450ms) to eliminate request cascade loops.
+- **Lightweight Memoized Components**: Extracted `ExecutiveKpiGrid`, `ReceivablesDebtorsCard`, `DealersToPayCard`, and `LiveSyncBadge` with stable props to avoid whole-dashboard re-renders.
+- **Fail-Safe Accounting Integrity**: Added explicit database error detection in `getDashboardStats` preventing failed queries from silently degrading into zero balances.
+
+### Performance
+- Production bundle size reduced; initial JS entry transfer is only 17.13 kB (5.82 kB gzip).
+- All 122 automated unit tests across 18 test files passing.
+- 0 lint errors/warnings with `oxlint`.
+
 ## [v1.2.0] - Unified Receivables & Mobile Cache Auto-Update
 ### Added
 - Real-time client-side update detector and `UpdateNotificationBanner` prompting mobile users to refresh when new deployments land.

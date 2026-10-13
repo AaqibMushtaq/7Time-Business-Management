@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "./components/auth/AuthProvider"
 import { ProtectedRoute } from "./components/auth/ProtectedRoute"
 import { ErrorBoundary } from "./components/ErrorBoundary"
+import { RealtimeSyncProvider } from "./components/realtime/RealtimeSyncProvider"
 
 const AppLayout = lazy(() => import("./components/layout/AppLayout").then(m => ({ default: m.AppLayout })))
 
@@ -55,9 +56,10 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <HashRouter>
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <Routes>
+          <RealtimeSyncProvider>
+            <HashRouter>
+              <Suspense fallback={<RouteLoadingFallback />}>
+                <Routes>
                 <Route path="/login" element={<Login />} />
                 
                 <Route path="/" element={
@@ -90,8 +92,9 @@ function App() {
               </Routes>
             </Suspense>
           </HashRouter>
-        </AuthProvider>
-      </QueryClientProvider>
+        </RealtimeSyncProvider>
+      </AuthProvider>
+    </QueryClientProvider>
     </ErrorBoundary>
   )
 }
