@@ -28,6 +28,7 @@ const ReportsPage = lazy(() => import("./pages/reports"))
 const SettingsPage = lazy(() => import("./pages/settings"))
 const BackupPage = lazy(() => import("./pages/backup"))
 const AuditLogPage = lazy(() => import("./pages/audit"))
+const AIAssistantPage = lazy(() => import("./pages/assistant"))
 
 // Fallback loader while route chunks download on demand
 function RouteLoadingFallback() {
@@ -68,6 +69,7 @@ function App() {
                   </ProtectedRoute>
                 }>
                   <Route index element={<DashboardPage />} />
+                  <Route path="assistant" element={<AIAssistantPage />} />
                   <Route path="products" element={<ProductsPage />} />
                   <Route path="products/:id" element={<ProductDetailPage />} />
                   <Route path="inventory" element={<InventoryPage />} />

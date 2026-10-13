@@ -1,0 +1,458 @@
+import { useState, useRef, useEffect, useCallback, useTransition } from "react"
+import { 
+  Sparkles, Send, RotateCcw, AlertCircle, Copy, Check, 
+  ArrowRight, ShieldCheck, Info, Loader2, Bot, User 
+} from "lucide-react"
+import { Link } from "react-router-dom"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { 
+  sendAssistantMessage, 
+  SUGGESTED_PROMPTS, 
+  type ChatMessage 
+} from "@/services/aiAssistant"
+
+function parseInlineMarkdown(text: string) {
+  // Split by bold (**text**) and inline code (`code`)
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return (
+        <strong key={i} className="font-semibold text-slate-900">
+          {part.slice(2, -2)}
+        </strong>
+      )
+    }
+    if (part.startsWith("`") && part.endsWith("`")) {
+      return (
+        <code key={i} className="px-1.5 py-0.5 rounded bg-slate-100 text-blue-700 font-mono text-[11px]">
+          {part.slice(1, -1)}
+        </code>
+      )
+    }
+    return part
+  })
+}
+
+function SafeMarkdownText({ content, isUser }: { content: string; isUser?: boolean }) {
+  if (isUser) {
+    return <div className="whitespace-pre-wrap">{content}</div>
+  }
+
+  const lines = content.split("\n")
+  return (
+    <div className="space-y-1.5 leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim()
+        if (!trimmed) {
+          return <div key={idx} className="h-1.5" />
+        }
+
+        // Heading 3
+        if (trimmed.startsWith("### ")) {
+          return (
+            <h4 key={idx} className="font-bold text-sm text-[#0E2A47] mt-2 mb-0.5">
+              {parseInlineMarkdown(trimmed.slice(4))}
+            </h4>
+          )
+        }
+
+        // Heading 2
+        if (trimmed.startsWith("## ")) {
+          return (
+            <h3 key={idx} className="font-bold text-base text-[#0E2A47] mt-2.5 mb-1">
+              {parseInlineMarkdown(trimmed.slice(3))}
+            </h3>
+          )
+        }
+
+        // Heading 1
+        if (trimmed.startsWith("# ")) {
+          return (
+            <h2 key={idx} className="font-extrabold text-lg text-[#0E2A47] mt-3 mb-1">
+              {parseInlineMarkdown(trimmed.slice(2))}
+            </h2>
+          )
+        }
+
+        // Unordered bullet
+        if (trimmed.startsWith("* ") || trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          const bulletText = trimmed.replace(/^(\*|-|•)\s+/, "")
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-1.5">
+              <span className="text-[#2D7FF9] font-bold shrink-0 leading-5 text-sm">•</span>
+              <div className="flex-1 text-slate-700">{parseInlineMarkdown(bulletText)}</div>
+            </div>
+          )
+        }
+
+        // Numbered list
+        const numMatch = trimmed.match(/^(\d+)\.\s+(.*)/)
+        if (numMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-2 pl-1.5">
+              <span className="text-slate-500 font-semibold shrink-0 text-xs leading-5">
+                {numMatch[1]}.
+              </span>
+              <div className="flex-1 text-slate-700">{parseInlineMarkdown(numMatch[2])}</div>
+            </div>
+          )
+        }
+
+        // Normal paragraph line
+        return <p key={idx}>{parseInlineMarkdown(line)}</p>
+      })}
+    </div>
+  )
+}
+
+const INITIAL_WELCOME_MESSAGE: ChatMessage = {
+  id: "welcome-message",
+  role: "model",
+  text: "Hello! I am your 7TIME Business Intelligence Assistant powered by Google Gemini. I analyze your verified accounting records across Wholesale Resellers, Supplier Dealers, General Deliveries, and NAEEM Dedicated Routes. How can I help you today?",
+  timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+  referencedModules: ["Dashboard", "Receivables", "Dealers", "Deliveries", "NAEEM"],
+}
+
+export default function AIAssistantPage() {
+  const [messages, setMessages] = useState<ChatMessage[]>([INITIAL_WELCOME_MESSAGE])
+  const [inputPrompt, setInputPrompt] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null)
+  const [, startTransition] = useTransition()
+
+  const chatEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Auto-scroll to bottom of chat
+  const scrollToBottom = useCallback(() => {
+    chatEndRef.current?.scrollIntoView?.({ behavior: "smooth" })
+  }, [])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, isLoading, scrollToBottom])
+
+  const handleSendMessage = async (textToSend?: string) => {
+    const query = (textToSend || inputPrompt).trim()
+    if (!query || isLoading) return
+
+    setInputPrompt("")
+    setLastFailedPrompt(null)
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      text: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setIsLoading(true)
+
+    // Prepare history payload (excluding initial greeting)
+    const historyPayload = messages
+      .filter((m) => m.id !== "welcome-message" && !m.isError)
+      .map((m) => ({ role: m.role, text: m.text }))
+
+    try {
+      const response = await sendAssistantMessage(query, historyPayload)
+
+      if (response.error) {
+        setLastFailedPrompt(query)
+        const errorMessage: ChatMessage = {
+          id: `error-${Date.now()}`,
+          role: "model",
+          text: response.answer,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          isError: true,
+        }
+        setMessages((prev) => [...prev, errorMessage])
+      } else {
+        const assistantMessage: ChatMessage = {
+          id: `model-${Date.now()}`,
+          role: "model",
+          text: response.answer,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          referencedModules: response.referencedModules,
+        }
+        setMessages((prev) => [...prev, assistantMessage])
+      }
+    } catch (err: any) {
+      setLastFailedPrompt(query)
+      const errMessage: ChatMessage = {
+        id: `error-${Date.now()}`,
+        role: "model",
+        text: err.message || "An unexpected error occurred.",
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        isError: true,
+      }
+      setMessages((prev) => [...prev, errMessage])
+    } finally {
+      setIsLoading(false)
+      // Re-focus input
+      setTimeout(() => inputRef.current?.focus(), 100)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage()
+    }
+  }
+
+  const handleClearConversation = () => {
+    startTransition(() => {
+      setMessages([INITIAL_WELCOME_MESSAGE])
+      setLastFailedPrompt(null)
+      setInputPrompt("")
+    })
+  }
+
+  const handleCopyText = (id: string, text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
+    })
+  }
+
+  const getModuleRoute = (moduleName: string) => {
+    const lower = moduleName.toLowerCase()
+    if (lower.includes("receivable") || lower.includes("reseller")) return "/resellers"
+    if (lower.includes("dealer") || lower.includes("payable")) return "/dealers"
+    if (lower.includes("naeem")) return "/naeem"
+    if (lower.includes("deliver")) return "/general-deliveries"
+    if (lower.includes("invent") || lower.includes("stock") || lower.includes("product")) return "/inventory"
+    if (lower.includes("report")) return "/reports"
+    return "/"
+  }
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-4 pb-12 flex flex-col h-[calc(100vh-5rem)]">
+      {/* HEADER BAR */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 sm:p-5 rounded-xl border border-[#E5E7EB] shadow-xs shrink-0">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#2D7FF9] to-[#4A39D6] flex items-center justify-center text-white shadow-xs">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0E2A47]">
+              7TIME AI Assistant
+            </h1>
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-[#4A39D6] border border-purple-200">
+              GEMINI 1.5 FLASH
+            </span>
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <ShieldCheck className="w-3 h-3" /> READ-ONLY
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
+            Deterministic business intelligence and natural language reporting on your live records
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClearConversation}
+            className="text-xs text-slate-600 hover:text-[#0E2A47] gap-1.5 cursor-pointer"
+            title="Reset conversation and clear chat history"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>New Chat</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* CHAT THREAD VIEWPORT */}
+      <Card className="flex-1 border-[#E5E7EB] shadow-xs flex flex-col min-h-0 bg-slate-50/50 overflow-hidden">
+        <CardContent className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4">
+          {messages.map((message) => {
+            const isUser = message.role === "user"
+            return (
+              <div
+                key={message.id}
+                className={`flex gap-3 max-w-[92%] sm:max-w-[85%] ${
+                  isUser ? "ml-auto flex-row-reverse" : "mr-auto"
+                }`}
+              >
+                {/* Avatar */}
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white ${
+                    isUser
+                      ? "bg-[#0E2A47]"
+                      : message.isError
+                      ? "bg-red-500"
+                      : "bg-gradient-to-tr from-[#2D7FF9] to-[#4A39D6]"
+                  }`}
+                >
+                  {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                </div>
+
+                {/* Message Body */}
+                <div
+                  className={`rounded-2xl p-4 shadow-2xs space-y-2 text-xs sm:text-sm leading-relaxed ${
+                    isUser
+                      ? "bg-[#2D7FF9] text-white rounded-tr-none"
+                      : message.isError
+                      ? "bg-red-50 border border-red-200 text-red-900 rounded-tl-none"
+                      : "bg-white border border-[#E5E7EB] text-[#0E2A47] rounded-tl-none"
+                  }`}
+                >
+                  {/* Text Content */}
+                  <SafeMarkdownText content={message.text} isUser={isUser} />
+
+                  {/* Referenced module badges (for assistant messages) */}
+                  {!isUser && message.referencedModules && message.referencedModules.length > 0 && (
+                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 mt-2">
+                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                        Source Data:
+                      </span>
+                      {message.referencedModules.map((mod) => (
+                        <Link
+                          key={mod}
+                          to={getModuleRoute(mod)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-[#2D7FF9] border border-slate-200 transition-colors"
+                        >
+                          <span>{mod}</span>
+                          <ArrowRight className="w-2.5 h-2.5" />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Metadata and actions footer */}
+                  <div className="flex items-center justify-between gap-4 pt-1 text-[10px] text-slate-400">
+                    <span>{message.timestamp}</span>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(message.id, message.text)}
+                      className={`inline-flex items-center gap-1 hover:underline transition-colors cursor-pointer ${
+                        isUser ? "text-blue-100 hover:text-white" : "text-slate-400 hover:text-slate-600"
+                      }`}
+                      title="Copy response to clipboard"
+                    >
+                      {copiedId === message.id ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-500" />
+                          <span>Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* THINKING SPINNER */}
+          {isLoading && (
+            <div className="flex gap-3 max-w-[85%] mr-auto items-center animate-pulse">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#2D7FF9] to-[#4A39D6] flex items-center justify-center text-white shrink-0">
+                <Bot className="w-4 h-4" />
+              </div>
+              <div className="bg-white border border-[#E5E7EB] rounded-2xl rounded-tl-none p-3.5 shadow-2xs flex items-center gap-2.5 text-xs text-slate-500">
+                <Loader2 className="w-4 h-4 animate-spin text-[#2D7FF9]" />
+                <span>Consulting verified financial records with Gemini AI...</span>
+              </div>
+            </div>
+          )}
+
+          {/* RETRY BUTTON FOR LAST FAILED PROMPT */}
+          {lastFailedPrompt && !isLoading && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => handleSendMessage(lastFailedPrompt)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                <span>Retry failed question</span>
+              </button>
+            </div>
+          )}
+
+          <div ref={chatEndRef} />
+        </CardContent>
+
+        {/* SUGGESTED QUESTIONS (Shown if conversation has <= 2 messages) */}
+        {messages.length <= 2 && (
+          <div className="px-4 py-3 bg-white border-t border-slate-100 shrink-0">
+            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block mb-2">
+              Suggested Questions
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {SUGGESTED_PROMPTS.map((item) => (
+                <button
+                  key={item.label}
+                  type="button"
+                  onClick={() => handleSendMessage(item.prompt)}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-[#2D7FF9] border border-slate-200 hover:border-blue-200 transition-all cursor-pointer text-left"
+                >
+                  <Sparkles className="w-3 h-3 text-[#2D7FF9] shrink-0" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* INPUT COMPOSER */}
+        <div className="p-3 sm:p-4 bg-white border-t border-[#E5E7EB] shrink-0">
+          <label htmlFor="ai-assistant-prompt-input" className="sr-only">
+            Ask a business intelligence question
+          </label>
+          <div className="flex items-end gap-2">
+            <textarea
+              id="ai-assistant-prompt-input"
+              ref={inputRef}
+              value={inputPrompt}
+              onChange={(e) => setInputPrompt(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask anything about receivables, dealer payables, NAEEM route, or delivery profits..."
+              disabled={isLoading}
+              aria-label="Ask the 7TIME AI Assistant"
+              rows={2}
+              className="flex-1 resize-none rounded-xl border border-slate-200 p-2.5 text-xs sm:text-sm text-[#0E2A47] focus:outline-none focus:ring-2 focus:ring-[#2D7FF9]/40 focus:border-[#2D7FF9] transition-all bg-slate-50/50"
+            />
+            <Button
+              type="button"
+              onClick={() => handleSendMessage()}
+              disabled={isLoading || !inputPrompt.trim()}
+              aria-label="Send message"
+              className="bg-[#2D7FF9] hover:bg-blue-600 text-white rounded-xl h-11 px-4 shrink-0 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5 font-semibold"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  <span className="hidden sm:inline">Send</span>
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* COMPLIANCE & PRIVACY FOOTER */}
+          <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 mt-2 px-1">
+            <span className="flex items-center gap-1">
+              <Info className="w-3 h-3" />
+              <span>Read-only assistant. Never modifies or creates financial transactions.</span>
+            </span>
+            <span>Google Gemini Free Tier: 15 req/min, 1,500 req/day</span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}

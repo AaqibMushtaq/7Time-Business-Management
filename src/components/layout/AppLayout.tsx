@@ -15,7 +15,8 @@ import {
   ShieldAlert,
   Menu,
   X,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from "lucide-react"
 import { Button } from "../ui/button"
 import { UpdateNotificationBanner } from "../common/UpdateNotificationBanner"
@@ -26,6 +27,7 @@ const navGroups = [
     name: "",
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
+      { name: "AI Assistant", href: "/assistant", icon: Sparkles },
     ]
   },
   {

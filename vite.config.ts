@@ -3,7 +3,7 @@ import { defineConfig, type Plugin } from 'vitest/config'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-const appVersion = '1.2.0'
+const appVersion = '1.3.0'
 const buildTime = new Date().toISOString()
 
 function versionPlugin(): Plugin {
