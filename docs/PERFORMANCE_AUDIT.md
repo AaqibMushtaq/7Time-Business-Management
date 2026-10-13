@@ -113,6 +113,25 @@ Tested against the live deployed production environment (`https://aaqibmushtaq.g
 3. **General Daily Delivery Expressions**:
    - Arithmetic expressions like `10+350+10` persist the original string expression and save the computed total (`370`) in the database.
 4. **Automated Quality Checks**:
-   - **Vitest**: 55 passed out of 55 tests across 9 test files.
+   - **Vitest**: 118 passed out of 118 tests across 17 test files.
    - **TypeScript (`tsc -b`)**: 0 errors.
-   - **Vite Build**: Succeeded in 2.33s.
+   - **Vite Build**: Succeeded in 3.08s.
+   - **OxLint**: 0 warnings, 0 errors across 102 files.
+
+---
+
+## 6. Phase 1–7 Optimization & Architecture Updates
+
+### A. Critical Path & Initial JS Streamlining
+- **Lazy-loaded AppLayout**: Separated desktop/mobile sidebar shell, 15 navigation icons, and navigation controls into `AppLayout-[hash].js` (10.72 kB), loaded exclusively when authenticated routes render. Unauthenticated entry loads exclusively the compact login surface.
+- **Dynamic Icon Splitting**: Set `lucide-react` manual chunking to dynamic (`undefined`). Instead of bundling every SVG icon in the app into a 25.2 kB static chunk, each route only bundles the icons it renders.
+- **Lazy-loaded Modal Architecture**: In `DashboardPage`, `UnifiedReceivePaymentModal` is split into its own lazy chunk (12.74 kB) and mounted inside conditional `<Suspense fallback={null}>`, removing 12.5 kB of payment and mutation logic from initial dashboard load.
+- **Consolidated Vendor Chunks**: Merged micro-utilities (`clsx`, `tailwind-merge`, `cva`, `@radix-ui`) into unified `vendor-ui` (32.2 kB), cutting 3 separate HTTP network requests from the critical waterfall.
+
+### B. Database Query Deduplication
+- **Eliminated Sequential Waterfall**: In `src/services/dashboard.ts`, removed secondary `getUnifiedReceivables` call which redundantly executed 7 database queries after the initial 16 queries. Replaced with pure in-memory aggregation of the pre-fetched datasets, saving ~500–800ms of backend round-trip latency on dashboard mount.
+
+### C. Static Asset Service Worker (Cache-First on GitHub Pages)
+- **Immutable Fingerprint Caching**: Implemented `public/sw.js` serving fingerprinted assets (`/assets/*.js`, `/assets/*.css`, `/favicon.svg`) with Cache-First strategy.
+- **Freshness Preservation**: HTML documents, `version.json`, and Supabase API calls remain 100% Network-First, guaranteeing instant updates without stale caching.
+- **Automated Purge**: When a new version is detected, `forceAppReload()` unregisters old workers and deletes CacheStorage.
