@@ -54,8 +54,11 @@ describe("AI Assistant Service (sendAssistantMessage)", () => {
 
     const result = await sendAssistantMessage("What is our total outstanding receivables?")
 
-    // Verified: frontend invokes the edge function name
+    // Verified: frontend invokes the edge function name with Bearer token
     expect(supabase.functions.invoke).toHaveBeenCalledWith("gemini-assistant", {
+      headers: {
+        Authorization: "Bearer mock-jwt",
+      },
       body: {
         prompt: "What is our total outstanding receivables?",
         history: [],

@@ -72,6 +72,9 @@ export async function sendAssistantMessage(
 
   try {
     const { data, error } = await supabase.functions.invoke("gemini-assistant", {
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+      },
       body: {
         prompt: cleanPrompt,
         history,
@@ -81,6 +84,28 @@ export async function sendAssistantMessage(
     if (error) {
       // Determine user-friendly error message from Edge Function
       let message = error.message || "Failed to communicate with AI Assistant Edge Function."
+
+      // Extract server-provided error if present in response context
+      try {
+        if ((error as any).context) {
+          if (typeof (error as any).context.json === "function") {
+            const body = await (error as any).context.json()
+            if (body?.error) message = body.error
+            else if (body?.message) message = body.message
+          } else if (typeof (error as any).context.text === "function") {
+            const text = await (error as any).context.text()
+            try {
+              const body = JSON.parse(text)
+              if (body?.error) message = body.error
+              else if (body?.message) message = body.message
+            } catch {
+              if (text) message = text
+            }
+          }
+        }
+      } catch {
+        // use fallback message
+      }
 
       if (message.includes("Failed to send a request") || message.includes("FunctionsFetchError")) {
         message =

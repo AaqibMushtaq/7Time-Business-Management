@@ -44,6 +44,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim()
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || ""
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || ""
 
@@ -61,18 +62,19 @@ Deno.serve(async (req: Request) => {
 
     // Scoped client with authenticated user credentials enforcing RLS
     const supabaseUserClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      auth: { persistSession: false },
     })
 
     const {
       data: { user },
       error: authError,
-    } = await supabaseUserClient.auth.getUser()
+    } = await supabaseUserClient.auth.getUser(jwt)
 
     if (authError || !user) {
       return new Response(
         JSON.stringify({
-          error: "Invalid or expired session. Please sign in again.",
+          error: `Authentication failed: ${authError?.message || "Invalid or expired session"}. Please sign out and sign in again.`,
         }),
         {
           status: 401,
@@ -453,84 +455,98 @@ ${JSON.stringify(contextData, null, 2)}`
       contents.push(...formattedContents)
     }
 
-    // 8. Call Official Google Gemini API with Timeout
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000) // 15s timeout
+    // 8. Call Official Google Gemini API with Timeout and Model Fallbacks
+    const candidateModels = Array.from(new Set([geminiModel, "gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"]))
+    let geminiResponse: Response | null = null
+    let activeModel = geminiModel
+    let lastErrorText = ""
 
-    let geminiResponse: Response
-    try {
-      geminiResponse = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.2, // Low temperature for high factual consistency
-            maxOutputTokens: 1024,
-          },
-        }),
-        signal: controller.signal,
-      })
-    } catch (err: any) {
-      clearTimeout(timeoutId)
-      if (err.name === "AbortError") {
-        return new Response(
-          JSON.stringify({
-            error: "Gemini API request timed out (15 seconds limit). Please try a shorter question.",
+    for (const model of candidateModels) {
+      activeModel = model
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+      try {
+        const resp = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              temperature: 0.2, // Low temperature for high factual consistency
+              maxOutputTokens: 1024,
+            },
           }),
-          {
-            status: 504,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        )
-      }
-      return new Response(
-        JSON.stringify({
-          error: "Failed to connect to Google Gemini API: " + (err.message || "Network error"),
-        }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+
+        if (resp.ok) {
+          geminiResponse = resp
+          break
         }
-      )
-    } finally {
-      clearTimeout(timeoutId)
+
+        // If 404 Model not found, try next candidate model
+        if (resp.status === 404) {
+          lastErrorText = await resp.text()
+          continue
+        }
+
+        geminiResponse = resp
+        break
+      } catch (err: any) {
+        clearTimeout(timeoutId)
+        if (err.name === "AbortError") {
+          return new Response(
+            JSON.stringify({
+              error: "Gemini API request timed out (15 seconds limit). Please try a shorter question.",
+            }),
+            {
+              status: 504,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          )
+        }
+        lastErrorText = err.message || "Network error"
+      }
     }
 
-    // Handle Gemini response status
-    if (!geminiResponse.ok) {
-      const errorText = await geminiResponse.text()
+    if (!geminiResponse || !geminiResponse.ok) {
       let parsedError: any = {}
-      try {
-        parsedError = JSON.parse(errorText)
-      } catch {
-        // raw text
-      }
+      if (geminiResponse) {
+        const errorText = await geminiResponse.text()
+        try {
+          parsedError = JSON.parse(errorText)
+        } catch {
+          // raw
+        }
 
-      if (geminiResponse.status === 429) {
-        return new Response(
-          JSON.stringify({
-            error:
-              "Google Gemini free tier quota limit reached (15 requests/min or 1,500/day). Please wait 30 seconds and try again.",
-          }),
-          {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        )
+        if (geminiResponse.status === 429) {
+          return new Response(
+            JSON.stringify({
+              error:
+                "Google Gemini free tier quota limit reached (15 requests/min or 1,500/day). Please wait 30 seconds and try again.",
+            }),
+            {
+              status: 429,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+          )
+        }
       }
 
       const clientMessage =
         parsedError?.error?.message ||
-        `Gemini API returned status ${geminiResponse.status}. Verify your GEMINI_API_KEY.`
+        lastErrorText ||
+        "Gemini API request could not be completed. Please verify GEMINI_API_KEY."
 
       return new Response(
         JSON.stringify({
           error: clientMessage,
         }),
         {
-          status: geminiResponse.status,
+          status: geminiResponse?.status || 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       )
@@ -552,7 +568,7 @@ ${JSON.stringify(contextData, null, 2)}`
     return new Response(
       JSON.stringify({
         answer: answerText,
-        model: geminiModel,
+        model: activeModel,
         timestamp: new Date().toISOString(),
         referencedModules,
         verifiedSummary: contextData.executiveSummary,
