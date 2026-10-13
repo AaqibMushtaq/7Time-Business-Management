@@ -455,11 +455,52 @@ ${JSON.stringify(contextData, null, 2)}`
       contents.push(...formattedContents)
     }
 
-    // 8. Call Official Google Gemini API with Timeout and Model Fallbacks
-    const candidateModels = Array.from(new Set([geminiModel, "gemini-1.5-flash", "gemini-2.5-flash", "gemini-2.0-flash"]))
+    // 8. Call Official Google Gemini API
+    // Dynamically discover supported models for this API key to protect against Google model deprecations
+    let targetModel = geminiModel
+    let supportedModelsList: string[] = []
+    try {
+      const listController = new AbortController()
+      const listTimeout = setTimeout(() => listController.abort(), 4000)
+      const listRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiApiKey}`,
+        { signal: listController.signal }
+      )
+      clearTimeout(listTimeout)
+
+      if (listRes.ok) {
+        const listData = await listRes.json()
+        const supported = (listData.models || [])
+          .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"))
+          .map((m: any) => m.name.replace(/^models\//, ""))
+
+        supportedModelsList = supported
+
+        // Find best candidate
+        const preferred =
+          supported.find((m: string) => m.includes("2.5-flash")) ||
+          supported.find((m: string) => m.includes("1.5-flash")) ||
+          supported.find((m: string) => m.includes("flash")) ||
+          supported[0]
+
+        if (preferred) {
+          targetModel = preferred
+        }
+      }
+    } catch {
+      // Use configured geminiModel as fallback
+    }
+
+    const candidateModels = Array.from(new Set([
+      "gemini-2.5-flash",
+      "gemini-flash-latest",
+      "gemini-2.5-flash-lite",
+      "gemini-pro-latest",
+      targetModel,
+    ]))
     let geminiResponse: Response | null = null
-    let activeModel = geminiModel
-    let lastErrorText = ""
+    let activeModel = candidateModels[0]
+    const modelErrors: Record<string, string> = {}
 
     for (const model of candidateModels) {
       activeModel = model
@@ -487,66 +528,22 @@ ${JSON.stringify(contextData, null, 2)}`
           break
         }
 
-        // If 404 Model not found, try next candidate model
-        if (resp.status === 404) {
-          lastErrorText = await resp.text()
-          continue
-        }
-
-        geminiResponse = resp
-        break
+        const errText = await resp.text()
+        modelErrors[model] = `HTTP ${resp.status}: ${errText}`
+        continue
       } catch (err: any) {
         clearTimeout(timeoutId)
-        if (err.name === "AbortError") {
-          return new Response(
-            JSON.stringify({
-              error: "Gemini API request timed out (15 seconds limit). Please try a shorter question.",
-            }),
-            {
-              status: 504,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          )
-        }
-        lastErrorText = err.message || "Network error"
+        modelErrors[model] = `Network Error: ${err.message || "Timeout"}`
       }
     }
 
     if (!geminiResponse || !geminiResponse.ok) {
-      let parsedError: any = {}
-      if (geminiResponse) {
-        const errorText = await geminiResponse.text()
-        try {
-          parsedError = JSON.parse(errorText)
-        } catch {
-          // raw
-        }
-
-        if (geminiResponse.status === 429) {
-          return new Response(
-            JSON.stringify({
-              error:
-                "Google Gemini free tier quota limit reached (15 requests/min or 1,500/day). Please wait 30 seconds and try again.",
-            }),
-            {
-              status: 429,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          )
-        }
-      }
-
-      const clientMessage =
-        parsedError?.error?.message ||
-        lastErrorText ||
-        "Gemini API request could not be completed. Please verify GEMINI_API_KEY."
-
       return new Response(
         JSON.stringify({
-          error: clientMessage,
+          error: `Gemini API execution error: ${JSON.stringify(modelErrors)}`,
         }),
         {
-          status: geminiResponse?.status || 502,
+          status: 502,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       )
