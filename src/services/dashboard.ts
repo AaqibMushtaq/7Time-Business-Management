@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase"
 import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
-import { getUnifiedReceivables } from "@/services/receivables"
 
 export type DateRange = "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR" | "ALL" | "CUSTOM"
 
@@ -411,13 +410,34 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     dealers: Object.values(dealerAgg),
     resellers: Object.values(resellerAgg),
     recentActivity: activities,
-    receivables: await getUnifiedReceivables(targetYear, targetMonth).catch(() => ({
+    receivables: {
       totalOutstanding: calculatedTotalReceivable + Math.max(0, naeemPending),
       wholesaleOutstanding: calculatedTotalReceivable,
       naeemOutstanding: Math.max(0, naeemPending),
       otherOutstanding: 0,
       debtorsCount: Object.values(resellerAgg).filter(r => r.outstanding > 0).length + (naeemPending > 0 ? 1 : 0),
-      debtors: []
-    }))
+      debtors: [
+        ...Object.values(resellerAgg)
+          .filter(r => r.outstanding > 0)
+          .map(r => ({
+            id: r.id,
+            name: r.name,
+            source: "WHOLESALE_RESELLER" as const,
+            sourceLabel: "Wholesale Reseller",
+            outstanding: r.outstanding,
+            lastPaymentDate: null,
+            routePath: `/resellers/${r.id}`
+          })),
+        ...(naeemPending > 0 ? [{
+          id: "naeem-dedicated-route",
+          name: "NAEEM Dedicated Route",
+          source: "NAEEM" as const,
+          sourceLabel: "NAEEM Contract",
+          outstanding: Math.max(0, naeemPending),
+          lastPaymentDate: null,
+          routePath: "/naeem?action=payment"
+        }] : [])
+      ]
+    }
   }
 }

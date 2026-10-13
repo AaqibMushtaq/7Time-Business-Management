@@ -3,13 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
-// Unregister any legacy service workers on domain to prevent stale asset trapping
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    for (const registration of registrations) {
-      registration.unregister().catch(() => {})
-    }
-  }).catch(() => {})
+// Register static asset service worker after initial window load to avoid blocking FCP
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    const swUrl = `${import.meta.env.BASE_URL}sw.js`
+    navigator.serviceWorker.register(swUrl).catch(() => {})
+  })
 }
 
 createRoot(document.getElementById('root')!).render(

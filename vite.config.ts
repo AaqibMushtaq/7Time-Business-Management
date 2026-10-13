@@ -73,30 +73,28 @@ export default defineConfig({
             ) {
               return 'vendor-react'
             }
-            // Shared styling utilities
-            if (
-              norm.includes('/clsx/') || 
-              norm.includes('/tailwind-merge/') || 
-              norm.includes('/class-variance-authority/')
-            ) {
-              return 'vendor-utils'
+            // Supabase client SDK
+            if (norm.includes('/@supabase/')) {
+              return 'vendor-supabase'
             }
             // TanStack Query runtime & core
             if (norm.includes('/@tanstack/')) {
               return 'vendor-query'
             }
-            // Supabase client SDK
-            if (norm.includes('/@supabase/')) {
-              return 'vendor-supabase'
-            }
-            // UI & Icons
-            if (norm.includes('/lucide-react/')) {
-              return 'vendor-icons'
-            }
-            if (norm.includes('/@radix-ui/')) {
+            // Shared styling & UI utilities (consolidated to eliminate tiny micro-chunks)
+            if (
+              norm.includes('/clsx/') || 
+              norm.includes('/tailwind-merge/') || 
+              norm.includes('/class-variance-authority/') ||
+              norm.includes('/@radix-ui/')
+            ) {
               return 'vendor-ui'
             }
-            return 'vendor-misc'
+            // Lucide icons: keep dynamic per route so entry chunks do not pay for all application icons
+            if (norm.includes('/lucide-react/')) {
+              return undefined
+            }
+            return undefined
           }
         }
       }

@@ -3,8 +3,9 @@ import { HashRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "./components/auth/AuthProvider"
 import { ProtectedRoute } from "./components/auth/ProtectedRoute"
-import { AppLayout } from "./components/layout/AppLayout"
 import { ErrorBoundary } from "./components/ErrorBoundary"
+
+const AppLayout = lazy(() => import("./components/layout/AppLayout").then(m => ({ default: m.AppLayout })))
 
 import { Login } from "./pages/auth/Login"
 

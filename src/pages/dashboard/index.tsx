@@ -11,10 +11,10 @@ import {
 } from "lucide-react"
 import { Link, useNavigate } from "react-router-dom"
 import type { MetricType, ViewMode } from "./UnifiedBusinessPerformanceChart"
-import { UnifiedReceivePaymentModal } from "@/components/common/UnifiedReceivePaymentModal"
 import type { UnifiedDebtor } from "@/services/receivables"
 
 const UnifiedBusinessPerformanceChart = lazy(() => import("./UnifiedBusinessPerformanceChart"))
+const UnifiedReceivePaymentModal = lazy(() => import("@/components/common/UnifiedReceivePaymentModal"))
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -696,18 +696,22 @@ export default function DashboardPage() {
       </div>
 
       {/* REUSABLE UNIFIED RECEIVE PAYMENT MODAL */}
-      <UnifiedReceivePaymentModal
-        isOpen={isPaymentModalOpen}
-        onClose={() => {
-          setIsPaymentModalOpen(false)
-          setSelectedPaymentDebtor(null)
-        }}
-        debtor={selectedPaymentDebtor}
-        debtors={receivablesSummary.debtors}
-        onSuccess={() => {
-          refetch()
-        }}
-      />
+      {isPaymentModalOpen && (
+        <Suspense fallback={null}>
+          <UnifiedReceivePaymentModal
+            isOpen={isPaymentModalOpen}
+            onClose={() => {
+              setIsPaymentModalOpen(false)
+              setSelectedPaymentDebtor(null)
+            }}
+            debtor={selectedPaymentDebtor}
+            debtors={receivablesSummary.debtors}
+            onSuccess={() => {
+              refetch()
+            }}
+          />
+        </Suspense>
+      )}
     </div>
   )
 }
