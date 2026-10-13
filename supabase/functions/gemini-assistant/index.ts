@@ -513,7 +513,20 @@ ${JSON.stringify(contextData, null, 2)}`
     if (!geminiResponse.ok) {
       const status = geminiResponse.status
       const retryAfterHeader = geminiResponse.headers.get("retry-after")
-      console.warn(`[gemini-assistant] Google Gemini API returned status ${status} for model '${geminiModel}'`)
+      let providerErrBody: any = null
+      try {
+        providerErrBody = await geminiResponse.json()
+      } catch {
+        // fallback
+      }
+
+      const rawProviderMsg = providerErrBody?.error?.message || ""
+      const sanitizedProviderMsg = rawProviderMsg
+        .replace(/key=[^&\s]+/gi, "key=[REDACTED]")
+        .replace(/AIza[0-9A-Za-z-_]{35}/g, "[REDACTED]")
+        .trim()
+
+      console.warn(`[gemini-assistant] Google API returned status ${status} for model '${geminiModel}':`, sanitizedProviderMsg)
 
       let errorCode = "PROVIDER_ERROR"
       let errorMessage = "An error occurred while communicating with the Google Gemini API."
@@ -521,7 +534,7 @@ ${JSON.stringify(contextData, null, 2)}`
 
       if (status === 400) {
         errorCode = "INVALID_REQUEST"
-        errorMessage = "The question or context could not be processed by Google Gemini. Please rephrase your query."
+        errorMessage = sanitizedProviderMsg || "The question or context could not be processed by Google Gemini. Please rephrase your query."
         retryable = false
       } else if (status === 401 || status === 403) {
         errorCode = "AUTH_ERROR"
@@ -529,18 +542,24 @@ ${JSON.stringify(contextData, null, 2)}`
         retryable = false
       } else if (status === 404) {
         errorCode = "MODEL_NOT_FOUND"
-        errorMessage = `The configured Gemini model '${geminiModel}' is unavailable or unsupported for this API project. Check the model ID or configure an active model in Supabase secrets.`
+        errorMessage = sanitizedProviderMsg
+          ? `Gemini model '${geminiModel}' is unavailable: ${sanitizedProviderMsg}`
+          : `The configured Gemini model '${geminiModel}' is unavailable or unsupported for this API project. Check the model ID or configure an active model in Supabase secrets.`
         retryable = false
       } else if (status === 429) {
         errorCode = "QUOTA_EXCEEDED"
-        errorMessage = `Gemini API quota is exhausted for model '${geminiModel}' (free-tier limit reached or zero quota assigned). Check your active model quotas and billing in Google AI Studio.`
+        errorMessage = sanitizedProviderMsg
+          ? `Gemini API quota exhausted for model '${geminiModel}': ${sanitizedProviderMsg}`
+          : `Gemini API quota is exhausted for model '${geminiModel}' (free-tier limit reached or zero quota assigned). Check your active model quotas and billing in Google AI Studio.`
         if (retryAfterHeader) {
           errorMessage += ` Try again in ${retryAfterHeader} seconds.`
         }
         retryable = false
       } else if (status >= 500) {
         errorCode = "PROVIDER_UNAVAILABLE"
-        errorMessage = "Google Gemini service is temporarily experiencing high traffic. Please try again shortly."
+        errorMessage = sanitizedProviderMsg
+          ? `Google Gemini service returned ${status}: ${sanitizedProviderMsg}`
+          : "Google Gemini service is temporarily experiencing high traffic. Please try again shortly."
         retryable = true
       }
 
