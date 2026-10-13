@@ -9,8 +9,28 @@ import { Button } from "@/components/ui/button"
 import { 
   sendAssistantMessage, 
   SUGGESTED_PROMPTS, 
-  type ChatMessage 
+  type ChatMessage,
+  type AssistantError
 } from "@/services/aiAssistant"
+
+function getErrorTitle(code?: string): string {
+  switch (code) {
+    case "QUOTA_EXCEEDED":
+      return "Gemini API Quota Exceeded"
+    case "MODEL_NOT_FOUND":
+      return "Configured Model Unavailable"
+    case "AUTH_ERROR":
+      return "API Authentication Error"
+    case "TIMEOUT":
+      return "Request Timed Out"
+    case "PROVIDER_UNAVAILABLE":
+      return "Service Temporarily Unavailable"
+    case "INVALID_REQUEST":
+      return "Invalid Request"
+    default:
+      return "Assistant Request Failed"
+  }
+}
 
 function parseInlineMarkdown(text: string) {
   // Split by bold (**text**) and inline code (`code`)
@@ -120,6 +140,8 @@ export default function AIAssistantPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [lastFailedPrompt, setLastFailedPrompt] = useState<string | null>(null)
+  const [lastErrorDetails, setLastErrorDetails] = useState<AssistantError | null>(null)
+  const [activeModel, setActiveModel] = useState<string>("gemini-3.8-flash")
   const [, startTransition] = useTransition()
 
   const chatEndRef = useRef<HTMLDivElement>(null)
@@ -140,6 +162,7 @@ export default function AIAssistantPage() {
 
     setInputPrompt("")
     setLastFailedPrompt(null)
+    setLastErrorDetails(null)
 
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,
@@ -161,15 +184,25 @@ export default function AIAssistantPage() {
 
       if (response.error) {
         setLastFailedPrompt(query)
+        setLastErrorDetails(response.error)
+        if (response.error.model) {
+          setActiveModel(response.error.model)
+        }
         const errorMessage: ChatMessage = {
           id: `error-${Date.now()}`,
           role: "model",
           text: response.answer,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           isError: true,
+          errorDetails: response.error,
         }
         setMessages((prev) => [...prev, errorMessage])
       } else {
+        if (response.model) {
+          setActiveModel(response.model)
+        }
+        setLastFailedPrompt(null)
+        setLastErrorDetails(null)
         const assistantMessage: ChatMessage = {
           id: `model-${Date.now()}`,
           role: "model",
@@ -181,12 +214,19 @@ export default function AIAssistantPage() {
       }
     } catch (err: any) {
       setLastFailedPrompt(query)
+      const errDetails: AssistantError = {
+        code: "UNEXPECTED_ERROR",
+        message: err.message || "An unexpected error occurred.",
+        retryable: true,
+      }
+      setLastErrorDetails(errDetails)
       const errMessage: ChatMessage = {
         id: `error-${Date.now()}`,
         role: "model",
-        text: err.message || "An unexpected error occurred.",
+        text: errDetails.message,
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
         isError: true,
+        errorDetails: errDetails,
       }
       setMessages((prev) => [...prev, errMessage])
     } finally {
@@ -207,6 +247,7 @@ export default function AIAssistantPage() {
     startTransition(() => {
       setMessages([INITIAL_WELCOME_MESSAGE])
       setLastFailedPrompt(null)
+      setLastErrorDetails(null)
       setInputPrompt("")
     })
   }
@@ -241,8 +282,8 @@ export default function AIAssistantPage() {
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0E2A47]">
               7TIME AI Assistant
             </h1>
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-[#4A39D6] border border-purple-200">
-              GEMINI 1.5 FLASH
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-[#4A39D6] border border-purple-200 uppercase">
+              {activeModel.replace(/-/g, " ").toUpperCase()}
             </span>
             <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <ShieldCheck className="w-3 h-3" /> READ-ONLY
@@ -298,15 +339,49 @@ export default function AIAssistantPage() {
                     isUser
                       ? "bg-[#2D7FF9] text-white rounded-tr-none"
                       : message.isError
-                      ? "bg-red-50 border border-red-200 text-red-900 rounded-tl-none"
+                      ? "bg-red-50/90 border border-red-200 text-red-950 rounded-tl-none"
                       : "bg-white border border-[#E5E7EB] text-[#0E2A47] rounded-tl-none"
                   }`}
                 >
-                  {/* Text Content */}
-                  <SafeMarkdownText content={message.text} isUser={isUser} />
+                  {/* Text or Error Content */}
+                  {message.isError ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-1.5 font-bold text-red-700 text-xs sm:text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                        <span>{getErrorTitle(message.errorDetails?.code)}</span>
+                      </div>
+                      <p className="text-red-900/90 text-xs sm:text-sm whitespace-pre-wrap">{message.text}</p>
+                      {message.errorDetails?.code === "QUOTA_EXCEEDED" && (
+                        <div className="mt-2 p-2.5 bg-white/80 border border-red-200 rounded-lg text-[11px] text-red-800 space-y-1">
+                          <p className="font-semibold text-red-900">Google AI Studio Quota Notice:</p>
+                          <p>
+                            Gemini API quota is currently unavailable for this model. Verify project limits and billing in{" "}
+                            <a
+                              href="https://aistudio.google.com"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline font-semibold text-blue-700 hover:text-blue-900"
+                            >
+                              Google AI Studio
+                            </a>. Immediate retry is not recommended.
+                          </p>
+                        </div>
+                      )}
+                      {message.errorDetails?.code === "MODEL_NOT_FOUND" && (
+                        <div className="mt-2 p-2.5 bg-white/80 border border-red-200 rounded-lg text-[11px] text-red-800 space-y-1">
+                          <p className="font-semibold text-red-900">Unsupported Model:</p>
+                          <p>
+                            Configure an active, supported model ID (such as <code className="bg-red-100 px-1 py-0.5 rounded font-mono">gemini-3.8-flash</code>) in Supabase Edge Function secrets.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <SafeMarkdownText content={message.text} isUser={isUser} />
+                  )}
 
                   {/* Referenced module badges (for assistant messages) */}
-                  {!isUser && message.referencedModules && message.referencedModules.length > 0 && (
+                  {!isUser && !message.isError && message.referencedModules && message.referencedModules.length > 0 && (
                     <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 mt-2">
                       <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
                         Source Data:
@@ -367,17 +442,28 @@ export default function AIAssistantPage() {
             </div>
           )}
 
-          {/* RETRY BUTTON FOR LAST FAILED PROMPT */}
+          {/* RETRY BUTTON FOR LAST FAILED PROMPT (Only if retryable) */}
           {lastFailedPrompt && !isLoading && (
             <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                onClick={() => handleSendMessage(lastFailedPrompt)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-              >
-                <AlertCircle className="w-3.5 h-3.5" />
-                <span>Retry failed question</span>
-              </button>
+              {lastErrorDetails?.retryable !== false ? (
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage(lastFailedPrompt)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>Retry failed question</span>
+                </button>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>
+                    {lastErrorDetails?.code === "QUOTA_EXCEEDED"
+                      ? "Quota exhausted: retrying immediately will not succeed. Check Google AI Studio."
+                      : "Immediate retry unavailable for this configuration error."}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -449,7 +535,7 @@ export default function AIAssistantPage() {
               <Info className="w-3 h-3" />
               <span>Read-only assistant. Never modifies or creates financial transactions.</span>
             </span>
-            <span>Google Gemini Free Tier: 15 req/min, 1,500 req/day</span>
+            <span>Powered by Google Gemini API</span>
           </div>
         </div>
       </Card>

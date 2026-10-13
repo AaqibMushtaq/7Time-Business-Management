@@ -18,11 +18,11 @@ describe("AIAssistantPage Component", () => {
     )
   }
 
-  it("renders page header with Gemini 1.5 Flash and READ-ONLY badges", () => {
+  it("renders page header with dynamic model badge (defaults to GEMINI 3.8 FLASH) and READ-ONLY badge", () => {
     renderComponent()
 
     expect(screen.getByText("7TIME AI Assistant")).toBeDefined()
-    expect(screen.getByText("GEMINI 1.5 FLASH")).toBeDefined()
+    expect(screen.getByText("GEMINI 3.8 FLASH")).toBeDefined()
     expect(screen.getByText("READ-ONLY")).toBeDefined()
   })
 
@@ -38,12 +38,12 @@ describe("AIAssistantPage Component", () => {
     expect(screen.getByText("NAEEM Dedicated Route Balance")).toBeDefined()
   })
 
-  it("sends user message and renders verified AI assistant response with source links", async () => {
+  it("sends user message and renders verified AI assistant response with source links and updates model badge", async () => {
     vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
       answer: "Verified total receivables is ₹7,700.00 across 2 debtors.",
-      model: "gemini-1.5-flash",
+      model: "gemini-3.8-flash",
       timestamp: "12:00 PM",
-      referencedModules: ["Wholesale Resellers", "NAEEM Route"],
+      referencedModules: ["Wholesale Resellers", "NAEEM Dedicated Route"],
     })
 
     renderComponent()
@@ -64,15 +64,20 @@ describe("AIAssistantPage Component", () => {
 
     // Source link badges should appear
     expect(screen.getByText("Wholesale Resellers")).toBeDefined()
-    expect(screen.getByText("NAEEM Route")).toBeDefined()
+    expect(screen.getByText("NAEEM Dedicated Route")).toBeDefined()
   })
 
-  it("shows retry button when assistant returns an error", async () => {
+  it("renders structured QUOTA_EXCEEDED card without retry button when retryable is false", async () => {
     vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
-      answer: "Failed to connect to Google Gemini API: Rate limit reached.",
-      model: "error",
+      answer: "Gemini API quota is exhausted for model 'gemini-3.8-flash'. Check Google AI Studio.",
+      model: "gemini-3.8-flash",
       timestamp: "12:01 PM",
-      error: "Rate limit reached",
+      error: {
+        code: "QUOTA_EXCEEDED",
+        message: "Gemini API quota is exhausted for model 'gemini-3.8-flash'. Check Google AI Studio.",
+        retryable: false,
+        model: "gemini-3.8-flash",
+      },
     })
 
     renderComponent()
@@ -84,7 +89,40 @@ describe("AIAssistantPage Component", () => {
     fireEvent.click(sendButton)
 
     await waitFor(() => {
-      expect(screen.getByText(/Rate limit reached/i)).toBeDefined()
+      // Error title should be rendered
+      expect(screen.getByText("Gemini API Quota Exceeded")).toBeDefined()
+      // Quota guidance notice
+      expect(screen.getByText(/Google AI Studio Quota Notice/i)).toBeDefined()
+    })
+
+    // Verify retry button is NOT displayed for non-retryable errors
+    expect(screen.queryByText("Retry failed question")).toBeNull()
+    // Notice explaining retry is unavailable should be shown
+    expect(screen.getByText(/Quota exhausted: retrying immediately will not succeed/i)).toBeDefined()
+  })
+
+  it("renders retry button when error is marked retryable (e.g. temporary server glitch)", async () => {
+    vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
+      answer: "Google Gemini service is temporarily experiencing high traffic.",
+      model: "gemini-3.8-flash",
+      timestamp: "12:02 PM",
+      error: {
+        code: "PROVIDER_UNAVAILABLE",
+        message: "Google Gemini service is temporarily experiencing high traffic.",
+        retryable: true,
+      },
+    })
+
+    renderComponent()
+
+    const input = screen.getByPlaceholderText(/Ask anything about receivables/i)
+    const sendButton = screen.getByRole("button", { name: /Send/i })
+
+    fireEvent.change(input, { target: { value: "Summarize payables" } })
+    fireEvent.click(sendButton)
+
+    await waitFor(() => {
+      expect(screen.getByText("Service Temporarily Unavailable")).toBeDefined()
       expect(screen.getByText("Retry failed question")).toBeDefined()
     })
   })
@@ -92,7 +130,7 @@ describe("AIAssistantPage Component", () => {
   it("resets conversation when 'New Chat' button is clicked", async () => {
     vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
       answer: "Response 1",
-      model: "gemini-1.5-flash",
+      model: "gemini-3.8-flash",
       timestamp: "12:00 PM",
     })
 

@@ -10,6 +10,29 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
+function createErrorResponse(
+  status: number,
+  code: string,
+  message: string,
+  retryable: boolean,
+  model?: string
+): Response {
+  return new Response(
+    JSON.stringify({
+      error: {
+        code,
+        message,
+        retryable,
+        model,
+      },
+    }),
+    {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    }
+  )
+}
+
 interface RequestBody {
   prompt: string
   history?: Array<{ role: "user" | "model"; text: string }>
@@ -23,24 +46,22 @@ Deno.serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed. Use POST." }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
+    return createErrorResponse(405, "METHOD_NOT_ALLOWED", "Method not allowed. Use POST.", false)
   }
+
+  // Read configured model from environment (default: gemini-3.8-flash)
+  const geminiModel = Deno.env.get("GEMINI_MODEL") || "gemini-3.8-flash"
 
   try {
     // 2. Authenticate the caller using Supabase Auth JWT
     const authHeader = req.headers.get("Authorization")
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({
-          error: "Authentication required. Please sign in to access the AI Business Assistant.",
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        401,
+        "UNAUTHORIZED",
+        "Authentication required. Please sign in to access the AI Business Assistant.",
+        false,
+        geminiModel
       )
     }
 
@@ -49,14 +70,12 @@ Deno.serve(async (req: Request) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || ""
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      return new Response(
-        JSON.stringify({
-          error: "Supabase environment configuration missing on server.",
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        500,
+        "CONFIG_ERROR",
+        "Supabase environment configuration missing on server.",
+        false,
+        geminiModel
       )
     }
 
@@ -72,57 +91,48 @@ Deno.serve(async (req: Request) => {
     } = await supabaseUserClient.auth.getUser(jwt)
 
     if (authError || !user) {
-      return new Response(
-        JSON.stringify({
-          error: `Authentication failed: ${authError?.message || "Invalid or expired session"}. Please sign out and sign in again.`,
-        }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        401,
+        "INVALID_SESSION",
+        `Authentication failed: ${authError?.message || "Invalid or expired session"}. Please sign out and sign in again.`,
+        false,
+        geminiModel
       )
     }
 
     // 3. Verify server-side GEMINI_API_KEY secret
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY")
     if (!geminiApiKey) {
-      return new Response(
-        JSON.stringify({
-          error:
-            "GEMINI_API_KEY is not configured in Supabase Edge Function secrets. Please configure it via: 'npx supabase secrets set GEMINI_API_KEY=your_key'.",
-        }),
-        {
-          status: 503,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        503,
+        "KEY_NOT_CONFIGURED",
+        "GEMINI_API_KEY is not configured in Supabase Edge Function secrets. Please configure it in your Supabase project.",
+        false,
+        geminiModel
       )
     }
-
-    const geminiModel = Deno.env.get("GEMINI_MODEL") || "gemini-1.5-flash"
 
     // 4. Parse and validate request body
     const body: RequestBody = await req.json().catch(() => ({ prompt: "" }))
     const rawPrompt = (body.prompt || "").trim()
 
     if (!rawPrompt) {
-      return new Response(
-        JSON.stringify({ error: "Please provide a valid question or prompt." }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        400,
+        "INVALID_PROMPT",
+        "Please provide a valid question or prompt.",
+        false,
+        geminiModel
       )
     }
 
     if (rawPrompt.length > 1500) {
-      return new Response(
-        JSON.stringify({
-          error: "Prompt exceeds maximum allowed length of 1,500 characters.",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      return createErrorResponse(
+        400,
+        "PROMPT_TOO_LONG",
+        "Prompt exceeds maximum allowed length of 1,500 characters.",
+        false,
+        geminiModel
       )
     }
 
@@ -455,101 +465,101 @@ ${JSON.stringify(contextData, null, 2)}`
       contents.push(...formattedContents)
     }
 
-    // 8. Call Official Google Gemini API
-    // Dynamically discover supported models for this API key to protect against Google model deprecations
-    let targetModel = geminiModel
-    let supportedModelsList: string[] = []
+    // 8. Call Official Google Gemini API for the single configured model
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 15000)
+
+    let geminiResponse: Response
     try {
-      const listController = new AbortController()
-      const listTimeout = setTimeout(() => listController.abort(), 4000)
-      const listRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${geminiApiKey}`,
-        { signal: listController.signal }
-      )
-      clearTimeout(listTimeout)
-
-      if (listRes.ok) {
-        const listData = await listRes.json()
-        const supported = (listData.models || [])
-          .filter((m: any) => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes("generateContent"))
-          .map((m: any) => m.name.replace(/^models\//, ""))
-
-        supportedModelsList = supported
-
-        // Find best candidate
-        const preferred =
-          supported.find((m: string) => m.includes("2.5-flash")) ||
-          supported.find((m: string) => m.includes("1.5-flash")) ||
-          supported.find((m: string) => m.includes("flash")) ||
-          supported[0]
-
-        if (preferred) {
-          targetModel = preferred
-        }
-      }
-    } catch {
-      // Use configured geminiModel as fallback
-    }
-
-    const candidateModels = Array.from(new Set([
-      "gemini-2.5-flash",
-      "gemini-flash-latest",
-      "gemini-2.5-flash-lite",
-      "gemini-pro-latest",
-      targetModel,
-    ]))
-    let geminiResponse: Response | null = null
-    let activeModel = candidateModels[0]
-    const modelErrors: Record<string, string> = {}
-
-    for (const model of candidateModels) {
-      activeModel = model
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 15000)
-
-      try {
-        const resp = await fetch(geminiUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents,
-            generationConfig: {
-              temperature: 0.2, // Low temperature for high factual consistency
-              maxOutputTokens: 1024,
-            },
-          }),
-          signal: controller.signal,
-        })
-        clearTimeout(timeoutId)
-
-        if (resp.ok) {
-          geminiResponse = resp
-          break
-        }
-
-        const errText = await resp.text()
-        modelErrors[model] = `HTTP ${resp.status}: ${errText}`
-        continue
-      } catch (err: any) {
-        clearTimeout(timeoutId)
-        modelErrors[model] = `Network Error: ${err.message || "Timeout"}`
-      }
-    }
-
-    if (!geminiResponse || !geminiResponse.ok) {
-      return new Response(
-        JSON.stringify({
-          error: `Gemini API execution error: ${JSON.stringify(modelErrors)}`,
+      geminiResponse = await fetch(geminiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents,
+          generationConfig: {
+            temperature: 0.2, // Low temperature for high factual consistency
+            maxOutputTokens: 1024,
+          },
         }),
-        {
-          status: 502,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        signal: controller.signal,
+      })
+    } catch (err: any) {
+      clearTimeout(timeoutId)
+      if (err.name === "AbortError") {
+        console.warn(`[gemini-assistant] Request timed out for model '${geminiModel}'`)
+        return createErrorResponse(
+          504,
+          "TIMEOUT",
+          "Google Gemini API request timed out (15 seconds limit). Please try asking a shorter question.",
+          true,
+          geminiModel
+        )
+      }
+
+      console.error(`[gemini-assistant] Network error for model '${geminiModel}':`, err.message)
+      return createErrorResponse(
+        502,
+        "NETWORK_ERROR",
+        "Failed to establish connection to Google Gemini API. Please check your network and try again.",
+        true,
+        geminiModel
+      )
+    } finally {
+      clearTimeout(timeoutId)
+    }
+
+    // Process provider HTTP status explicitly
+    if (!geminiResponse.ok) {
+      const status = geminiResponse.status
+      const retryAfterHeader = geminiResponse.headers.get("retry-after")
+      console.warn(`[gemini-assistant] Google Gemini API returned status ${status} for model '${geminiModel}'`)
+
+      let errorCode = "PROVIDER_ERROR"
+      let errorMessage = "An error occurred while communicating with the Google Gemini API."
+      let retryable = false
+
+      if (status === 400) {
+        errorCode = "INVALID_REQUEST"
+        errorMessage = "The question or context could not be processed by Google Gemini. Please rephrase your query."
+        retryable = false
+      } else if (status === 401 || status === 403) {
+        errorCode = "AUTH_ERROR"
+        errorMessage = "Google Gemini API access denied. Verify your GEMINI_API_KEY secret and project permissions in Google AI Studio."
+        retryable = false
+      } else if (status === 404) {
+        errorCode = "MODEL_NOT_FOUND"
+        errorMessage = `The configured Gemini model '${geminiModel}' is unavailable or unsupported for this API project. Check the model ID or configure an active model in Supabase secrets.`
+        retryable = false
+      } else if (status === 429) {
+        errorCode = "QUOTA_EXCEEDED"
+        errorMessage = `Gemini API quota is exhausted for model '${geminiModel}' (free-tier limit reached or zero quota assigned). Check your active model quotas and billing in Google AI Studio.`
+        if (retryAfterHeader) {
+          errorMessage += ` Try again in ${retryAfterHeader} seconds.`
         }
+        retryable = false
+      } else if (status >= 500) {
+        errorCode = "PROVIDER_UNAVAILABLE"
+        errorMessage = "Google Gemini service is temporarily experiencing high traffic. Please try again shortly."
+        retryable = true
+      }
+
+      return createErrorResponse(status, errorCode, errorMessage, retryable, geminiModel)
+    }
+
+    let geminiData: any = null
+    try {
+      geminiData = await geminiResponse.json()
+    } catch {
+      return createErrorResponse(
+        502,
+        "INVALID_PROVIDER_RESPONSE",
+        "Google Gemini returned an unexpected or unparseable response.",
+        true,
+        geminiModel
       )
     }
 
-    const geminiData = await geminiResponse.json()
     const answerText =
       geminiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
       "I was unable to generate an analysis based on the current records. Please try again."
@@ -565,7 +575,7 @@ ${JSON.stringify(contextData, null, 2)}`
     return new Response(
       JSON.stringify({
         answer: answerText,
-        model: activeModel,
+        model: geminiModel,
         timestamp: new Date().toISOString(),
         referencedModules,
         verifiedSummary: contextData.executiveSummary,
@@ -576,14 +586,13 @@ ${JSON.stringify(contextData, null, 2)}`
       }
     )
   } catch (err: any) {
-    return new Response(
-      JSON.stringify({
-        error: "An unexpected error occurred while processing your request: " + (err.message || "Unknown error"),
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+    console.error("[gemini-assistant] Unexpected error:", err.message)
+    return createErrorResponse(
+      500,
+      "INTERNAL_ERROR",
+      "An unexpected error occurred while processing your request: " + (err.message || "Unknown error"),
+      true,
+      geminiModel
     )
   }
 })

@@ -1,5 +1,12 @@
 import { supabase } from "@/lib/supabase"
 
+export interface AssistantError {
+  code: string
+  message: string
+  retryable: boolean
+  model?: string
+}
+
 export interface ChatMessage {
   id: string
   role: "user" | "model"
@@ -7,6 +14,7 @@ export interface ChatMessage {
   timestamp: string
   referencedModules?: string[]
   isError?: boolean
+  errorDetails?: AssistantError
 }
 
 export interface AssistantResponse {
@@ -15,7 +23,7 @@ export interface AssistantResponse {
   timestamp: string
   referencedModules?: string[]
   verifiedSummary?: Record<string, any>
-  error?: string
+  error?: AssistantError
 }
 
 export const SUGGESTED_PROMPTS = [
@@ -82,66 +90,103 @@ export async function sendAssistantMessage(
     })
 
     if (error) {
-      // Determine user-friendly error message from Edge Function
-      let message = error.message || "Failed to communicate with AI Assistant Edge Function."
-
-      // Extract server-provided error if present in response context
-      try {
-        if ((error as any).context) {
-          if (typeof (error as any).context.json === "function") {
-            const body = await (error as any).context.json()
-            if (body?.error) message = body.error
-            else if (body?.message) message = body.message
-          } else if (typeof (error as any).context.text === "function") {
-            const text = await (error as any).context.text()
-            try {
-              const body = JSON.parse(text)
-              if (body?.error) message = body.error
-              else if (body?.message) message = body.message
-            } catch {
-              if (text) message = text
-            }
-          }
-        }
-      } catch {
-        // use fallback message
+      let structuredError: AssistantError = {
+        code: "FUNCTION_ERROR",
+        message: "Failed to communicate with AI Assistant Edge Function.",
+        retryable: true,
       }
 
-      if (message.includes("Failed to send a request") || message.includes("FunctionsFetchError")) {
-        message =
-          "The 'gemini-assistant' Supabase Edge Function is not yet reachable or deployed. Please run 'npx supabase functions deploy gemini-assistant --no-verify-jwt' and set your GEMINI_API_KEY secret in your Supabase project."
+      // Extract server-provided error if present in response context
+      if ((error as any).context) {
+        try {
+          const body = await (error as any).context.json()
+          if (body?.error && typeof body.error === "object") {
+            structuredError = {
+              code: body.error.code || "UNKNOWN_ERROR",
+              message: body.error.message || "An unexpected error occurred.",
+              retryable: typeof body.error.retryable === "boolean" ? body.error.retryable : false,
+              model: body.error.model,
+            }
+          } else if (typeof body?.error === "string") {
+            const isQuota = body.error.toLowerCase().includes("quota") || body.error.includes("429")
+            structuredError = {
+              code: isQuota ? "QUOTA_EXCEEDED" : "SERVER_ERROR",
+              message: body.error,
+              retryable: !isQuota,
+            }
+          }
+        } catch {
+          try {
+            const rawText = await (error as any).context.text()
+            if (rawText) {
+              structuredError.message = rawText
+            }
+          } catch {
+            // keep fallback
+          }
+        }
+      } else if (error.message) {
+        if (error.message.includes("Failed to send a request") || error.message.includes("FunctionsFetchError")) {
+          structuredError = {
+            code: "NETWORK_ERROR",
+            message: "The AI Assistant Edge Function is not reachable. Check your connection or deployment.",
+            retryable: true,
+          }
+        } else {
+          structuredError.message = error.message
+        }
       }
 
       return {
-        answer: message,
-        model: "offline-fallback",
+        answer: structuredError.message,
+        model: structuredError.model || "gemini-assistant",
         timestamp: new Date().toISOString(),
-        error: message,
+        error: structuredError,
       }
     }
 
     if (data?.error) {
+      const err: AssistantError =
+        typeof data.error === "object"
+          ? {
+              code: data.error.code || "SERVER_ERROR",
+              message: data.error.message || "An error occurred.",
+              retryable: typeof data.error.retryable === "boolean" ? data.error.retryable : false,
+              model: data.error.model || data.model,
+            }
+          : {
+              code: "SERVER_ERROR",
+              message: data.error,
+              retryable: false,
+              model: data.model,
+            }
+
       return {
-        answer: data.error,
-        model: data.model || "error",
+        answer: err.message,
+        model: data.model || err.model || "gemini-assistant",
         timestamp: new Date().toISOString(),
-        error: data.error,
+        error: err,
       }
     }
 
     return {
       answer: data.answer || "No response received from assistant.",
-      model: data.model || "gemini-1.5-flash",
+      model: data.model || "gemini-3.8-flash",
       timestamp: data.timestamp || new Date().toISOString(),
       referencedModules: data.referencedModules || [],
       verifiedSummary: data.verifiedSummary,
     }
   } catch (err: any) {
+    const errorDetails: AssistantError = {
+      code: "CLIENT_ERROR",
+      message: err.message || "Network error while connecting to the assistant.",
+      retryable: true,
+    }
     return {
-      answer: err.message || "Network error while connecting to the assistant.",
+      answer: errorDetails.message,
       model: "error",
       timestamp: new Date().toISOString(),
-      error: err.message || "Network error",
+      error: errorDetails,
     }
   }
 }
