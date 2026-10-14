@@ -465,105 +465,219 @@ ${JSON.stringify(contextData, null, 2)}`
       contents.push(...formattedContents)
     }
 
-    // 8. Call Official Google Gemini API for the single configured model
+    // 8. Call Official Google Gemini API for the single configured model with bounded retries for transient errors
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${geminiApiKey}`
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 15000)
+    const requestPayload = JSON.stringify({
+      contents,
+      generationConfig: {
+        temperature: 0.2, // Low temperature for high factual consistency
+        maxOutputTokens: 1024,
+      },
+    })
 
-    let geminiResponse: Response
-    try {
-      geminiResponse = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.2, // Low temperature for high factual consistency
-            maxOutputTokens: 1024,
-          },
-        }),
-        signal: controller.signal,
-      })
-    } catch (err: any) {
-      clearTimeout(timeoutId)
-      if (err.name === "AbortError") {
-        console.warn(`[gemini-assistant] Request timed out for model '${geminiModel}'`)
+    // Bounded retry policy for transient errors (HTTP 503 high demand, 500, 502, 504, or network glitches)
+    const MAX_RETRIES = 2 // up to 3 total attempts
+    const BASE_DELAY_MS = 1000
+    const PER_ATTEMPT_TIMEOUT_MS = 8000
+    const TOTAL_TIMEOUT_BUDGET_MS = 20000
+    const startTime = Date.now()
+
+    let attempt = 0
+    let geminiResponse: Response | null = null
+    let lastNetworkError: Error | null = null
+    let lastStatus = 0
+    let lastSanitizedMsg = ""
+
+    while (attempt <= MAX_RETRIES) {
+      attempt++
+      const elapsedTotal = Date.now() - startTime
+      const remainingTotal = TOTAL_TIMEOUT_BUDGET_MS - elapsedTotal
+
+      if (remainingTotal <= 1500) {
+        console.warn(`[gemini-assistant] Total execution timeout budget reached (${elapsedTotal}ms) for model '${geminiModel}'`)
+        break
+      }
+
+      const attemptTimeout = Math.min(PER_ATTEMPT_TIMEOUT_MS, remainingTotal)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), attemptTimeout)
+
+      try {
+        lastNetworkError = null
+        const res = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: requestPayload,
+          signal: controller.signal,
+        })
+        clearTimeout(timeoutId)
+        geminiResponse = res
+        lastStatus = res.status
+
+        if (res.ok) {
+          // Success! Break out immediately
+          break
+        }
+
+        // Parse provider error response safely
+        let errJson: any = null
+        try {
+          errJson = await res.json()
+        } catch {
+          // non-JSON body
+        }
+        const rawMsg = errJson?.error?.message || ""
+        lastSanitizedMsg = rawMsg
+          .replace(/key=[^&\s]+/gi, "key=[REDACTED]")
+          .replace(/AIza[0-9A-Za-z-_]{35}/g, "[REDACTED]")
+          .trim()
+
+        console.warn(
+          `[gemini-assistant] Google API attempt ${attempt} returned status ${lastStatus} for model '${geminiModel}':`,
+          lastSanitizedMsg
+        )
+
+        // Non-retryable provider statuses: 400 (Invalid), 401/403 (Auth), 404 (Model missing), 429 (Quota exceeded)
+        // Must never retry these.
+        if (lastStatus === 400 || lastStatus === 401 || lastStatus === 403 || lastStatus === 404 || lastStatus === 429) {
+          break
+        }
+
+        // Genuinely transient errors: 503 (High Demand), 500, 502, 504
+        if (attempt <= MAX_RETRIES) {
+          const retryAfterHeader = res.headers.get("retry-after")
+          let delayMs = 0
+
+          if (retryAfterHeader) {
+            const parsedSeconds = parseInt(retryAfterHeader, 10)
+            if (!isNaN(parsedSeconds) && parsedSeconds > 0) {
+              delayMs = parsedSeconds * 1000
+            }
+          }
+
+          if (delayMs === 0) {
+            // Exponential backoff with jitter: BASE * 2^(attempt-1) + jitter
+            const backoff = BASE_DELAY_MS * Math.pow(2, attempt - 1)
+            const jitter = Math.floor(Math.random() * 500)
+            delayMs = backoff + jitter
+          }
+
+          const currentElapsed = Date.now() - startTime
+          if (currentElapsed + delayMs + 1500 > TOTAL_TIMEOUT_BUDGET_MS) {
+            console.warn(`[gemini-assistant] Retry delay ${delayMs}ms exceeds remaining execution budget`)
+            break
+          }
+
+          console.log(`[gemini-assistant] Transient status ${lastStatus}. Retrying attempt ${attempt + 1} after ${delayMs}ms...`)
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+        }
+      } catch (err: any) {
+        clearTimeout(timeoutId)
+        lastNetworkError = err
+        const isAbort = err.name === "AbortError"
+        console.warn(
+          `[gemini-assistant] Attempt ${attempt} failed with ${isAbort ? "Timeout" : "NetworkError"}:`,
+          err.message
+        )
+
+        if (attempt <= MAX_RETRIES) {
+          const backoff = BASE_DELAY_MS * Math.pow(2, attempt - 1)
+          const jitter = Math.floor(Math.random() * 500)
+          const delayMs = backoff + jitter
+
+          const currentElapsed = Date.now() - startTime
+          if (currentElapsed + delayMs + 1500 > TOTAL_TIMEOUT_BUDGET_MS) {
+            break
+          }
+
+          console.log(`[gemini-assistant] Retrying after network glitch in ${delayMs}ms...`)
+          await new Promise((resolve) => setTimeout(resolve, delayMs))
+        }
+      }
+    }
+
+    // Process result
+    if (!geminiResponse || !geminiResponse.ok) {
+      if (geminiResponse && !geminiResponse.ok) {
+        const status = geminiResponse.status
+
+        if (status === 400) {
+          return createErrorResponse(
+            400,
+            "INVALID_REQUEST",
+            "The question could not be processed by Google Gemini. Please rephrase your query.",
+            false,
+            geminiModel
+          )
+        }
+
+        if (status === 401 || status === 403) {
+          return createErrorResponse(
+            status,
+            "AUTH_ERROR",
+            "Google Gemini API access denied. Verify your GEMINI_API_KEY secret and project permissions.",
+            false,
+            geminiModel
+          )
+        }
+
+        if (status === 404) {
+          return createErrorResponse(
+            404,
+            "MODEL_NOT_FOUND",
+            `The configured Gemini model '${geminiModel}' is unavailable or unsupported for this API project.`,
+            false,
+            geminiModel
+          )
+        }
+
+        if (status === 429) {
+          return createErrorResponse(
+            429,
+            "QUOTA_EXCEEDED",
+            `Gemini API quota or rate limit has been reached for model '${geminiModel}'. Check active quotas and billing in Google AI Studio.`,
+            false,
+            geminiModel
+          )
+        }
+
+        if (status === 503 || status >= 500) {
+          return createErrorResponse(
+            status,
+            "PROVIDER_UNAVAILABLE",
+            "Gemini is temporarily unavailable. Please try again shortly.",
+            true,
+            geminiModel
+          )
+        }
+
+        return createErrorResponse(
+          status,
+          "PROVIDER_ERROR",
+          "An error occurred while communicating with Google Gemini.",
+          false,
+          geminiModel
+        )
+      }
+
+      // No response received (network error or timeout after retries)
+      if (lastNetworkError?.name === "AbortError") {
         return createErrorResponse(
           504,
           "TIMEOUT",
-          "Google Gemini API request timed out (15 seconds limit). Please try asking a shorter question.",
+          "Google Gemini API request timed out. Please try asking a shorter question.",
           true,
           geminiModel
         )
       }
 
-      console.error(`[gemini-assistant] Network error for model '${geminiModel}':`, err.message)
       return createErrorResponse(
         502,
         "NETWORK_ERROR",
-        "Failed to establish connection to Google Gemini API. Please check your network and try again.",
+        "Unable to establish connection to Google Gemini API. Please check your network and try again.",
         true,
         geminiModel
       )
-    } finally {
-      clearTimeout(timeoutId)
-    }
-
-    // Process provider HTTP status explicitly
-    if (!geminiResponse.ok) {
-      const status = geminiResponse.status
-      const retryAfterHeader = geminiResponse.headers.get("retry-after")
-      let providerErrBody: any = null
-      try {
-        providerErrBody = await geminiResponse.json()
-      } catch {
-        // fallback
-      }
-
-      const rawProviderMsg = providerErrBody?.error?.message || ""
-      const sanitizedProviderMsg = rawProviderMsg
-        .replace(/key=[^&\s]+/gi, "key=[REDACTED]")
-        .replace(/AIza[0-9A-Za-z-_]{35}/g, "[REDACTED]")
-        .trim()
-
-      console.warn(`[gemini-assistant] Google API returned status ${status} for model '${geminiModel}':`, sanitizedProviderMsg)
-
-      let errorCode = "PROVIDER_ERROR"
-      let errorMessage = "An error occurred while communicating with the Google Gemini API."
-      let retryable = false
-
-      if (status === 400) {
-        errorCode = "INVALID_REQUEST"
-        errorMessage = sanitizedProviderMsg || "The question or context could not be processed by Google Gemini. Please rephrase your query."
-        retryable = false
-      } else if (status === 401 || status === 403) {
-        errorCode = "AUTH_ERROR"
-        errorMessage = "Google Gemini API access denied. Verify your GEMINI_API_KEY secret and project permissions in Google AI Studio."
-        retryable = false
-      } else if (status === 404) {
-        errorCode = "MODEL_NOT_FOUND"
-        errorMessage = sanitizedProviderMsg
-          ? `Gemini model '${geminiModel}' is unavailable: ${sanitizedProviderMsg}`
-          : `The configured Gemini model '${geminiModel}' is unavailable or unsupported for this API project. Check the model ID or configure an active model in Supabase secrets.`
-        retryable = false
-      } else if (status === 429) {
-        errorCode = "QUOTA_EXCEEDED"
-        errorMessage = sanitizedProviderMsg
-          ? `Gemini API quota exhausted for model '${geminiModel}': ${sanitizedProviderMsg}`
-          : `Gemini API quota is exhausted for model '${geminiModel}' (free-tier limit reached or zero quota assigned). Check your active model quotas and billing in Google AI Studio.`
-        if (retryAfterHeader) {
-          errorMessage += ` Try again in ${retryAfterHeader} seconds.`
-        }
-        retryable = false
-      } else if (status >= 500) {
-        errorCode = "PROVIDER_UNAVAILABLE"
-        errorMessage = sanitizedProviderMsg
-          ? `Google Gemini service returned ${status}: ${sanitizedProviderMsg}`
-          : "Google Gemini service is temporarily experiencing high traffic. Please try again shortly."
-        retryable = true
-      }
-
-      return createErrorResponse(status, errorCode, errorMessage, retryable, geminiModel)
     }
 
     let geminiData: any = null

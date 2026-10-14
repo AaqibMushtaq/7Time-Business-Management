@@ -137,7 +137,7 @@ describe("AI Assistant Service (sendAssistantMessage)", () => {
     expect(result.error).toBeDefined()
     expect(result.error?.code).toBe("QUOTA_EXCEEDED")
     expect(result.error?.retryable).toBe(false)
-    expect(result.answer).toContain("quota is exhausted")
+    expect(result.answer).toContain("quota or rate limit has been reached")
   })
 
   it("handles invalid credentials/permissions (HTTP 401/403) with safe message", async () => {
@@ -168,19 +168,20 @@ describe("AI Assistant Service (sendAssistantMessage)", () => {
 
     expect(result.error?.code).toBe("AUTH_ERROR")
     expect(result.error?.retryable).toBe(false)
-    expect(result.answer).toContain("Verify GEMINI_API_KEY")
+    expect(result.answer).toContain("Authentication failed or session expired")
   })
 
-  it("handles temporary provider failure (HTTP 502/503) with retryable flag", async () => {
+  it("handles temporary provider failure (HTTP 503) returning sanitized 'Gemini is temporarily unavailable' with retryable flag", async () => {
     ;(supabase.auth.getSession as any).mockResolvedValue({
       data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
     })
 
     const mockErrorContext = {
+      status: 503,
       json: async () => ({
         error: {
           code: "PROVIDER_UNAVAILABLE",
-          message: "Google Gemini service is temporarily experiencing high traffic. Please try again shortly.",
+          message: "Google Gemini service returned 503: This model is currently experiencing high demand.",
           retryable: true,
           model: "gemini-3.8-flash",
         },
@@ -195,14 +196,147 @@ describe("AI Assistant Service (sendAssistantMessage)", () => {
       },
     })
 
-    const result = await sendAssistantMessage("Give me a financial summary")
+    const result = await sendAssistantMessage("What is our total outstanding receivables, and who are the top debtors?")
 
     expect(result.error?.code).toBe("PROVIDER_UNAVAILABLE")
     expect(result.error?.retryable).toBe(true)
-    expect(result.answer).toContain("temporarily experiencing high traffic")
+    // Must display clean, safe message - NOT raw provider error
+    expect(result.answer).toBe("Gemini is temporarily unavailable. Please try again shortly.")
+    expect(result.error?.message).toBe("Gemini is temporarily unavailable. Please try again shortly.")
   })
 
-  it("handles un-deployed Edge Function (FunctionsFetchError) safely", async () => {
+  it("handles quota exhaustion (HTTP 429) without retryable flag and with clear explanation", async () => {
+    ;(supabase.auth.getSession as any).mockResolvedValue({
+      data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
+    })
+
+    const mockErrorContext = {
+      status: 429,
+      json: async () => ({
+        error: {
+          code: "QUOTA_EXCEEDED",
+          message: "Gemini API quota or rate limit has been reached for model 'gemini-3.8-flash'.",
+          retryable: false,
+          model: "gemini-3.8-flash",
+        },
+      }),
+    }
+
+    ;(supabase.functions.invoke as any).mockResolvedValue({
+      data: null,
+      error: {
+        message: "Edge Function returned a non-2xx status code",
+        context: mockErrorContext,
+      },
+    })
+
+    const result = await sendAssistantMessage("Tell me about our sales.")
+
+    // Only invoked once (no client-side retry multiplication)
+    expect(supabase.functions.invoke).toHaveBeenCalledTimes(1)
+    expect(result.error?.code).toBe("QUOTA_EXCEEDED")
+    expect(result.error?.retryable).toBe(false)
+    expect(result.answer).toContain("quota or rate limit has been reached")
+  })
+
+  it("handles unavailable model (HTTP 404) without repeated retries", async () => {
+    ;(supabase.auth.getSession as any).mockResolvedValue({
+      data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
+    })
+
+    const mockErrorContext = {
+      status: 404,
+      json: async () => ({
+        error: {
+          code: "MODEL_NOT_FOUND",
+          message: "The configured Gemini model 'gemini-2.5-flash' is unavailable or unsupported for this API project.",
+          retryable: false,
+          model: "gemini-2.5-flash",
+        },
+      }),
+    }
+
+    ;(supabase.functions.invoke as any).mockResolvedValue({
+      data: null,
+      error: {
+        message: "Edge Function returned a non-2xx status code",
+        context: mockErrorContext,
+      },
+    })
+
+    const result = await sendAssistantMessage("Summarize inventory")
+
+    expect(supabase.functions.invoke).toHaveBeenCalledTimes(1)
+    expect(result.error?.code).toBe("MODEL_NOT_FOUND")
+    expect(result.error?.retryable).toBe(false)
+    expect(result.answer).toContain("unavailable or unsupported")
+  })
+
+  it("handles authentication failures (HTTP 401/403) with session/authorization message", async () => {
+    ;(supabase.auth.getSession as any).mockResolvedValue({
+      data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
+    })
+
+    const mockErrorContext = {
+      status: 401,
+      json: async () => ({
+        error: {
+          code: "AUTH_ERROR",
+          message: "Authentication failed: Invalid or expired session. Please sign out and sign in again.",
+          retryable: false,
+          model: "gemini-3.8-flash",
+        },
+      }),
+    }
+
+    ;(supabase.functions.invoke as any).mockResolvedValue({
+      data: null,
+      error: {
+        message: "Edge Function returned a non-2xx status code",
+        context: mockErrorContext,
+      },
+    })
+
+    const result = await sendAssistantMessage("What are our payables?")
+
+    expect(result.error?.code).toBe("AUTH_ERROR")
+    expect(result.error?.retryable).toBe(false)
+    expect(result.answer).toContain("Authentication failed or session expired")
+  })
+
+  it("handles network timeout (HTTP 504) and connection drops safely", async () => {
+    ;(supabase.auth.getSession as any).mockResolvedValue({
+      data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
+    })
+
+    const mockErrorContext = {
+      status: 504,
+      json: async () => ({
+        error: {
+          code: "TIMEOUT",
+          message: "Google Gemini API request timed out. Please try asking a shorter question.",
+          retryable: true,
+          model: "gemini-3.8-flash",
+        },
+      }),
+    }
+
+    ;(supabase.functions.invoke as any).mockResolvedValue({
+      data: null,
+      error: {
+        message: "Edge Function returned a non-2xx status code",
+        context: mockErrorContext,
+      },
+    })
+
+    const result = await sendAssistantMessage("What are our payables?")
+
+    expect(result.error?.code).toBe("TIMEOUT")
+    expect(result.error?.retryable).toBe(true)
+    expect(result.answer).toContain("timed out")
+  })
+
+  it("handles un-deployed Edge Function or network disconnect (FunctionsFetchError) safely", async () => {
     ;(supabase.auth.getSession as any).mockResolvedValue({
       data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
     })
@@ -216,19 +350,20 @@ describe("AI Assistant Service (sendAssistantMessage)", () => {
 
     expect(result.error?.code).toBe("NETWORK_ERROR")
     expect(result.error?.retryable).toBe(true)
-    expect(result.answer).toContain("not reachable")
+    expect(result.answer).toContain("Unable to connect to the assistant service")
   })
 
-  it("handles non-JSON error body fallback safely without crashing", async () => {
+  it("handles non-JSON error body or malformed provider response safely without crashing", async () => {
     ;(supabase.auth.getSession as any).mockResolvedValue({
       data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
     })
 
     const mockErrorContext = {
+      status: 502,
       json: async () => {
         throw new Error("Invalid JSON")
       },
-      text: async () => "Internal Server Error (Gateway Timeout)",
+      text: async () => "Bad Gateway: 502 upstream connection lost",
     }
 
     ;(supabase.functions.invoke as any).mockResolvedValue({
@@ -242,7 +377,39 @@ describe("AI Assistant Service (sendAssistantMessage)", () => {
     const result = await sendAssistantMessage("Hello assistant")
 
     expect(result.error).toBeDefined()
-    expect(result.answer).toBe("Internal Server Error (Gateway Timeout)")
+    expect(result.error?.code).toBe("NETWORK_ERROR")
+    expect(result.answer).toContain("Unable to connect to the assistant service")
+  })
+
+  it("strictly redacts secrets and API keys if present in provider error responses", async () => {
+    ;(supabase.auth.getSession as any).mockResolvedValue({
+      data: { session: { user: { id: "user-123" }, access_token: "mock-jwt" } },
+    })
+
+    const mockErrorContext = {
+      status: 400,
+      json: async () => ({
+        error: {
+          code: "INVALID_REQUEST",
+          message: "Invalid query parameter key=AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q in url",
+          retryable: false,
+          model: "gemini-3.8-flash",
+        },
+      }),
+    }
+
+    ;(supabase.functions.invoke as any).mockResolvedValue({
+      data: null,
+      error: {
+        message: "Edge Function returned a non-2xx status code",
+        context: mockErrorContext,
+      },
+    })
+
+    const result = await sendAssistantMessage("Test query")
+
+    expect(result.answer).not.toContain("AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q")
+    expect(result.answer).toContain("[REDACTED]")
   })
 
   it("provides comprehensive suggested prompt chips across all core modules", () => {

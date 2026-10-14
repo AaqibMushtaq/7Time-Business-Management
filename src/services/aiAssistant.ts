@@ -90,6 +90,7 @@ export async function sendAssistantMessage(
     })
 
     if (error) {
+      let httpStatus: number | undefined
       let structuredError: AssistantError = {
         code: "FUNCTION_ERROR",
         message: "Failed to communicate with AI Assistant Edge Function.",
@@ -99,6 +100,7 @@ export async function sendAssistantMessage(
       // Extract server-provided error if present in response context
       if ((error as any).context) {
         try {
+          httpStatus = (error as any).context.status
           const body = await (error as any).context.json()
           if (body?.error && typeof body.error === "object") {
             structuredError = {
@@ -129,7 +131,7 @@ export async function sendAssistantMessage(
         if (error.message.includes("Failed to send a request") || error.message.includes("FunctionsFetchError")) {
           structuredError = {
             code: "NETWORK_ERROR",
-            message: "The AI Assistant Edge Function is not reachable. Check your connection or deployment.",
+            message: "Unable to connect to the assistant service. Please check your internet connection and try again.",
             retryable: true,
           }
         } else {
@@ -137,11 +139,14 @@ export async function sendAssistantMessage(
         }
       }
 
+      // Standardize and sanitize error messages for client presentation
+      const sanitized = sanitizeAssistantError(structuredError, httpStatus)
+
       return {
-        answer: structuredError.message,
-        model: structuredError.model || "gemini-assistant",
+        answer: sanitized.message,
+        model: sanitized.model || "gemini-assistant",
         timestamp: new Date().toISOString(),
-        error: structuredError,
+        error: sanitized,
       }
     }
 
@@ -161,11 +166,13 @@ export async function sendAssistantMessage(
               model: data.model,
             }
 
+      const sanitized = sanitizeAssistantError(err)
+
       return {
-        answer: err.message,
-        model: data.model || err.model || "gemini-assistant",
+        answer: sanitized.message,
+        model: data.model || sanitized.model || "gemini-assistant",
         timestamp: new Date().toISOString(),
-        error: err,
+        error: sanitized,
       }
     }
 
@@ -177,16 +184,141 @@ export async function sendAssistantMessage(
       verifiedSummary: data.verifiedSummary,
     }
   } catch (err: any) {
-    const errorDetails: AssistantError = {
-      code: "CLIENT_ERROR",
-      message: err.message || "Network error while connecting to the assistant.",
+    const errorDetails: AssistantError = sanitizeAssistantError({
+      code: "NETWORK_ERROR",
+      message: err.message || "Unable to connect to the assistant service. Please check your internet connection and try again.",
       retryable: true,
-    }
+    })
     return {
       answer: errorDetails.message,
       model: "error",
       timestamp: new Date().toISOString(),
       error: errorDetails,
     }
+  }
+}
+
+/**
+ * Ensures user-facing error messages are clean, safe, and actionable.
+ * Never exposes raw provider internals, API keys, or stack traces.
+ */
+export function sanitizeAssistantError(err: AssistantError, httpStatus?: number): AssistantError {
+  let code = err.code || "UNKNOWN_ERROR"
+  let message = err.message || ""
+  let retryable = err.retryable
+  const model = err.model
+
+  // Strip any API key or secret leak attempts
+  message = message
+    .replace(/key=[^&\s]+/gi, "key=[REDACTED]")
+    .replace(/AIza[0-9A-Za-z-_]{35}/g, "[REDACTED]")
+    .trim()
+
+  // 1. HTTP 503 or Service Unavailable / High Demand
+  if (
+    httpStatus === 503 ||
+    code === "PROVIDER_UNAVAILABLE" ||
+    message.includes("503") ||
+    message.toLowerCase().includes("high demand") ||
+    message.toLowerCase().includes("temporarily unavailable")
+  ) {
+    return {
+      code: "PROVIDER_UNAVAILABLE",
+      message: "Gemini is temporarily unavailable. Please try again shortly.",
+      retryable: true,
+      model,
+    }
+  }
+
+  // 2. HTTP 429 or Quota / Rate limit exhausted
+  if (
+    httpStatus === 429 ||
+    code === "QUOTA_EXCEEDED" ||
+    message.includes("429") ||
+    message.toLowerCase().includes("quota") ||
+    message.toLowerCase().includes("rate limit")
+  ) {
+    return {
+      code: "QUOTA_EXCEEDED",
+      message: model
+        ? `Gemini API quota or rate limit has been reached for model '${model}'. Please check your quota and billing in Google AI Studio.`
+        : "Gemini API quota or rate limit has been reached. Please check your quota and billing in Google AI Studio.",
+      retryable: false,
+      model,
+    }
+  }
+
+  // 3. HTTP 404 or Model Unavailable
+  if (
+    httpStatus === 404 ||
+    code === "MODEL_NOT_FOUND" ||
+    message.includes("404") ||
+    message.toLowerCase().includes("model") && message.toLowerCase().includes("unavailable")
+  ) {
+    return {
+      code: "MODEL_NOT_FOUND",
+      message: model
+        ? `The configured Gemini model '${model}' is unavailable or unsupported for this API project.`
+        : "The configured Gemini model is unavailable or unsupported for this API project.",
+      retryable: false,
+      model,
+    }
+  }
+
+  // 4. Authentication / Authorization Errors (401, 403)
+  if (
+    httpStatus === 401 ||
+    httpStatus === 403 ||
+    code === "AUTH_ERROR" ||
+    code === "UNAUTHORIZED" ||
+    code === "INVALID_SESSION" ||
+    message.toLowerCase().includes("authentication") ||
+    message.toLowerCase().includes("access denied") ||
+    message.toLowerCase().includes("sign in")
+  ) {
+    return {
+      code: "AUTH_ERROR",
+      message: "Authentication failed or session expired. Please sign out and sign in again.",
+      retryable: false,
+      model,
+    }
+  }
+
+  // 5. Network / Gateway Errors
+  if (
+    httpStatus === 502 ||
+    code === "NETWORK_ERROR" ||
+    message.toLowerCase().includes("network") ||
+    message.toLowerCase().includes("failed to send a request") ||
+    message.toLowerCase().includes("not reachable")
+  ) {
+    return {
+      code: "NETWORK_ERROR",
+      message: "Unable to connect to the assistant service. Please check your internet connection and try again.",
+      retryable: true,
+      model,
+    }
+  }
+
+  // 6. Timeout
+  if (
+    httpStatus === 504 ||
+    code === "TIMEOUT" ||
+    message.toLowerCase().includes("timed out") ||
+    message.toLowerCase().includes("timeout")
+  ) {
+    return {
+      code: "TIMEOUT",
+      message: "Google Gemini API request timed out. Please try asking a shorter question.",
+      retryable: true,
+      model,
+    }
+  }
+
+  return {
+    code,
+    message: message || "An unexpected error occurred while communicating with the assistant.",
+    retryable,
+    model,
   }
 }

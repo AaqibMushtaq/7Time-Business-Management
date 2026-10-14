@@ -20,7 +20,11 @@ function getErrorTitle(code?: string): string {
     case "MODEL_NOT_FOUND":
       return "Configured Model Unavailable"
     case "AUTH_ERROR":
-      return "API Authentication Error"
+    case "UNAUTHORIZED":
+    case "INVALID_SESSION":
+      return "Authentication Required"
+    case "NETWORK_ERROR":
+      return "Network Connection Error"
     case "TIMEOUT":
       return "Request Timed Out"
     case "PROVIDER_UNAVAILABLE":
@@ -144,6 +148,7 @@ export default function AIAssistantPage() {
   const [activeModel, setActiveModel] = useState<string>("gemini-3.8-flash")
   const [, startTransition] = useTransition()
 
+  const isSubmittingRef = useRef(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -157,9 +162,15 @@ export default function AIAssistantPage() {
   }, [messages, isLoading, scrollToBottom])
 
   const handleSendMessage = async (textToSend?: string) => {
-    const query = (textToSend || inputPrompt).trim()
-    if (!query || isLoading) return
+    if (isSubmittingRef.current || isLoading) return
 
+    const query = (textToSend || inputPrompt).trim()
+    if (!query) return
+
+    isSubmittingRef.current = true
+    setIsLoading(true)
+
+    // Clear composer input and previous errors
     setInputPrompt("")
     setLastFailedPrompt(null)
     setLastErrorDetails(null)
@@ -172,7 +183,6 @@ export default function AIAssistantPage() {
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setIsLoading(true)
 
     // Prepare history payload (excluding initial greeting)
     const historyPayload = messages
@@ -216,7 +226,7 @@ export default function AIAssistantPage() {
       setLastFailedPrompt(query)
       const errDetails: AssistantError = {
         code: "UNEXPECTED_ERROR",
-        message: err.message || "An unexpected error occurred.",
+        message: err.message || "An unexpected error occurred while communicating with the assistant.",
         retryable: true,
       }
       setLastErrorDetails(errDetails)
@@ -231,6 +241,7 @@ export default function AIAssistantPage() {
       setMessages((prev) => [...prev, errMessage])
     } finally {
       setIsLoading(false)
+      isSubmittingRef.current = false
       // Re-focus input
       setTimeout(() => inputRef.current?.focus(), 100)
     }
@@ -355,7 +366,7 @@ export default function AIAssistantPage() {
                         <div className="mt-2 p-2.5 bg-white/80 border border-red-200 rounded-lg text-[11px] text-red-800 space-y-1">
                           <p className="font-semibold text-red-900">Google AI Studio Quota Notice:</p>
                           <p>
-                            Gemini API quota is currently unavailable for this model. Verify project limits and billing in{" "}
+                            Gemini API quota or rate limit has been reached for this model. Verify project limits and billing in{" "}
                             <a
                               href="https://aistudio.google.com"
                               target="_blank"
@@ -369,9 +380,17 @@ export default function AIAssistantPage() {
                       )}
                       {message.errorDetails?.code === "MODEL_NOT_FOUND" && (
                         <div className="mt-2 p-2.5 bg-white/80 border border-red-200 rounded-lg text-[11px] text-red-800 space-y-1">
-                          <p className="font-semibold text-red-900">Unsupported Model:</p>
+                          <p className="font-semibold text-red-900">Unsupported Model Notice:</p>
                           <p>
-                            Configure an active, supported model ID (such as <code className="bg-red-100 px-1 py-0.5 rounded font-mono">gemini-3.8-flash</code>) in Supabase Edge Function secrets.
+                            The configured model is unavailable or unsupported. Configure an active, supported model ID in Supabase Edge Function secrets.
+                          </p>
+                        </div>
+                      )}
+                      {message.errorDetails?.code === "PROVIDER_UNAVAILABLE" && (
+                        <div className="mt-2 p-2.5 bg-white/80 border border-amber-200 rounded-lg text-[11px] text-amber-900 space-y-1">
+                          <p className="font-semibold text-amber-950">Temporary Provider Demand:</p>
+                          <p>
+                            Google Gemini servers are experiencing high traffic. You can try asking again shortly using the retry button below.
                           </p>
                         </div>
                       )}
@@ -444,23 +463,39 @@ export default function AIAssistantPage() {
 
           {/* RETRY BUTTON FOR LAST FAILED PROMPT (Only if retryable) */}
           {lastFailedPrompt && !isLoading && (
-            <div className="flex justify-center pt-2">
-              {lastErrorDetails?.retryable !== false ? (
-                <button
-                  type="button"
-                  onClick={() => handleSendMessage(lastFailedPrompt)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
-                >
-                  <AlertCircle className="w-3.5 h-3.5" />
-                  <span>Retry failed question</span>
-                </button>
+            <div className="flex justify-center items-center gap-2 pt-2">
+              {lastErrorDetails?.retryable === true ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleSendMessage(lastFailedPrompt)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    <span>Retry failed question</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInputPrompt(lastFailedPrompt)
+                      inputRef.current?.focus()
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                  >
+                    <span>Edit question</span>
+                  </button>
+                </>
               ) : (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg">
                   <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <span>
                     {lastErrorDetails?.code === "QUOTA_EXCEEDED"
                       ? "Quota exhausted: retrying immediately will not succeed. Check Google AI Studio."
-                      : "Immediate retry unavailable for this configuration error."}
+                      : lastErrorDetails?.code === "MODEL_NOT_FOUND"
+                      ? "The configured Gemini model is unavailable. Check model configuration."
+                      : lastErrorDetails?.code === "AUTH_ERROR"
+                      ? "Authentication error: please check session credentials."
+                      : "Immediate retry unavailable for this error."}
                   </span>
                 </div>
               )}

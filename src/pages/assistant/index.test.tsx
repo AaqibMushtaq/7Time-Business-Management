@@ -101,15 +101,16 @@ describe("AIAssistantPage Component", () => {
     expect(screen.getByText(/Quota exhausted: retrying immediately will not succeed/i)).toBeDefined()
   })
 
-  it("renders retry button when error is marked retryable (e.g. temporary server glitch)", async () => {
+  it("renders structured HTTP 503 error displaying 'Gemini is temporarily unavailable' with Retry and Edit buttons", async () => {
     vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
-      answer: "Google Gemini service is temporarily experiencing high traffic.",
+      answer: "Gemini is temporarily unavailable. Please try again shortly.",
       model: "gemini-3.8-flash",
       timestamp: "12:02 PM",
       error: {
         code: "PROVIDER_UNAVAILABLE",
-        message: "Google Gemini service is temporarily experiencing high traffic.",
+        message: "Gemini is temporarily unavailable. Please try again shortly.",
         retryable: true,
+        model: "gemini-3.8-flash",
       },
     })
 
@@ -118,13 +119,184 @@ describe("AIAssistantPage Component", () => {
     const input = screen.getByPlaceholderText(/Ask anything about receivables/i)
     const sendButton = screen.getByRole("button", { name: /Send/i })
 
-    fireEvent.change(input, { target: { value: "Summarize payables" } })
+    fireEvent.change(input, {
+      target: { value: "What is our total outstanding receivables, and who are the top debtors?" },
+    })
     fireEvent.click(sendButton)
 
     await waitFor(() => {
       expect(screen.getByText("Service Temporarily Unavailable")).toBeDefined()
+      expect(screen.getByText("Gemini is temporarily unavailable. Please try again shortly.")).toBeDefined()
+      expect(screen.getByText(/Google Gemini servers are experiencing high traffic/i)).toBeDefined()
+      expect(screen.getByText("Retry failed question")).toBeDefined()
+      expect(screen.getByText("Edit question")).toBeDefined()
+    })
+  })
+
+  it("allows deliberate user-initiated retry with preserved original question without retyping", async () => {
+    const sendSpy = vi.spyOn(AssistantService, "sendAssistantMessage")
+      .mockResolvedValueOnce({
+        answer: "Gemini is temporarily unavailable. Please try again shortly.",
+        model: "gemini-3.8-flash",
+        timestamp: "12:02 PM",
+        error: {
+          code: "PROVIDER_UNAVAILABLE",
+          message: "Gemini is temporarily unavailable. Please try again shortly.",
+          retryable: true,
+        },
+      })
+      .mockResolvedValueOnce({
+        answer: "Total receivables is ₹7,700.00 across 2 debtors.",
+        model: "gemini-3.8-flash",
+        timestamp: "12:03 PM",
+      })
+
+    renderComponent()
+
+    const input = screen.getByPlaceholderText(/Ask anything about receivables/i)
+    const sendButton = screen.getByRole("button", { name: /Send/i })
+
+    fireEvent.change(input, { target: { value: "What is our total outstanding receivables?" } })
+    fireEvent.click(sendButton)
+
+    await waitFor(() => {
       expect(screen.getByText("Retry failed question")).toBeDefined()
     })
+
+    // Click retry
+    fireEvent.click(screen.getByText("Retry failed question"))
+
+    await waitFor(() => {
+      expect(sendSpy).toHaveBeenCalledTimes(2)
+      // Second call uses the exact original question preserved in state
+      expect(sendSpy).toHaveBeenLastCalledWith("What is our total outstanding receivables?", expect.any(Array))
+      expect(screen.getByText(/Total receivables is ₹7,700.00 across 2 debtors/i)).toBeDefined()
+    })
+  })
+
+  it("restores original question to composer when 'Edit question' is clicked", async () => {
+    vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
+      answer: "Gemini is temporarily unavailable. Please try again shortly.",
+      model: "gemini-3.8-flash",
+      timestamp: "12:02 PM",
+      error: {
+        code: "PROVIDER_UNAVAILABLE",
+        message: "Gemini is temporarily unavailable. Please try again shortly.",
+        retryable: true,
+      },
+    })
+
+    renderComponent()
+
+    const input = screen.getByPlaceholderText(/Ask anything about receivables/i) as HTMLTextAreaElement
+    const sendButton = screen.getByRole("button", { name: /Send/i })
+
+    fireEvent.change(input, { target: { value: "Detailed debtors question" } })
+    fireEvent.click(sendButton)
+
+    await waitFor(() => {
+      expect(screen.getByText("Edit question")).toBeDefined()
+    })
+
+    // Input is currently empty after submission
+    expect(input.value).toBe("")
+
+    // Click Edit question
+    fireEvent.click(screen.getByText("Edit question"))
+
+    // Input now has the preserved prompt restored for editing
+    expect(input.value).toBe("Detailed debtors question")
+  })
+
+  it("prevents duplicate submissions when Send is clicked multiple times rapidly", async () => {
+    let resolvePromise: (value: any) => void = () => {}
+    const slowPromise = new Promise((resolve) => {
+      resolvePromise = resolve
+    })
+
+    const sendSpy = vi.spyOn(AssistantService, "sendAssistantMessage").mockReturnValue(slowPromise as any)
+
+    renderComponent()
+
+    const input = screen.getByPlaceholderText(/Ask anything about receivables/i)
+    const sendButton = screen.getByRole("button", { name: /Send/i })
+
+    fireEvent.change(input, { target: { value: "Single query" } })
+
+    // Rapid double-click
+    fireEvent.click(sendButton)
+    fireEvent.click(sendButton)
+
+    expect(sendSpy).toHaveBeenCalledTimes(1)
+
+    // Resolve the promise
+    resolvePromise({
+      answer: "Answer text",
+      model: "gemini-3.8-flash",
+      timestamp: "12:00 PM",
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Answer text")).toBeDefined()
+    })
+  })
+
+  it("handles HTTP 404 model unavailable without retry button", async () => {
+    vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
+      answer: "The configured Gemini model is unavailable or unsupported for this API project.",
+      model: "gemini-2.5-flash",
+      timestamp: "12:01 PM",
+      error: {
+        code: "MODEL_NOT_FOUND",
+        message: "The configured Gemini model is unavailable or unsupported for this API project.",
+        retryable: false,
+        model: "gemini-2.5-flash",
+      },
+    })
+
+    renderComponent()
+
+    const input = screen.getByPlaceholderText(/Ask anything about receivables/i)
+    const sendButton = screen.getByRole("button", { name: /Send/i })
+
+    fireEvent.change(input, { target: { value: "Inventory status" } })
+    fireEvent.click(sendButton)
+
+    await waitFor(() => {
+      expect(screen.getByText("Configured Model Unavailable")).toBeDefined()
+      expect(screen.getByText("The configured Gemini model is unavailable or unsupported for this API project.")).toBeDefined()
+      expect(screen.getByText(/The configured Gemini model is unavailable. Check model configuration./i)).toBeDefined()
+    })
+
+    expect(screen.queryByText("Retry failed question")).toBeNull()
+  })
+
+  it("handles authentication failures without retry button", async () => {
+    vi.spyOn(AssistantService, "sendAssistantMessage").mockResolvedValue({
+      answer: "Authentication failed or session expired. Please sign out and sign in again.",
+      model: "gemini-3.8-flash",
+      timestamp: "12:01 PM",
+      error: {
+        code: "AUTH_ERROR",
+        message: "Authentication failed or session expired. Please sign out and sign in again.",
+        retryable: false,
+      },
+    })
+
+    renderComponent()
+
+    const input = screen.getByPlaceholderText(/Ask anything about receivables/i)
+    const sendButton = screen.getByRole("button", { name: /Send/i })
+
+    fireEvent.change(input, { target: { value: "Payables summary" } })
+    fireEvent.click(sendButton)
+
+    await waitFor(() => {
+      expect(screen.getByText("Authentication Required")).toBeDefined()
+      expect(screen.getByText("Authentication failed or session expired. Please sign out and sign in again.")).toBeDefined()
+    })
+
+    expect(screen.queryByText("Retry failed question")).toBeNull()
   })
 
   it("resets conversation when 'New Chat' button is clicked", async () => {
