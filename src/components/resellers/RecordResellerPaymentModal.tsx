@@ -1,18 +1,30 @@
-import { useState } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { createResellerPayment } from "@/services/resellerPayments"
+import { useState, useEffect, useMemo } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { 
+  recordMultiEntryPayment, 
+  getCustomerCredits, 
+  getCreditTypeBadgeClasses, 
+  getCreditTypeLabel
+} from "@/services/customerCredits"
 import type { ResellerCustomer } from "@/services/resellers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatMoney } from "@/lib/utils"
-import { Loader2, Wallet, X, AlertCircle } from "lucide-react"
+import { formatMoney, formatDate } from "@/lib/utils"
+import { 
+  Loader2, 
+  Wallet, 
+  X, 
+  AlertCircle, 
+  Layers
+} from "lucide-react"
 
 interface RecordResellerPaymentModalProps {
   isOpen: boolean
   onClose: () => void
   selectedReseller?: ResellerCustomer | null
   resellers: ResellerCustomer[]
+  targetCreditId?: string | null
   onPaymentSuccess?: () => void
 }
 
@@ -21,6 +33,7 @@ export default function RecordResellerPaymentModal({
   onClose,
   selectedReseller,
   resellers,
+  targetCreditId,
   onPaymentSuccess
 }: RecordResellerPaymentModalProps) {
   const queryClient = useQueryClient()
@@ -34,24 +47,106 @@ export default function RecordResellerPaymentModal({
   const [notes, setNotes] = useState<string>("")
   const [formError, setFormError] = useState<string | null>(null)
 
+  // Map of creditId -> allocated amount
+  const [allocations, setAllocations] = useState<Record<string, string>>({})
+
+  // Fetch customer's credits
+  const { data: customerCredits = [] } = useQuery({
+    queryKey: ["customerCreditsPending", customerId],
+    queryFn: () => getCustomerCredits(customerId),
+    enabled: isOpen && !!customerId
+  })
+
+  // Outstanding entries that have balance > 0
+  const outstandingEntries = useMemo(() => {
+    return customerCredits.filter(c => Number(c.balance) > 0)
+  }, [customerCredits])
+
+  // Pre-fill target credit when modal is opened with a targetCreditId
+  useEffect(() => {
+    if (isOpen && targetCreditId && !amount) {
+      const target = customerCredits.find(c => c.id === targetCreditId)
+      if (target && target.balance > 0) {
+        setAmount(target.balance.toString())
+        setAllocations({ [target.id]: target.balance.toString() })
+      }
+    }
+  }, [isOpen, targetCreditId, customerCredits, amount])
+
   const currentReseller = resellers.find(r => r.id === customerId) || (selectedReseller?.id === customerId ? selectedReseller : null)
 
+  // Calculations for allocations
+  const parsedTotalPayment = parseFloat(amount) || 0
+  const totalAllocated = useMemo(() => {
+    return Object.values(allocations).reduce((sum, val) => {
+      const num = parseFloat(val)
+      return sum + (isNaN(num) ? 0 : num)
+    }, 0)
+  }, [allocations])
+
+  const unallocatedAdvance = Math.max(0, parsedTotalPayment - totalAllocated)
+  const isOverAllocated = totalAllocated > parsedTotalPayment + 0.01
+
+  // Handle allocation change for a specific entry
+  const handleAllocationChange = (creditId: string, val: string) => {
+    setAllocations(prev => {
+      const next = { ...prev }
+      if (val === "" || parseFloat(val) <= 0) {
+        delete next[creditId]
+      } else {
+        next[creditId] = val
+      }
+      return next
+    })
+  }
+
+  // Auto-distribute payment across outstanding entries (oldest first)
+  const handleAutoDistribute = () => {
+    if (parsedTotalPayment <= 0) return
+    let remaining = parsedTotalPayment
+    const newAllocations: Record<string, string> = {}
+
+    // Sort by entry_date ascending
+    const sorted = [...outstandingEntries].sort((a, b) => a.entry_date.localeCompare(b.entry_date))
+
+    for (const entry of sorted) {
+      if (remaining <= 0) break
+      const toAllocate = Math.min(remaining, entry.balance)
+      if (toAllocate > 0) {
+        newAllocations[entry.id] = toAllocate.toFixed(2)
+        remaining -= toAllocate
+      }
+    }
+
+    setAllocations(newAllocations)
+  }
+
+  const handleClearAllocations = () => {
+    setAllocations({})
+  }
+
   const mutation = useMutation({
-    mutationFn: createResellerPayment,
+    mutationFn: recordMultiEntryPayment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resellers"] })
       queryClient.invalidateQueries({ queryKey: ["resellerPayments"] })
+      queryClient.invalidateQueries({ queryKey: ["customerCredits"] })
       if (customerId) {
         queryClient.invalidateQueries({ queryKey: ["reseller", customerId] })
         queryClient.invalidateQueries({ queryKey: ["resellerPaymentsHistory", customerId] })
         queryClient.invalidateQueries({ queryKey: ["resellerSales", customerId] })
+        queryClient.invalidateQueries({ queryKey: ["customerCreditsPending", customerId] })
       }
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       onPaymentSuccess?.()
       onClose()
+      setAllocations({})
+      setAmount("")
+      setNotes("")
+      setReference("")
     },
     onError: (err: any) => {
-      setFormError(err.message || "Failed to record reseller payment")
+      setFormError(err.message || "Failed to record customer payment")
     }
   })
 
@@ -62,7 +157,7 @@ export default function RecordResellerPaymentModal({
     setFormError(null)
 
     if (!customerId) {
-      setFormError("Please select a reseller customer.")
+      setFormError("Please select a customer.")
       return
     }
 
@@ -71,29 +166,43 @@ export default function RecordResellerPaymentModal({
       return
     }
 
-    const parsedAmount = parseFloat(amount)
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (isNaN(parsedTotalPayment) || parsedTotalPayment <= 0) {
       setFormError("Please enter a valid payment amount greater than zero.")
       return
     }
 
+    if (isOverAllocated) {
+      setFormError(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed payment amount (${formatMoney(parsedTotalPayment)}).`)
+      return
+    }
+
+    // Format allocations array
+    const allocArray = Object.entries(allocations)
+      .map(([creditId, amtStr]) => ({
+        creditId,
+        amount: parseFloat(amtStr),
+        notes: "Payment allocation"
+      }))
+      .filter(a => a.amount > 0)
+
     mutation.mutate({
-      customer_id: customerId,
-      payment_date: paymentDate,
-      amount: parsedAmount,
-      payment_method: paymentMethod || null,
-      reference: reference.trim() || null,
-      notes: notes.trim() || null
+      customerId,
+      totalAmount: parsedTotalPayment,
+      paymentDate,
+      paymentMethod: paymentMethod || "CASH",
+      reference: reference.trim() || undefined,
+      notes: notes.trim() || undefined,
+      allocations: allocArray
     })
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
       <div 
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
+        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="record-reseller-payment-title"
+        aria-labelledby="record-customer-payment-title"
       >
         {/* Modal Header */}
         <div 
@@ -105,8 +214,8 @@ export default function RecordResellerPaymentModal({
               <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="record-reseller-payment-title" className="text-xl font-bold leading-tight">
-                Record Reseller Payment
+              <h2 id="record-customer-payment-title" className="text-xl font-bold leading-tight">
+                Record Customer Payment & Repayments
               </h2>
               <p className="text-xs text-blue-100 font-medium">
                 {currentReseller ? `Receiving payment from ${currentReseller.name}` : "Credit customer account"}
@@ -125,7 +234,7 @@ export default function RecordResellerPaymentModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {formError && (
             <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-start gap-2.5">
               <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
@@ -139,17 +248,20 @@ export default function RecordResellerPaymentModal({
           {/* Customer Selection */}
           <div className="space-y-1.5">
             <Label htmlFor="reseller-select" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Reseller / Customer <span className="text-red-500">*</span>
+              Customer Profile <span className="text-red-500">*</span>
             </Label>
             <select
               id="reseller-select"
               required
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[#2D7FF9] focus:outline-none focus:ring-2 focus:ring-[#2D7FF9]/20"
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
               value={customerId}
-              onChange={(e) => setSelectedId(e.target.value)}
+              onChange={(e) => {
+                setSelectedId(e.target.value)
+                setAllocations({})
+              }}
               disabled={mutation.isPending}
             >
-              <option value="" disabled>Select Reseller Customer</option>
+              <option value="" disabled>Select Customer</option>
               {resellers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} {c.phone ? `(${c.phone})` : ""}
@@ -160,7 +272,7 @@ export default function RecordResellerPaymentModal({
             {/* Current Balance Hint */}
             {currentReseller && (
               <div className="flex items-center justify-between text-xs px-1 pt-1">
-                <span className="text-slate-500">Current Outstanding:</span>
+                <span className="text-slate-500">Total Account Outstanding:</span>
                 <span className={`font-bold ${Number(currentReseller.outstanding || 0) > 0 ? "text-red-600" : "text-emerald-600"}`}>
                   {formatMoney(currentReseller.outstanding || 0)}
                 </span>
@@ -188,7 +300,7 @@ export default function RecordResellerPaymentModal({
             {/* Amount Received */}
             <div className="space-y-1.5">
               <Label htmlFor="payment-amount" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Amount Received (₹) <span className="text-red-500">*</span>
+                Amount Received (Rs) <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="payment-amount"
@@ -200,7 +312,7 @@ export default function RecordResellerPaymentModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={mutation.isPending}
-                className="border-slate-200 focus-visible:ring-[#2D7FF9] font-medium"
+                className="border-slate-200 focus-visible:ring-[#2D7FF9] font-bold text-lg text-slate-900"
               />
             </div>
           </div>
@@ -213,26 +325,26 @@ export default function RecordResellerPaymentModal({
               </Label>
               <select
                 id="payment-method"
-                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm focus:border-[#2D7FF9] focus:outline-none focus:ring-2 focus:ring-[#2D7FF9]/20"
+                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 disabled={mutation.isPending}
               >
-                <option value="CASH">Cash</option>
-                <option value="BANK_TRANSFER">Bank Transfer</option>
-                <option value="UPI">UPI</option>
-                <option value="CHEQUE">Cheque</option>
+                <option value="CASH">CASH</option>
+                <option value="BANK_TRANSFER">BANK TRANSFER</option>
+                <option value="ONLINE">ONLINE</option>
+                <option value="CHEQUE">CHEQUE</option>
               </select>
             </div>
 
             {/* Reference */}
             <div className="space-y-1.5">
-              <Label htmlFor="payment-reference" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Reference / Txn ID
+              <Label htmlFor="reference" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Reference / Cheque No.
               </Label>
               <Input
-                id="payment-reference"
-                placeholder="e.g. UTR / Cheque #"
+                id="reference"
+                placeholder="Optional payment reference"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 disabled={mutation.isPending}
@@ -241,14 +353,121 @@ export default function RecordResellerPaymentModal({
             </div>
           </div>
 
+          {/* Explicit Allocation Section for Outstanding Entries */}
+          {outstandingEntries.length > 0 && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-blue-600" />
+                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    Allocate to Outstanding Entries ({outstandingEntries.length})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAutoDistribute}
+                    disabled={parsedTotalPayment <= 0}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-50"
+                  >
+                    Auto-Allocate
+                  </button>
+                  <span className="text-slate-300">|</span>
+                  <button
+                    type="button"
+                    onClick={handleClearAllocations}
+                    className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-500">
+                You can specify exactly how much of this payment covers each outstanding Product Credit, Cash Loan, or Other Credit. Unallocated funds act as customer advance.
+              </p>
+
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {outstandingEntries.map((entry) => {
+                  const badge = getCreditTypeBadgeClasses(entry.entry_type)
+                  const entryAlloc = allocations[entry.id] || ""
+                  return (
+                    <div
+                      key={entry.id}
+                      className="p-2.5 bg-white border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
+                            {getCreditTypeLabel(entry.entry_type)}
+                          </span>
+                          <span className="text-xs font-bold text-slate-800">
+                            {entry.entry_type === "PRODUCT_CREDIT" && entry.product_name}
+                            {entry.entry_type === "CASH_LOAN" && "Cash Loan"}
+                            {entry.entry_type === "OTHER_CREDIT" && entry.description}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Date: {formatDate(entry.entry_date)} • Total: {formatMoney(entry.total_amount)} • Remaining:{" "}
+                          <span className="font-bold text-red-600">{formatMoney(entry.balance)}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Label className="text-[11px] text-slate-500">Allocate:</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          max={entry.balance}
+                          placeholder="0.00"
+                          value={entryAlloc}
+                          onChange={(e) => handleAllocationChange(entry.id, e.target.value)}
+                          className="w-28 h-8 text-xs font-bold text-slate-900 border-slate-300"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleAllocationChange(entry.id, entry.balance.toString())}
+                          className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-md"
+                          title="Allocate full balance"
+                        >
+                          Full
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Allocation Summary Bar */}
+              <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center justify-between text-xs font-medium">
+                <div>
+                  <span className="text-slate-600">Allocated: </span>
+                  <span className="font-bold text-blue-800">{formatMoney(totalAllocated)}</span>
+                </div>
+                <div>
+                  <span className="text-slate-600">Customer Advance: </span>
+                  <span className="font-bold text-emerald-700">{formatMoney(unallocatedAdvance)}</span>
+                </div>
+              </div>
+
+              {isOverAllocated && (
+                <div className="text-xs text-red-600 font-bold flex items-center gap-1">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Total allocated exceeds payment amount!
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="payment-notes" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Notes (Optional)
+            <Label htmlFor="notes" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              Notes / Remarks
             </Label>
             <Input
-              id="payment-notes"
-              placeholder="e.g., Paid towards invoice #1042"
+              id="notes"
+              placeholder="e.g. Cleared oil purchase, partial loan repayment"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               disabled={mutation.isPending}
@@ -256,8 +475,8 @@ export default function RecordResellerPaymentModal({
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
             <Button
               type="button"
               variant="outline"
@@ -269,20 +488,11 @@ export default function RecordResellerPaymentModal({
             </Button>
             <Button
               type="submit"
-              disabled={mutation.isPending}
-              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white shadow-md shadow-blue-500/20 px-6 font-semibold"
+              disabled={mutation.isPending || isOverAllocated}
+              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold shadow-xs"
             >
-              {mutation.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Saving Payment...
-                </>
-              ) : (
-                <>
-                  <Wallet className="mr-2 h-4 w-4" />
-                  Save Payment
-                </>
-              )}
+              {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Save Payment
             </Button>
           </div>
         </form>

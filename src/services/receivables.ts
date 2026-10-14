@@ -46,14 +46,16 @@ export async function getUnifiedReceivables(
     resellersRes,
     allSalesRes,
     allResellerPaymentsRes,
+    creditsRes,
     naeemDelRes,
     naeemPayRes,
     naeemBalRes,
     generalEntriesRes
   ] = await Promise.all([
-    supabase.from("reseller_customers").select("id, name, phone").order("name"),
+    supabase.from("reseller_customers").select("id, name, phone, opening_balance").order("name"),
     supabase.from("wholesale_sales").select("id, customer_id, total_sale, amount_received, sale_date").limit(999999),
     supabase.from("reseller_payments").select("id, customer_id, amount, payment_date").limit(999999),
+    supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, entry_type, entry_date").limit(999999),
     supabase.from("naeem_daily_records").select("id, final_fare, status, delivery_date").order("delivery_date", { ascending: false }),
     supabase.from("naeem_payments").select("id, amount, payment_date").order("payment_date", { ascending: false }),
     getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false })),
@@ -71,6 +73,7 @@ export async function getUnifiedReceivables(
 
   // 1. Process Wholesale / Reseller Debtors
   const salesByCustomer: Record<string, number> = {}
+  const creditsByCustomer: Record<string, number> = {}
   const receivedByCustomer: Record<string, number> = {}
   const latestPaymentDateByCustomer: Record<string, string> = {}
 
@@ -86,6 +89,12 @@ export async function getUnifiedReceivables(
     }
   })
 
+  // Customer credits (Product Credit, Cash Loan, Other Credit)
+  creditsRes.data?.forEach((c: any) => {
+    if (!c.customer_id) return
+    creditsByCustomer[c.customer_id] = (creditsByCustomer[c.customer_id] || 0) + Number(c.total_amount || 0)
+  })
+
   allResellerPaymentsRes.data?.forEach((p: any) => {
     if (!p.customer_id) return
     receivedByCustomer[p.customer_id] = (receivedByCustomer[p.customer_id] || 0) + Number(p.amount || 0)
@@ -99,8 +108,10 @@ export async function getUnifiedReceivables(
   let wholesaleOutstanding = 0
   resellersRes.data?.forEach((r: any) => {
     const totalSales = salesByCustomer[r.id] || 0
+    const totalCredits = creditsByCustomer[r.id] || 0
     const totalReceived = receivedByCustomer[r.id] || 0
-    const outstanding = totalSales - totalReceived
+    const openingBalance = Number(r.opening_balance || 0)
+    const outstanding = (openingBalance + totalSales + totalCredits) - totalReceived
     if (outstanding > 0) {
       wholesaleOutstanding += outstanding
       debtorsList.push({

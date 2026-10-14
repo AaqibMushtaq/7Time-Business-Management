@@ -83,7 +83,19 @@ describe("Resellers Service", () => {
           })
         }
       }
-      return {}
+      if (table === "customer_credits") {
+        return {
+          select: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: [], error: null })
+          })
+        }
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+          order: vi.fn().mockResolvedValue({ data: [], error: null })
+        })
+      }
     })
 
     const result = await getResellersWithBalances()

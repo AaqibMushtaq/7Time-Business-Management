@@ -43,7 +43,7 @@ const navGroups = [
   {
     name: "Wholesale",
     items: [
-      { name: "Resellers", href: "/resellers", icon: Users },
+      { name: "Local Customers", href: "/resellers", icon: Users },
       { name: "Wholesale Sales", href: "/wholesale", icon: ShoppingCart },
     ]
   },

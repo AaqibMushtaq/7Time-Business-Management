@@ -1,8 +1,15 @@
-import { useState } from "react"
+import { useState, useMemo, Fragment } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import type { ResellerCustomer } from "@/services/resellers"
 import type { ResellerPayment } from "@/services/resellerPayments"
+import { 
+  getCustomerCredits, 
+  calculateCustomerLedgerSummary,
+  getCreditTypeBadgeClasses,
+  getCreditTypeLabel,
+  type CustomerCreditType
+} from "@/services/customerCredits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
@@ -17,22 +24,38 @@ import {
   X, 
   Plus, 
   AlertCircle,
-  FileText
+  FileText,
+  Package,
+  Coins,
+  ChevronDown,
+  ChevronUp,
+  History
 } from "lucide-react"
+import CreateCustomerCreditModal from "./CreateCustomerCreditModal"
+import RecordResellerPaymentModal from "./RecordResellerPaymentModal"
 
 interface ResellerDetailPanelProps {
   id: string
   onClose: () => void
-  onRecordPayment: (reseller: ResellerCustomer) => void
+  onRecordPayment?: (reseller: ResellerCustomer) => void
 }
+
+type TabType = "all_credits" | "product_credit" | "cash_loan" | "other_credit" | "sales" | "payments"
 
 export default function ResellerDetailPanel({
   id,
-  onClose,
-  onRecordPayment
+  onClose
 }: ResellerDetailPanelProps) {
-  const [activeTab, setActiveTab] = useState<"payments" | "sales" | "overview">("payments")
+  const [activeTab, setActiveTab] = useState<TabType>("all_credits")
+  const [expandedCreditId, setExpandedCreditId] = useState<string | null>(null)
 
+  // Modals state
+  const [isCreditModalOpen, setIsCreditModalOpen] = useState<boolean>(false)
+  const [creditModalInitialType, setCreditModalInitialType] = useState<CustomerCreditType>("PRODUCT_CREDIT")
+  const [isRepayModalOpen, setIsRepayModalOpen] = useState<boolean>(false)
+  const [repayTargetCreditId, setRepayTargetCreditId] = useState<string | null>(null)
+
+  // 1. Fetch Reseller Profile
   const { data: reseller, isLoading: isLoadingReseller, error: resellerError } = useQuery({
     queryKey: ["reseller", id],
     queryFn: async () => {
@@ -46,10 +69,19 @@ export default function ResellerDetailPanel({
     },
   })
 
+  // 2. Fetch Customer Credits (Product Credit, Cash Loan, Other Credit)
   const { 
-    data: payments, 
-    isLoading: isLoadingPayments, 
-    error: paymentsError 
+    data: customerCredits = [], 
+    isLoading: isLoadingCredits
+  } = useQuery({
+    queryKey: ["customerCredits", id],
+    queryFn: () => getCustomerCredits(id),
+  })
+
+  // 3. Fetch Payments History
+  const { 
+    data: payments = [], 
+    isLoading: isLoadingPayments
   } = useQuery({
     queryKey: ["resellerPaymentsHistory", id],
     queryFn: async () => {
@@ -63,10 +95,10 @@ export default function ResellerDetailPanel({
     },
   })
 
+  // 4. Fetch Wholesale Sales
   const { 
-    data: sales, 
-    isLoading: isLoadingSales, 
-    error: salesError 
+    data: sales = [], 
+    isLoading: isLoadingSales
   } = useQuery({
     queryKey: ["resellerSales", id],
     queryFn: async () => {
@@ -80,11 +112,21 @@ export default function ResellerDetailPanel({
     },
   })
 
-  if (isLoadingReseller) {
+  // Authoritative financial calculations
+  const ledgerSummary = useMemo(() => {
+    return calculateCustomerLedgerSummary(
+      customerCredits,
+      sales,
+      payments,
+      Number(reseller?.opening_balance || 0)
+    )
+  }, [customerCredits, sales, payments, reseller?.opening_balance])
+
+  if (isLoadingReseller || isLoadingCredits || isLoadingPayments || isLoadingSales) {
     return (
       <div className="flex flex-col items-center justify-center p-16 h-full min-h-[300px]">
         <Loader2 className="h-10 w-10 animate-spin text-[#2D7FF9] mb-3" />
-        <p className="text-sm font-semibold text-slate-500">Loading reseller account...</p>
+        <p className="text-sm font-semibold text-slate-500">Loading customer account & ledger...</p>
       </div>
     )
   }
@@ -93,9 +135,9 @@ export default function ResellerDetailPanel({
     return (
       <div className="p-8 text-center">
         <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-2" />
-        <h3 className="text-lg font-bold text-slate-800">Reseller not found</h3>
+        <h3 className="text-lg font-bold text-slate-800">Customer not found</h3>
         <p className="text-sm text-slate-500 mt-1">
-          {resellerError instanceof Error ? resellerError.message : "The requested reseller could not be loaded."}
+          {resellerError instanceof Error ? resellerError.message : "The requested customer could not be loaded."}
         </p>
         <Button onClick={onClose} variant="outline" className="mt-4">
           Close
@@ -104,23 +146,58 @@ export default function ResellerDetailPanel({
     )
   }
 
-  // Calculate authoritative financial totals
-  const totalSales = sales?.reduce((sum: number, s: any) => sum + Number(s.total_sale || 0), 0) || 0
-  const totalReceivedFromSales = sales?.reduce((sum: number, s: any) => sum + Number(s.amount_received || 0), 0) || 0
-  const totalSeparatePayments = payments?.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0) || 0
-  const totalReceived = totalReceivedFromSales + totalSeparatePayments
-  const balanceDue = totalSales - totalReceived
-  const totalProfit = sales?.reduce((sum: number, s: any) => sum + Number(s.profit || 0), 0) || 0
-
   const resellerWithBalance: ResellerCustomer = {
     ...reseller,
-    total_sales: totalSales,
-    total_received: totalReceived,
-    outstanding: balanceDue
+    total_sales: ledgerSummary.wholesaleSalesTotal,
+    total_received: ledgerSummary.totalCredits,
+    product_credit_outstanding: ledgerSummary.productCreditOutstanding,
+    cash_loan_outstanding: ledgerSummary.cashLoanOutstanding,
+    other_credit_outstanding: ledgerSummary.otherCreditOutstanding,
+    outstanding: ledgerSummary.netOutstanding
+  }
+
+  // Filtered credits by active tab
+  const filteredCredits = customerCredits.filter(c => {
+    if (activeTab === "all_credits") return true
+    if (activeTab === "product_credit") return c.entry_type === "PRODUCT_CREDIT"
+    if (activeTab === "cash_loan") return c.entry_type === "CASH_LOAN"
+    if (activeTab === "other_credit") return c.entry_type === "OTHER_CREDIT"
+    return false
+  })
+
+  const openAddCredit = (type: CustomerCreditType) => {
+    setCreditModalInitialType(type)
+    setIsCreditModalOpen(true)
+  }
+
+  const openRepayCredit = (creditId: string) => {
+    setRepayTargetCreditId(creditId)
+    setIsRepayModalOpen(true)
   }
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50 rounded-xl">
+      {/* Create Credit Modal */}
+      <CreateCustomerCreditModal
+        isOpen={isCreditModalOpen}
+        onClose={() => setIsCreditModalOpen(false)}
+        selectedCustomerId={id}
+        customers={[reseller]}
+        initialType={creditModalInitialType}
+      />
+
+      {/* Record Payment / Repayment Modal */}
+      <RecordResellerPaymentModal
+        isOpen={isRepayModalOpen}
+        onClose={() => {
+          setIsRepayModalOpen(false)
+          setRepayTargetCreditId(null)
+        }}
+        selectedReseller={resellerWithBalance}
+        resellers={[resellerWithBalance]}
+        targetCreditId={repayTargetCreditId}
+      />
+
       {/* Sticky Top Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-slate-200 p-5 sm:p-6 space-y-5 rounded-t-xl shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -136,8 +213,8 @@ export default function ResellerDetailPanel({
                 <h2 className="text-2xl font-bold tracking-tight text-slate-900 leading-none">
                   {reseller.name}
                 </h2>
-                <span className="bg-blue-50 text-[#2D7FF9] text-xs font-bold px-2 py-0.5 rounded-full border border-blue-200/60 uppercase tracking-wider">
-                  Reseller Account
+                <span className="bg-blue-50 text-[#2D7FF9] text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-200/60 uppercase tracking-wider">
+                  Customer Profile
                 </span>
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-slate-500 font-medium">
@@ -153,7 +230,7 @@ export default function ResellerDetailPanel({
                 )}
                 {reseller.created_at && (
                   <span className="text-slate-400">
-                    Added: {formatDate(reseller.created_at)}
+                    Customer Since: {formatDate(reseller.created_at)}
                   </span>
                 )}
               </div>
@@ -186,22 +263,33 @@ export default function ResellerDetailPanel({
               >
                 <MessageCircle className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-100/60 rounded-md"
-                title={reseller.address ? `Map to ${reseller.address}` : "No address available"}
-                onClick={() => reseller.address && window.open(`https://maps.google.com/?q=${encodeURIComponent(reseller.address)}`, '_blank')}
-                disabled={!reseller.address}
-              >
-                <MapPin className="h-4 w-4" />
-              </Button>
             </div>
+
+            {/* + Product Credit */}
+            <Button
+              onClick={() => openAddCredit("PRODUCT_CREDIT")}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-xs"
+              size="sm"
+            >
+              <Package className="mr-1.5 h-4 w-4" /> + Product Credit
+            </Button>
+
+            {/* + Cash Loan */}
+            <Button
+              onClick={() => openAddCredit("CASH_LOAN")}
+              className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs sm:text-sm shadow-xs"
+              size="sm"
+            >
+              <Coins className="mr-1.5 h-4 w-4" /> + Cash Loan
+            </Button>
 
             {/* Primary Action: Record Payment */}
             <Button 
-              onClick={() => onRecordPayment(resellerWithBalance)}
-              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white shadow-sm font-semibold text-xs sm:text-sm"
+              onClick={() => {
+                setRepayTargetCreditId(null)
+                setIsRepayModalOpen(true)
+              }}
+              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white shadow-xs font-semibold text-xs sm:text-sm"
               size="sm"
             >
               <Wallet className="mr-1.5 h-4 w-4" /> Record Payment
@@ -220,347 +308,489 @@ export default function ResellerDetailPanel({
           </div>
         </div>
 
-        {/* Financial Stat Cards */}
+        {/* Distinct Financial Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          <Card className="bg-white border-slate-200 shadow-xs">
+          {/* Card 1: Total Net Outstanding */}
+          <Card className={`bg-white shadow-xs border ${ledgerSummary.netOutstanding > 0 ? "border-red-200 bg-red-50/20" : "border-emerald-200 bg-emerald-50/20"}`}>
             <CardHeader className="pb-1 pt-3.5 px-4">
               <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Wholesale Sales
+                Total Net Outstanding
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3.5">
-              <div className="text-xl lg:text-2xl font-bold text-slate-900">{formatMoney(totalSales)}</div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-white border-slate-200 shadow-xs">
-            <CardHeader className="pb-1 pt-3.5 px-4">
-              <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Received
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-3.5">
-              <div className="text-xl lg:text-2xl font-bold text-emerald-600">{formatMoney(totalReceived)}</div>
-            </CardContent>
-          </Card>
-
-          <Card className={`bg-white shadow-xs border ${balanceDue > 0 ? "border-red-200 bg-red-50/20" : "border-emerald-200 bg-emerald-50/20"}`}>
-            <CardHeader className="pb-1 pt-3.5 px-4">
-              <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Outstanding Receivable
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-3.5">
-              <div className={`text-xl lg:text-2xl font-bold ${balanceDue > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                {formatMoney(balanceDue)}
+              <div className={`text-xl lg:text-2xl font-bold ${ledgerSummary.netOutstanding > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                {formatMoney(ledgerSummary.netOutstanding)}
               </div>
-              <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${balanceDue > 0 ? "text-red-600/80" : "text-emerald-600/80"}`}>
-                {balanceDue > 0 ? "Owed to 7TIME" : "Account Settled"}
+              <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${ledgerSummary.netOutstanding > 0 ? "text-red-600/80" : "text-emerald-600/80"}`}>
+                {ledgerSummary.netOutstanding > 0 ? "Total Customer Debt" : ledgerSummary.unallocatedAdvancePayments > 0 ? `Advance: ${formatMoney(ledgerSummary.unallocatedAdvancePayments)}` : "Account Settled"}
               </p>
             </CardContent>
           </Card>
 
+          {/* Card 2: Product Credit Outstanding */}
+          <Card className="bg-white border-emerald-200 bg-emerald-50/15 shadow-xs">
+            <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-xs font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Package className="h-3.5 w-3.5 text-emerald-600" /> Product Credit Owed
+              </CardTitle>
+              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                {ledgerSummary.productCreditCount} items
+              </span>
+            </CardHeader>
+            <CardContent className="px-4 pb-3.5">
+              <div className="text-xl lg:text-2xl font-bold text-emerald-700">
+                {formatMoney(ledgerSummary.productCreditOutstanding)}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Taken: {formatMoney(ledgerSummary.productCreditTotal)} • Paid: {formatMoney(ledgerSummary.productCreditPaid)}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Card 3: Cash Loans Remaining */}
+          <Card className="bg-white border-amber-200 bg-amber-50/15 shadow-xs">
+            <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-xs font-semibold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Coins className="h-3.5 w-3.5 text-amber-600" /> Cash Loans Owed
+              </CardTitle>
+              <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
+                {ledgerSummary.cashLoanCount} loans
+              </span>
+            </CardHeader>
+            <CardContent className="px-4 pb-3.5">
+              <div className="text-xl lg:text-2xl font-bold text-amber-700">
+                {formatMoney(ledgerSummary.cashLoanOutstanding)}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Given: {formatMoney(ledgerSummary.cashLoanTotal)} • Repaid: {formatMoney(ledgerSummary.cashLoanPaid)}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Card 4: Total Payments & Repayments Received */}
           <Card className="bg-white border-slate-200 shadow-xs">
             <CardHeader className="pb-1 pt-3.5 px-4">
               <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Profit
+                Total Payments Received
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-3.5">
-              <div className="text-xl lg:text-2xl font-bold text-blue-600">{formatMoney(totalProfit)}</div>
+              <div className="text-xl lg:text-2xl font-bold text-slate-900">
+                {formatMoney(ledgerSummary.totalPaymentsRecorded)}
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Wholesale Sales: {formatMoney(ledgerSummary.wholesaleSalesOutstanding)} due
+              </p>
             </CardContent>
           </Card>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-6 -mb-5 border-b border-slate-200 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-4 sm:gap-6 -mb-5 border-b border-slate-200 overflow-x-auto scrollbar-none">
           <button
-            onClick={() => setActiveTab("payments")}
-            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-2 ${
-              activeTab === "payments" 
+            onClick={() => setActiveTab("all_credits")}
+            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "all_credits" 
                 ? "text-[#2D7FF9] border-b-2 border-[#2D7FF9]" 
                 : "text-slate-500 hover:text-slate-900"
             }`}
           >
-            <Wallet className="h-4 w-4" />
-            Payment History
+            All Credits & Loans
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-              activeTab === "payments" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
+              activeTab === "all_credits" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
             }`}>
-              {payments?.length || 0}
+              {customerCredits.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("product_credit")}
+            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "product_credit" 
+                ? "text-emerald-600 border-b-2 border-emerald-600" 
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <Package className="h-4 w-4" />
+            Product Credit
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeTab === "product_credit" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
+            }`}>
+              {ledgerSummary.productCreditCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("cash_loan")}
+            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "cash_loan" 
+                ? "text-amber-600 border-b-2 border-amber-600" 
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <Coins className="h-4 w-4" />
+            Cash Loans
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeTab === "cash_loan" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
+            }`}>
+              {ledgerSummary.cashLoanCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("other_credit")}
+            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "other_credit" 
+                ? "text-purple-600 border-b-2 border-purple-600" 
+                : "text-slate-500 hover:text-slate-900"
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            Other Credit
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeTab === "other_credit" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-600"
+            }`}>
+              {ledgerSummary.otherCreditCount}
             </span>
           </button>
 
           <button
             onClick={() => setActiveTab("sales")}
-            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-2 ${
+            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
               activeTab === "sales" 
                 ? "text-[#2D7FF9] border-b-2 border-[#2D7FF9]" 
                 : "text-slate-500 hover:text-slate-900"
             }`}
           >
             <ShoppingCart className="h-4 w-4" />
-            Sales Ledger
+            Wholesale Sales
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeTab === "sales" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
             }`}>
-              {sales?.length || 0}
+              {sales.length}
             </span>
           </button>
 
           <button
-            onClick={() => setActiveTab("overview")}
-            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-2 ${
-              activeTab === "overview" 
+            onClick={() => setActiveTab("payments")}
+            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
+              activeTab === "payments" 
                 ? "text-[#2D7FF9] border-b-2 border-[#2D7FF9]" 
                 : "text-slate-500 hover:text-slate-900"
             }`}
           >
-            <FileText className="h-4 w-4" />
-            Overview
+            <Wallet className="h-4 w-4" />
+            Payments & Repayments
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              activeTab === "payments" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
+            }`}>
+              {payments.length}
+            </span>
           </button>
         </div>
       </div>
 
       {/* Main Tab Content */}
       <div className="p-5 sm:p-6 flex-1 overflow-y-auto">
-        {/* PAYMENT HISTORY TAB */}
-        {activeTab === "payments" && (
+        {/* TAB 1: ALL CREDITS / PRODUCT CREDITS / CASH LOANS / OTHER CREDITS */}
+        {["all_credits", "product_credit", "cash_loan", "other_credit"].includes(activeTab) && (
           <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Recorded Payments ({payments?.length || 0})
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Authoritative history of all payments received from {reseller.name}
-                </p>
-              </div>
-              <Button
-                size="sm"
-                onClick={() => onRecordPayment(resellerWithBalance)}
-                className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-medium text-xs shadow-xs"
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" /> Record New Payment
-              </Button>
-            </div>
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-800">
+                {activeTab === "all_credits" && "All Amounts Owed (Product Credits, Cash Loans & Other Credits)"}
+                {activeTab === "product_credit" && "Product Credit Entries"}
+                {activeTab === "cash_loan" && "Cash Loan Entries"}
+                {activeTab === "other_credit" && "Other Credit Entries"}
+              </h3>
 
-            {isLoadingPayments ? (
-              <div className="flex justify-center p-12 bg-white rounded-xl border border-slate-200">
-                <Loader2 className="h-8 w-8 animate-spin text-[#2D7FF9]" />
-              </div>
-            ) : paymentsError ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-sm">Failed to load payment history</p>
-                  <p className="text-xs text-red-600 mt-0.5">
-                    {paymentsError instanceof Error ? paymentsError.message : "Database request failed"}
-                  </p>
-                </div>
-              </div>
-            ) : payments?.length === 0 ? (
-              <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center flex flex-col items-center">
-                <div className="h-12 w-12 rounded-full bg-blue-50 text-[#2D7FF9] flex items-center justify-center mb-3">
-                  <Wallet className="h-6 w-6" />
-                </div>
-                <h4 className="text-base font-bold text-slate-800">No Payments Recorded Yet</h4>
-                <p className="text-xs text-slate-500 max-w-sm mt-1">
-                  There are no payments recorded for {reseller.name}. Click below to record the first payment.
-                </p>
+              <div className="flex items-center gap-2">
                 <Button
-                  onClick={() => onRecordPayment(resellerWithBalance)}
-                  className="mt-4 bg-[#2D7FF9] hover:bg-[#2068d4] text-white text-xs font-semibold"
+                  onClick={() => openAddCredit(activeTab === "cash_loan" ? "CASH_LOAN" : activeTab === "other_credit" ? "OTHER_CREDIT" : "PRODUCT_CREDIT")}
+                  variant="outline"
+                  size="sm"
+                  className="text-xs font-semibold"
                 >
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Record First Payment
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Add Entry
                 </Button>
               </div>
-            ) : (
-              <Card className="bg-white border-slate-200 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto w-full">
-                  <Table className="min-w-[650px]">
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="font-semibold text-xs text-slate-600 uppercase">Payment Date</TableHead>
-                        <TableHead className="font-semibold text-xs text-slate-600 uppercase">Method</TableHead>
-                        <TableHead className="font-semibold text-xs text-slate-600 uppercase">Reference / Txn ID</TableHead>
-                        <TableHead className="font-semibold text-xs text-slate-600 uppercase">Notes</TableHead>
-                        <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Amount Received</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {payments?.map((payment) => (
-                        <TableRow key={payment.id} className="hover:bg-slate-50/70">
-                          <TableCell className="font-medium text-slate-900 text-sm whitespace-nowrap">
-                            {formatDate(payment.payment_date)}
-                          </TableCell>
-                          <TableCell>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                              {payment.payment_method || "CASH"}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-slate-600 text-xs">
-                            {payment.reference || <span className="text-slate-400">-</span>}
-                          </TableCell>
-                          <TableCell className="text-slate-600 text-xs max-w-xs truncate" title={payment.notes || ""}>
-                            {payment.notes || <span className="text-slate-400">-</span>}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-emerald-600 text-sm">
-                            {formatMoney(payment.amount)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* SALES HISTORY TAB */}
-        {activeTab === "sales" && (
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Wholesale Sales Ledger ({sales?.length || 0})
-              </h3>
-              <p className="text-xs text-slate-500">
-                Detailed invoice sales and balances recorded for {reseller.name}
-              </p>
             </div>
 
-            {isLoadingSales ? (
-              <div className="flex justify-center p-12 bg-white rounded-xl border border-slate-200">
-                <Loader2 className="h-8 w-8 animate-spin text-[#2D7FF9]" />
-              </div>
-            ) : salesError ? (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-sm">Failed to load sales ledger</p>
-                  <p className="text-xs text-red-600 mt-0.5">
-                    {salesError instanceof Error ? salesError.message : "Database request failed"}
-                  </p>
-                </div>
-              </div>
-            ) : sales?.length === 0 ? (
-              <div className="bg-white rounded-xl border border-dashed border-slate-300 p-10 text-center flex flex-col items-center">
-                <ShoppingCart className="h-10 w-10 text-slate-300 mb-2" />
-                <h4 className="text-base font-bold text-slate-800">No Wholesale Sales Found</h4>
-                <p className="text-xs text-slate-500 mt-1">
-                  No wholesale sales have been recorded for {reseller.name} yet.
-                </p>
+            {filteredCredits.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
+                <Package className="h-10 w-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-700">No entries recorded in this view</p>
+                <p className="text-xs text-slate-500 mt-1">Use "+ Add Product Credit" or "+ Give Cash Loan" to record amounts owed.</p>
               </div>
             ) : (
-              <Card className="bg-white border-slate-200 shadow-xs overflow-hidden">
-                <div className="overflow-x-auto w-full">
-                  <Table className="min-w-[700px]">
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="font-semibold text-xs text-slate-600 uppercase">Sale Date</TableHead>
-                        <TableHead className="font-semibold text-xs text-slate-600 uppercase">Product</TableHead>
-                        <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Qty</TableHead>
-                        <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Total Sale</TableHead>
-                        <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Paid at Sale</TableHead>
-                        <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Balance</TableHead>
-                        <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Profit</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sales?.map((s: any) => (
-                        <TableRow key={s.id} className="hover:bg-slate-50/70">
-                          <TableCell className="font-medium text-slate-900 text-sm whitespace-nowrap">
-                            {formatDate(s.sale_date)}
-                          </TableCell>
-                          <TableCell className="font-medium text-slate-900 text-sm">
-                            {s.product?.name || "Product"}
-                          </TableCell>
-                          <TableCell className="text-right text-xs text-slate-600">
-                            {s.quantity} {s.product?.unit || "units"}
-                          </TableCell>
-                          <TableCell className="text-right font-semibold text-slate-900 text-sm">
-                            {formatMoney(s.total_sale)}
-                          </TableCell>
-                          <TableCell className="text-right text-emerald-600 font-medium text-sm">
-                            {formatMoney(s.amount_received)}
-                          </TableCell>
-                          <TableCell className="text-right text-red-600 font-semibold text-sm">
-                            {formatMoney(s.balance)}
-                          </TableCell>
-                          <TableCell className="text-right font-bold text-blue-600 text-sm">
-                            {formatMoney(s.profit)}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </Card>
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="w-8"></TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Date</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Type</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Item / Description</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Total Amount</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Repaid / Paid</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Remaining Balance</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-center">Status</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCredits.map((credit) => {
+                      const badge = getCreditTypeBadgeClasses(credit.entry_type)
+                      const isExpanded = expandedCreditId === credit.id
+                      const allocs = credit.allocations || []
+                      return (
+                        <Fragment key={credit.id}>
+                          <TableRow className="hover:bg-slate-50/80 transition-colors">
+                            <TableCell className="p-2">
+                              {allocs.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedCreditId(isExpanded ? null : credit.id)}
+                                  className="p-1 text-slate-400 hover:text-slate-700 rounded-md"
+                                  title={isExpanded ? "Collapse payment history" : "View repayment history"}
+                                >
+                                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </button>
+                              )}
+                            </TableCell>
+
+                            <TableCell className="text-xs font-medium text-slate-600 whitespace-nowrap">
+                              {formatDate(credit.entry_date)}
+                            </TableCell>
+
+                            <TableCell>
+                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
+                                {getCreditTypeLabel(credit.entry_type)}
+                              </span>
+                            </TableCell>
+
+                            <TableCell>
+                              <div className="space-y-0.5">
+                                <div className="text-sm font-semibold text-slate-900">
+                                  {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Product Credit")}
+                                  {credit.entry_type === "CASH_LOAN" && "Cash Loan"}
+                                  {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Credit")}
+                                </div>
+                                {credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
+                                  <div className="text-[11px] text-slate-500">
+                                    Qty: {credit.quantity} {credit.unit || "pcs"} {credit.rate_per_unit ? `@ Rs ${credit.rate_per_unit}` : ""}
+                                    {credit.category ? ` • Category: ${credit.category}` : ""}
+                                  </div>
+                                )}
+                                {credit.notes && (
+                                  <div className="text-[11px] text-slate-400 italic">
+                                    Note: {credit.notes}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+
+                            <TableCell className="text-right text-sm font-bold text-slate-900">
+                              {formatMoney(credit.total_amount)}
+                            </TableCell>
+
+                            <TableCell className="text-right text-sm font-semibold text-emerald-600">
+                              {formatMoney(credit.amount_paid)}
+                            </TableCell>
+
+                            <TableCell className={`text-right text-sm font-bold ${credit.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                              {formatMoney(credit.balance)}
+                            </TableCell>
+
+                            <TableCell className="text-center">
+                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                                credit.status === "PAID"
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : credit.status === "PARTIAL"
+                                  ? "bg-amber-100 text-amber-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}>
+                                {credit.status}
+                              </span>
+                            </TableCell>
+
+                            <TableCell className="text-right">
+                              {credit.balance > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openRepayCredit(credit.id)}
+                                  className="h-7 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
+                                >
+                                  Repay
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+
+                          {/* Expandable Repayments History Sub-Table */}
+                          {isExpanded && allocs.length > 0 && (
+                            <TableRow className="bg-slate-50/70 border-b border-slate-200">
+                              <TableCell colSpan={9} className="p-3 pl-12">
+                                <div className="space-y-1.5">
+                                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                                    <History className="h-3.5 w-3.5 text-blue-600" />
+                                    Repayment History for this Entry ({allocs.length} repayments)
+                                  </div>
+                                  <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
+                                    <table className="w-full text-xs">
+                                      <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
+                                        <tr>
+                                          <th className="py-1.5 px-3 text-left">Payment Date</th>
+                                          <th className="py-1.5 px-3 text-left">Method</th>
+                                          <th className="py-1.5 px-3 text-left">Reference</th>
+                                          <th className="py-1.5 px-3 text-right">Repayment Amount</th>
+                                          <th className="py-1.5 px-3 text-left">Notes</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {allocs.map((alloc) => (
+                                          <tr key={alloc.id} className="border-b border-slate-100 last:border-none">
+                                            <td className="py-1.5 px-3 text-slate-700 font-medium">
+                                              {alloc.payment?.payment_date ? formatDate(alloc.payment.payment_date) : "N/A"}
+                                            </td>
+                                            <td className="py-1.5 px-3 text-slate-600">
+                                              {alloc.payment?.payment_method || "CASH"}
+                                            </td>
+                                            <td className="py-1.5 px-3 text-slate-500">
+                                              {alloc.payment?.reference || "-"}
+                                            </td>
+                                            <td className="py-1.5 px-3 text-right font-bold text-emerald-600">
+                                              {formatMoney(alloc.amount)}
+                                            </td>
+                                            <td className="py-1.5 px-3 text-slate-500 italic">
+                                              {alloc.notes || alloc.payment?.notes || "-"}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </div>
         )}
 
-        {/* OVERVIEW TAB */}
-        {activeTab === "overview" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Account Summary Card */}
-            <Card className="bg-white border-slate-200 shadow-xs">
-              <CardHeader className="bg-slate-50 border-b border-slate-100 pb-3">
-                <CardTitle className="text-sm font-bold text-slate-800">Account Information</CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 space-y-3 text-sm">
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Customer Name</span>
-                  <span className="font-semibold text-slate-900">{reseller.name}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Phone Number</span>
-                  <span className="font-medium text-slate-900">{reseller.phone || "Not specified"}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Address</span>
-                  <span className="font-medium text-slate-900 text-right max-w-xs">{reseller.address || "Not specified"}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-500">Account Registered</span>
-                  <span className="font-medium text-slate-900">{formatDate(reseller.created_at)}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Outstanding Status</span>
-                  <span className={`font-bold ${balanceDue > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                    {balanceDue > 0 ? `${formatMoney(balanceDue)} Pending` : "Fully Settled"}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
+        {/* TAB 2: WHOLESALE SALES LEDGER */}
+        {activeTab === "sales" && (
+          <div className="space-y-4">
+            <h3 className="text-base font-bold text-slate-800">Wholesale Sales Orders</h3>
+            {sales.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500">
+                No wholesale sales recorded for this customer.
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Sale Date</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Product</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Quantity</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Total Sale</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Amount Received</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Balance Due</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-center">Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sales.map((sale: any) => (
+                      <TableRow key={sale.id} className="hover:bg-slate-50/80">
+                        <TableCell className="text-xs font-medium text-slate-600 whitespace-nowrap">
+                          {formatDate(sale.sale_date)}
+                        </TableCell>
+                        <TableCell className="font-semibold text-slate-900 text-sm">
+                          {sale.product?.name || "Product"}
+                        </TableCell>
+                        <TableCell className="text-right text-xs font-medium">
+                          {sale.quantity} {sale.product?.unit || "units"}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-bold text-slate-900">
+                          {formatMoney(sale.total_sale)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-semibold text-emerald-600">
+                          {formatMoney(sale.amount_received)}
+                        </TableCell>
+                        <TableCell className={`text-right text-sm font-bold ${Number(sale.balance || (sale.total_sale - sale.amount_received)) > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                          {formatMoney(sale.balance ?? (sale.total_sale - sale.amount_received))}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                            sale.status === "PAID"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : sale.status === "PARTIAL"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-red-100 text-red-800"
+                          }`}>
+                            {sale.status || "PENDING"}
+                          </span>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        )}
 
-            {/* Quick Actions Card */}
-            <Card className="bg-white border-slate-200 shadow-xs flex flex-col">
-              <CardHeader className="bg-slate-50 border-b border-slate-100 pb-3">
-                <CardTitle className="text-sm font-bold text-slate-800">Payment & Account Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="p-5 flex-1 flex flex-col justify-between gap-4">
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Record payments received from this customer directly into the ledger. All recorded payments instantly update the receivable balance and refresh the main wholesale dashboard metrics.
-                </p>
-                <div className="space-y-2 pt-2">
-                  <Button
-                    onClick={() => onRecordPayment(resellerWithBalance)}
-                    className="w-full bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold py-2.5 shadow-sm"
-                  >
-                    <Wallet className="h-4 w-4 mr-2" /> Record Reseller Payment
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setActiveTab("payments")}
-                    className="w-full border-slate-200 text-slate-700 hover:bg-slate-50 font-medium"
-                  >
-                    View Full Payment History ({payments?.length || 0})
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        {/* TAB 3: CUSTOMER PAYMENTS HISTORY */}
+        {activeTab === "payments" && (
+          <div className="space-y-4">
+            <h3 className="text-base font-bold text-slate-800">All Payments & Repayments Received</h3>
+            {payments.length === 0 ? (
+              <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500">
+                No payments recorded for this customer yet.
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Payment Date</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Amount Received</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Method</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Reference</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {payments.map((p) => (
+                      <TableRow key={p.id} className="hover:bg-slate-50/80">
+                        <TableCell className="text-xs font-medium text-slate-600 whitespace-nowrap">
+                          {formatDate(p.payment_date)}
+                        </TableCell>
+                        <TableCell className="text-right text-sm font-bold text-emerald-600">
+                          {formatMoney(p.amount)}
+                        </TableCell>
+                        <TableCell className="text-xs font-semibold text-slate-700">
+                          {p.payment_method || "CASH"}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-500">
+                          {p.reference || "-"}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-500 italic">
+                          {p.notes || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
         )}
       </div>

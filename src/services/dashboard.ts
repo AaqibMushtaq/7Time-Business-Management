@@ -73,7 +73,8 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     naeemPayRes,
     balRes,
     dealersMasterRes,
-    resellersMasterRes
+    resellersMasterRes,
+    allCustomerCreditsRes
   ] = await Promise.all([
     supabase.from("app_settings").select("low_stock_threshold").single(),
     supabase.from("products").select("id, name, buying_cost, wholesale_price, stock_quantity"),
@@ -90,7 +91,8 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     applyDateFilter(supabase.from("naeem_payments").select("amount"), "payment_date"),
     getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false })),
     supabase.from("dealers").select("id, name"),
-    supabase.from("reseller_customers").select("id, name")
+    supabase.from("reseller_customers").select("id, name, opening_balance"),
+    supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, entry_type").limit(999999)
   ])
 
   // Explicit check for database query errors to prevent silent data corruption or zero balances
@@ -269,10 +271,24 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
 
   // True outstanding balance calculation
   const trueResellerOutstanding: Record<string, number> = {}
+
+  resellersMasterRes?.data?.forEach((r: any) => {
+    if (r?.opening_balance) {
+      if (!trueResellerOutstanding[r.id]) trueResellerOutstanding[r.id] = 0
+      trueResellerOutstanding[r.id] += Number(r.opening_balance)
+    }
+  })
   
   allSales?.forEach((s: any) => {
     if (!trueResellerOutstanding[s.customer_id]) trueResellerOutstanding[s.customer_id] = 0
     trueResellerOutstanding[s.customer_id] += Number(s.total_sale || 0) - Number(s.amount_received || 0)
+  })
+
+  const allCustomerCredits = allCustomerCreditsRes?.data
+  allCustomerCredits?.forEach((c: any) => {
+    if (!c.customer_id) return
+    if (!trueResellerOutstanding[c.customer_id]) trueResellerOutstanding[c.customer_id] = 0
+    trueResellerOutstanding[c.customer_id] += Number(c.total_amount || 0)
   })
   
   allResellerPayments?.forEach((p: any) => {

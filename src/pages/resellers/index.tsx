@@ -7,12 +7,13 @@ import {
   deleteReseller, 
   type ResellerCustomer 
 } from "@/services/resellers"
+import type { CustomerCreditType } from "@/services/customerCredits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatMoney, formatDate } from "@/lib/utils"
+import { formatMoney } from "@/lib/utils"
 import { 
   Loader2, 
   Plus, 
@@ -25,19 +26,30 @@ import {
   MapPin, 
   Eye, 
   X, 
-  AlertCircle 
+  AlertCircle,
+  Package,
+  Coins
 } from "lucide-react"
 import ResellerDetailPanel from "@/components/resellers/ResellerDetailPanel"
 import RecordResellerPaymentModal from "@/components/resellers/RecordResellerPaymentModal"
+import CreateCustomerCreditModal from "@/components/resellers/CreateCustomerCreditModal"
+
+type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_PRODUCT_CREDIT" | "HAS_CASH_LOAN"
 
 export default function ResellersPage() {
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
+  const [filterType, setFilterType] = useState<CustomerFilterType>("ALL")
   const [selectedResellerId, setSelectedResellerId] = useState<string | null>(null)
   
   // Payment modal state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
   const [paymentTargetReseller, setPaymentTargetReseller] = useState<ResellerCustomer | null>(null)
+
+  // Credit / Loan modal state
+  const [isCreditModalOpen, setIsCreditModalOpen] = useState(false)
+  const [creditModalInitialType, setCreditModalInitialType] = useState<CustomerCreditType>("PRODUCT_CREDIT")
+  const [creditTargetCustomer, setCreditTargetCustomer] = useState<ResellerCustomer | null>(null)
 
   // Add / Edit Customer Modal state
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false)
@@ -45,7 +57,8 @@ export default function ResellersPage() {
   const [customerFormData, setCustomerFormData] = useState({
     name: "",
     phone: "",
-    address: ""
+    address: "",
+    opening_balance: ""
   })
   const [customerFormError, setCustomerFormError] = useState<string | null>(null)
 
@@ -62,7 +75,7 @@ export default function ResellersPage() {
       closeCustomerModal()
     },
     onError: (err: any) => {
-      setCustomerFormError(err.message || "Failed to add reseller customer")
+      setCustomerFormError(err.message || "Failed to add customer profile")
     }
   })
 
@@ -74,7 +87,7 @@ export default function ResellersPage() {
       closeCustomerModal()
     },
     onError: (err: any) => {
-      setCustomerFormError(err.message || "Failed to update reseller customer")
+      setCustomerFormError(err.message || "Failed to update customer profile")
     }
   })
 
@@ -92,7 +105,7 @@ export default function ResellersPage() {
   // Modal handlers
   const openAddCustomer = () => {
     setEditingCustomer(null)
-    setCustomerFormData({ name: "", phone: "", address: "" })
+    setCustomerFormData({ name: "", phone: "", address: "", opening_balance: "" })
     setCustomerFormError(null)
     setIsCustomerModalOpen(true)
   }
@@ -103,7 +116,8 @@ export default function ResellersPage() {
     setCustomerFormData({
       name: customer.name || "",
       phone: customer.phone || "",
-      address: customer.address || ""
+      address: customer.address || "",
+      opening_balance: customer.opening_balance ? customer.opening_balance.toString() : ""
     })
     setCustomerFormError(null)
     setIsCustomerModalOpen(true)
@@ -112,7 +126,7 @@ export default function ResellersPage() {
   const closeCustomerModal = () => {
     setIsCustomerModalOpen(false)
     setEditingCustomer(null)
-    setCustomerFormData({ name: "", phone: "", address: "" })
+    setCustomerFormData({ name: "", phone: "", address: "", opening_balance: "" })
     setCustomerFormError(null)
   }
 
@@ -124,16 +138,23 @@ export default function ResellersPage() {
       return
     }
 
-    const payload = {
+    const payload: Record<string, any> = {
       name: customerFormData.name.trim(),
       phone: customerFormData.phone.trim() || null,
       address: customerFormData.address.trim() || null
     }
 
+    if (customerFormData.opening_balance) {
+      const ob = parseFloat(customerFormData.opening_balance)
+      if (!isNaN(ob)) {
+        payload.opening_balance = ob
+      }
+    }
+
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: payload })
     } else {
-      createMutation.mutate(payload)
+      createMutation.mutate(payload as any)
     }
   }
 
@@ -143,16 +164,35 @@ export default function ResellersPage() {
     setIsPaymentModalOpen(true)
   }
 
-  // Filtered resellers based on search query
+  const openCreateCredit = (type: CustomerCreditType, customer?: ResellerCustomer | null, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    setCreditModalInitialType(type)
+    setCreditTargetCustomer(customer || null)
+    setIsCreditModalOpen(true)
+  }
+
+  // Filtered resellers based on search query and filterType
   const filteredResellers = useMemo(() => {
-    if (!searchQuery.trim()) return resellers
+    let list = resellers
+
+    // Filter by type
+    if (filterType === "HAS_OUTSTANDING") {
+      list = list.filter(r => Number(r.outstanding || 0) > 0)
+    } else if (filterType === "HAS_PRODUCT_CREDIT") {
+      list = list.filter(r => Number(r.product_credit_outstanding || 0) > 0)
+    } else if (filterType === "HAS_CASH_LOAN") {
+      list = list.filter(r => Number(r.cash_loan_outstanding || 0) > 0)
+    }
+
+    // Filter by search query
+    if (!searchQuery.trim()) return list
     const q = searchQuery.toLowerCase().trim()
-    return resellers.filter((r) => 
+    return list.filter((r) => 
       r.name.toLowerCase().includes(q) ||
       (r.phone && r.phone.toLowerCase().includes(q)) ||
       (r.address && r.address.toLowerCase().includes(q))
     )
-  }, [resellers, searchQuery])
+  }, [resellers, searchQuery, filterType])
 
   // Overall Financial Metric Aggregations
   const totalResellersCount = resellers.length
@@ -160,12 +200,12 @@ export default function ResellersPage() {
     return resellers.reduce((sum, r) => sum + (Number(r.outstanding) > 0 ? Number(r.outstanding) : 0), 0)
   }, [resellers])
 
-  const totalWholesaleSales = useMemo(() => {
-    return resellers.reduce((sum, r) => sum + Number(r.total_sales || 0), 0)
+  const totalProductCreditDue = useMemo(() => {
+    return resellers.reduce((sum, r) => sum + Number(r.product_credit_outstanding || 0), 0)
   }, [resellers])
 
-  const totalPaymentsCollected = useMemo(() => {
-    return resellers.reduce((sum, r) => sum + Number(r.total_received || 0), 0)
+  const totalCashLoansDue = useMemo(() => {
+    return resellers.reduce((sum, r) => sum + Number(r.cash_loan_outstanding || 0), 0)
   }, [resellers])
 
   return (
@@ -196,13 +236,25 @@ export default function ResellersPage() {
         resellers={resellers}
       />
 
+      {/* Create Product Credit / Cash Loan Modal */}
+      <CreateCustomerCreditModal
+        isOpen={isCreditModalOpen}
+        onClose={() => {
+          setIsCreditModalOpen(false)
+          setCreditTargetCustomer(null)
+        }}
+        selectedCustomerId={creditTargetCustomer?.id}
+        customers={resellers}
+        initialType={creditModalInitialType}
+      />
+
       {/* Add / Edit Customer Modal */}
       {isCustomerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h2 className="text-lg font-bold tracking-tight">
-                {editingCustomer ? "Edit Reseller Customer" : "Add New Reseller Customer"}
+                {editingCustomer ? "Edit Customer Profile" : "Add New Customer Profile"}
               </h2>
               <button 
                 onClick={closeCustomerModal}
@@ -248,13 +300,27 @@ export default function ResellersPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Address
+                  Address / Location
                 </Label>
                 <textarea
-                  className="flex min-h-[70px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2D7FF9]/20 focus-visible:border-[#2D7FF9]"
+                  className="flex min-h-[70px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-2xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2D7FF9]/20 focus-visible:border-[#2D7FF9]"
                   placeholder="Business address / location"
                   value={customerFormData.address}
                   onChange={(e) => setCustomerFormData({ ...customerFormData, address: e.target.value })}
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Opening Balance (Rs) (Optional)
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={customerFormData.opening_balance}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, opening_balance: e.target.value })}
                   disabled={createMutation.isPending || updateMutation.isPending}
                 />
               </div>
@@ -276,7 +342,7 @@ export default function ResellersPage() {
                   {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {editingCustomer ? "Save Changes" : "Add Reseller"}
+                  {editingCustomer ? "Save Changes" : "Save Customer"}
                 </Button>
               </div>
             </form>
@@ -287,20 +353,36 @@ export default function ResellersPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Resellers</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Local Customers</h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Manage reseller accounts, record payments, and track outstanding receivables in one place.
+            Manage customer accounts, track Product Credits, Cash Loans, repayments, and outstanding balances.
           </p>
         </div>
 
         {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* + Product Credit */}
+          <Button 
+            onClick={() => openCreateCredit("PRODUCT_CREDIT")}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+          >
+            <Package className="mr-1.5 h-4 w-4" /> + Product Credit
+          </Button>
+
+          {/* + Cash Loan */}
+          <Button 
+            onClick={() => openCreateCredit("CASH_LOAN")}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs"
+          >
+            <Coins className="mr-1.5 h-4 w-4" /> + Cash Loan
+          </Button>
+
           {/* Record Payment Button */}
           <Button 
             onClick={() => openRecordPayment(null)}
-            className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white shadow-md shadow-blue-500/15 font-semibold"
+            className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white shadow-xs font-semibold"
           >
-            <Wallet className="mr-2 h-4 w-4" /> Record Payment
+            <Wallet className="mr-1.5 h-4 w-4" /> Record Payment
           </Button>
 
           {/* Add Customer Button */}
@@ -309,24 +391,24 @@ export default function ResellersPage() {
             variant="outline"
             className="border-slate-300 text-slate-800 hover:bg-slate-50 font-medium"
           >
-            <Plus className="mr-1.5 h-4 w-4" /> Add Reseller
+            <Plus className="mr-1.5 h-4 w-4" /> + Add Customer
           </Button>
         </div>
       </div>
 
-      {/* Top 4 Financial Metric Summary Cards */}
+      {/* Top Financial Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Resellers Card */}
+        {/* Total Customers Card */}
         <Card className="bg-white border-slate-200 shadow-xs">
           <CardHeader className="pb-1 pt-4 px-4">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-              Total Resellers
+              Total Customers
               <Users className="h-4 w-4 text-blue-500" />
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="text-2xl font-bold text-slate-900">{totalResellersCount}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Active wholesale client accounts</p>
+            <p className="text-xs text-slate-500 mt-0.5">Active customer profiles</p>
           </CardContent>
         </Card>
 
@@ -334,7 +416,7 @@ export default function ResellersPage() {
         <Card className="bg-white border-red-200 shadow-xs bg-red-50/10">
           <CardHeader className="pb-1 pt-4 px-4">
             <CardTitle className="text-xs font-semibold text-red-700 uppercase tracking-wider flex items-center justify-between">
-              Outstanding Receivable
+              Net Outstanding Receivables
               <Wallet className="h-4 w-4 text-red-500" />
             </CardTitle>
           </CardHeader>
@@ -348,34 +430,38 @@ export default function ResellersPage() {
           </CardContent>
         </Card>
 
-        {/* Total Wholesale Sales Card */}
-        <Card className="bg-white border-slate-200 shadow-xs">
+        {/* Product Credit Owed */}
+        <Card className="bg-white border-emerald-200 shadow-xs bg-emerald-50/10">
           <CardHeader className="pb-1 pt-4 px-4">
-            <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Total Wholesale Sales
+            <CardTitle className="text-xs font-semibold text-emerald-700 uppercase tracking-wider flex items-center justify-between">
+              Product Credit Owed
+              <Package className="h-4 w-4 text-emerald-600" />
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <div className="text-2xl font-bold text-slate-900">
-              {formatMoney(totalWholesaleSales)}
+            <div className="text-2xl font-bold text-emerald-700">
+              {formatMoney(totalProductCreditDue)}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">Cumulative sales volume</p>
+            <p className="text-xs text-emerald-600/80 font-medium mt-0.5">
+              Goods taken on credit
+            </p>
           </CardContent>
         </Card>
 
-        {/* Total Payments Collected Card */}
-        <Card className="bg-white border-emerald-200 shadow-xs bg-emerald-50/10">
+        {/* Cash Loans Owed */}
+        <Card className="bg-white border-amber-200 shadow-xs bg-amber-50/10">
           <CardHeader className="pb-1 pt-4 px-4">
-            <CardTitle className="text-xs font-semibold text-emerald-700 uppercase tracking-wider">
-              Total Payments Collected
+            <CardTitle className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center justify-between">
+              Cash Loans Remaining
+              <Coins className="h-4 w-4 text-amber-600" />
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <div className="text-2xl font-bold text-emerald-600">
-              {formatMoney(totalPaymentsCollected)}
+            <div className="text-2xl font-bold text-amber-700">
+              {formatMoney(totalCashLoansDue)}
             </div>
-            <p className="text-xs text-emerald-600/80 font-medium mt-0.5">
-              Sales cash + separate payments
+            <p className="text-xs text-amber-600/80 font-medium mt-0.5">
+              Outstanding cash loans given
             </p>
           </CardContent>
         </Card>
@@ -385,22 +471,37 @@ export default function ResellersPage() {
       <Card className="bg-white border-slate-200 shadow-xs">
         <CardHeader className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-lg font-bold text-slate-900">Reseller Directory</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-900">Local Customers Directory</CardTitle>
             <p className="text-xs text-slate-500">
-              Select any reseller to open their profile, view payment history, or record a payment.
+              Select any customer to open their ledger, view repayments, or add Product Credit and Cash Loans.
             </p>
           </div>
 
-          {/* Search Input */}
-          <div className="relative w-full sm:w-72">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-            <Input
-              type="search"
-              placeholder="Search by name, phone, address..."
-              className="pl-9 bg-white border-slate-200 focus-visible:ring-[#2D7FF9] text-xs sm:text-sm"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          {/* Filters & Search */}
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+            {/* Filter Dropdown */}
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value as CustomerFilterType)}
+              className="w-full sm:w-44 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-medium"
+            >
+              <option value="ALL">All Customers</option>
+              <option value="HAS_OUTSTANDING">Has Balance Due</option>
+              <option value="HAS_PRODUCT_CREDIT">Has Product Credit</option>
+              <option value="HAS_CASH_LOAN">Has Cash Loan</option>
+            </select>
+
+            {/* Search Input */}
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Input
+                type="search"
+                placeholder="Search name, phone, address..."
+                className="pl-9 bg-white border-slate-200 focus-visible:ring-[#2D7FF9] text-xs sm:text-sm"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
           </div>
         </CardHeader>
 
@@ -412,7 +513,7 @@ export default function ResellersPage() {
           ) : resellersError ? (
             <div className="p-8 text-center text-red-600">
               <AlertCircle className="h-8 w-8 mx-auto mb-2 text-red-500" />
-              <p className="font-semibold text-sm">Failed to load resellers</p>
+              <p className="font-semibold text-sm">Failed to load customers</p>
               <p className="text-xs text-slate-500 mt-1">
                 {resellersError instanceof Error ? resellersError.message : "Error connecting to Supabase"}
               </p>
@@ -421,23 +522,22 @@ export default function ResellersPage() {
             <div className="p-12 text-center text-slate-500">
               <Users className="h-10 w-10 mx-auto mb-2 opacity-30 text-slate-400" />
               <p className="text-base font-semibold text-slate-700">
-                {searchQuery ? "No matching resellers found" : "No resellers added yet"}
+                {searchQuery ? "No matching customers found" : "No customers found for this filter"}
               </p>
               <p className="text-xs mt-1 text-slate-500">
-                {searchQuery ? "Try a different search term." : "Click 'Add Reseller' above to register your first client."}
+                {searchQuery ? "Try a different search term or clear the filter." : "Click '+ Add Customer' to create a customer profile."}
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto w-full">
-              <Table className="min-w-[860px]">
+              <Table className="min-w-[900px]">
                 <TableHeader className="bg-slate-50/70">
                   <TableRow>
-                    <TableHead className="font-semibold text-xs text-slate-600 uppercase">Customer Name</TableHead>
+                    <TableHead className="font-semibold text-xs text-slate-600 uppercase">Customer Profile</TableHead>
                     <TableHead className="font-semibold text-xs text-slate-600 uppercase">Contact Info</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Total Sales</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Received</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Outstanding Receivable</TableHead>
-                    <TableHead className="font-semibold text-xs text-slate-600 uppercase">Added</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-emerald-700 uppercase">Product Credit</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-amber-700 uppercase">Cash Loans</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Total Outstanding</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -445,6 +545,8 @@ export default function ResellersPage() {
                   {filteredResellers.map((customer) => {
                     const balance = Number(customer.outstanding || 0)
                     const isDue = balance > 0
+                    const prodCredit = Number(customer.product_credit_outstanding || 0)
+                    const cashLoan = Number(customer.cash_loan_outstanding || 0)
 
                     return (
                       <TableRow 
@@ -456,7 +558,7 @@ export default function ResellersPage() {
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-3">
                             <div 
-                              className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-bold uppercase text-xs shadow-xs shrink-0"
+                              className="h-9 w-9 rounded-xl flex items-center justify-center text-white font-bold uppercase text-xs shadow-2xs shrink-0"
                               style={{ background: "linear-gradient(135deg, #2D7FF9 0%, #4A39D6 100%)" }}
                             >
                               {customer.name.substring(0, 2)}
@@ -466,7 +568,7 @@ export default function ResellersPage() {
                                 {customer.name}
                               </div>
                               <span className="text-[11px] text-slate-400">
-                                Click to open profile
+                                Click to open ledger
                               </span>
                             </div>
                           </div>
@@ -492,17 +594,17 @@ export default function ResellersPage() {
                           </div>
                         </TableCell>
 
-                        {/* Total Sales */}
-                        <TableCell className="text-right font-semibold text-slate-900 text-sm">
-                          {formatMoney(customer.total_sales || 0)}
+                        {/* Product Credit Owed */}
+                        <TableCell className="text-right font-bold text-sm text-emerald-700">
+                          {prodCredit > 0 ? formatMoney(prodCredit) : "-"}
                         </TableCell>
 
-                        {/* Received */}
-                        <TableCell className="text-right font-medium text-emerald-600 text-sm">
-                          {formatMoney(customer.total_received || 0)}
+                        {/* Cash Loans Owed */}
+                        <TableCell className="text-right font-bold text-sm text-amber-700">
+                          {cashLoan > 0 ? formatMoney(cashLoan) : "-"}
                         </TableCell>
 
-                        {/* Outstanding Receivable */}
+                        {/* Total Outstanding */}
                         <TableCell className="text-right">
                           <span className={`inline-flex items-center font-bold text-sm px-2.5 py-1 rounded-lg ${
                             isDue 
@@ -513,22 +615,39 @@ export default function ResellersPage() {
                           </span>
                         </TableCell>
 
-                        {/* Added Date */}
-                        <TableCell className="text-xs text-slate-500 whitespace-nowrap">
-                          {formatDate(customer.created_at)}
-                        </TableCell>
-
                         {/* Row Actions */}
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
                             {/* Record Payment Button */}
                             <Button
                               size="sm"
-                              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white h-8 px-2.5 text-xs font-semibold shadow-xs"
+                              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white h-8 px-2.5 text-xs font-semibold shadow-2xs"
                               title={`Record payment for ${customer.name}`}
                               onClick={(e) => openRecordPayment(customer, e)}
                             >
                               <Wallet className="h-3.5 w-3.5 mr-1" /> Payment
+                            </Button>
+
+                            {/* + Product Credit quick button */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-emerald-700 hover:bg-emerald-50 border-emerald-200"
+                              title="Record Product Credit"
+                              onClick={(e) => openCreateCredit("PRODUCT_CREDIT", customer, e)}
+                            >
+                              <Package className="h-3.5 w-3.5" />
+                            </Button>
+
+                            {/* + Cash Loan quick button */}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 px-2 text-amber-700 hover:bg-amber-50 border-amber-200"
+                              title="Give Cash Loan"
+                              onClick={(e) => openCreateCredit("CASH_LOAN", customer, e)}
+                            >
+                              <Coins className="h-3.5 w-3.5" />
                             </Button>
 
                             {/* View Profile Button */}
@@ -536,7 +655,7 @@ export default function ResellersPage() {
                               variant="outline"
                               size="sm"
                               className="h-8 px-2 text-slate-700 border-slate-200 hover:bg-slate-100"
-                              title="View details & payment history"
+                              title="View details & ledger"
                               onClick={() => setSelectedResellerId(customer.id)}
                             >
                               <Eye className="h-3.5 w-3.5" />
