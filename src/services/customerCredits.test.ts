@@ -10,7 +10,8 @@ import {
   getCreditTypeLabel,
   getCreditTypeBadgeClasses,
   getFundingSourceLabel,
-  getFundingSourceBadgeClasses
+  getFundingSourceBadgeClasses,
+  type CustomerCredit
 } from "./customerCredits"
 import { supabase } from "@/lib/supabase"
 
@@ -1014,6 +1015,45 @@ describe("Customer Credits Service", () => {
       expect(getFundingSourceLabel(undefined)).toBe("Unallocated")
       const uBadge = getFundingSourceBadgeClasses(null)
       expect(uBadge.text).toContain("slate")
+    })
+
+    it("distinguishes Amount They Owe Me (receivable) from Amount I Owe Them (advance/payable) without misleading netting", () => {
+      // Scenario A: Customer owes us money (Product Credit Rs 4,000, paid Rs 1,000)
+      const creditsDue: CustomerCredit[] = [
+        {
+          id: "cred-a",
+          customer_id: "c-1",
+          entry_type: "PRODUCT_CREDIT",
+          entry_date: "2026-10-01",
+          product_name: "Item A",
+          total_amount: 4000,
+          amount_paid: 1000,
+          balance: 3000,
+          status: "PARTIAL"
+        } as any
+      ]
+      const summaryDue = calculateCustomerLedgerSummary(creditsDue, [], [{ amount: 1000 }], 0)
+      expect(summaryDue.amountTheyOweMe).toBe(3000)
+      expect(summaryDue.amountIOweThem).toBe(0)
+
+      // Scenario B: Customer overpaid / provided advance (Credit Rs 2,000, total paid Rs 3,500)
+      const creditsAdvance: CustomerCredit[] = [
+        {
+          id: "cred-b",
+          customer_id: "c-2",
+          entry_type: "PRODUCT_CREDIT",
+          entry_date: "2026-10-01",
+          product_name: "Item B",
+          total_amount: 2000,
+          amount_paid: 2000,
+          balance: 0,
+          status: "PAID"
+        } as any
+      ]
+      const summaryAdvance = calculateCustomerLedgerSummary(creditsAdvance, [], [{ amount: 3500 }], 0)
+      expect(summaryAdvance.amountTheyOweMe).toBe(0)
+      expect(summaryAdvance.amountIOweThem).toBe(1500)
+      expect(summaryAdvance.unallocatedAdvancePayments).toBe(1500)
     })
   })
 })

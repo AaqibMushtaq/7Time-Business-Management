@@ -36,7 +36,7 @@ import ResellerDetailPanel from "@/components/resellers/ResellerDetailPanel"
 import RecordResellerPaymentModal from "@/components/resellers/RecordResellerPaymentModal"
 import CreateCustomerCreditModal from "@/components/resellers/CreateCustomerCreditModal"
 
-type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_PRODUCT_CREDIT" | "HAS_CASH_LOAN"
+type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_CREDIT_BALANCE" | "HAS_PRODUCT_CREDIT" | "HAS_CASH_LOAN"
 
 export default function ResellersPage() {
   const queryClient = useQueryClient()
@@ -176,13 +176,15 @@ export default function ResellersPage() {
     setIsCreditModalOpen(true)
   }
 
-  // Filtered resellers based on search query and filterType
+  // Filtered local customers based on search query and filterType
   const filteredResellers = useMemo(() => {
     let list = resellers
 
     // Filter by type
     if (filterType === "HAS_OUTSTANDING") {
-      list = list.filter(r => (Number(r.total_owed) || (Number(r.product_credit_outstanding || 0) + Number(r.cash_loan_outstanding || 0))) > 0)
+      list = list.filter(r => (Number(r.amount_they_owe_me || r.total_owed || 0)) > 0)
+    } else if (filterType === "HAS_CREDIT_BALANCE") {
+      list = list.filter(r => Number(r.amount_i_owe_them || (r.outstanding && r.outstanding < 0 ? Math.abs(r.outstanding) : 0)) > 0)
     } else if (filterType === "HAS_PRODUCT_CREDIT") {
       list = list.filter(r => Number(r.product_credit_outstanding || 0) > 0)
     } else if (filterType === "HAS_CASH_LOAN") {
@@ -200,7 +202,7 @@ export default function ResellersPage() {
   }, [resellers, searchQuery, filterType])
 
   // Overall Financial Metric Aggregations
-  // Card 1: Total Local Customers
+  // Card 1: Total Local Contacts
   const totalResellersCount = resellers.length
 
   // Outstanding amounts for Product Credit and Cash Loans
@@ -216,17 +218,28 @@ export default function ResellersPage() {
     return resellers.reduce((sum, r) => sum + Number(r.other_credit_outstanding || 0), 0)
   }, [resellers])
 
-  // Card 2: Total Owed by Customers = Outstanding Product Credit + Outstanding Cash Loans (+ other credit)
-  const totalOwedByCustomers = useMemo(() => {
-    return totalProductCreditDue + totalCashLoansDue + totalOtherCreditDue
-  }, [totalProductCreditDue, totalCashLoansDue, totalOtherCreditDue])
+  // Card 2: Total Receivables (Amount They Owe Me)
+  const totalReceivables = useMemo(() => {
+    return resellers.reduce((sum, r) => {
+      const owed = Number(r.amount_they_owe_me !== undefined ? r.amount_they_owe_me : (Number(r.total_owed) || 0))
+      return sum + owed
+    }, 0)
+  }, [resellers])
 
-  // Card 3: 7TIME Funds Outstanding
+  // Card 3: Total Payables (Amount I Owe Them / Customer Advances)
+  const totalPayables = useMemo(() => {
+    return resellers.reduce((sum, r) => {
+      const adv = Number(r.amount_i_owe_them !== undefined ? r.amount_i_owe_them : (r.outstanding && r.outstanding < 0 ? Math.abs(r.outstanding) : 0))
+      return sum + adv
+    }, 0)
+  }, [resellers])
+
+  // Card 4: 7TIME Funds Outstanding
   const total7TimeFundsDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.funds_7time_outstanding || 0), 0)
   }, [resellers])
 
-  // Card 4: Personal Funds Outstanding
+  // Card 5: Personal Funds Outstanding
   const totalPersonalFundsDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.funds_personal_outstanding || 0), 0)
   }, [resellers])
@@ -438,75 +451,99 @@ export default function ResellersPage() {
       </div>
 
       {/* Top Financial Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Total Local Customers */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Card 1: Total Local Contacts */}
         <Card className="bg-white border-slate-200 shadow-xs">
-          <CardHeader className="pb-1 pt-4 px-4">
+          <CardHeader className="pb-1 pt-3.5 px-4">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-              Total Local Customers
+              Total Local Contacts
               <Users className="h-4 w-4 text-blue-500" />
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-3.5">
             <div className="text-2xl font-bold text-slate-900">{totalResellersCount}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Active customer profiles</p>
+            <p className="text-xs text-slate-500 mt-0.5">Active ledger contacts</p>
           </CardContent>
         </Card>
 
-        {/* Card 2: Total Owed by Customers */}
+        {/* Card 2: Amount They Owe Me (Total Receivables) */}
         <Card className="bg-white border-red-200 shadow-xs bg-red-50/10">
-          <CardHeader className="pb-1 pt-4 px-4">
+          <CardHeader className="pb-1 pt-3.5 px-4">
             <CardTitle className="text-xs font-semibold text-red-700 uppercase tracking-wider flex items-center justify-between">
-              Total Owed by Customers
+              Amount They Owe Me
               <Wallet className="h-4 w-4 text-red-500" />
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-3.5">
             <div className="text-2xl font-bold text-red-600">
-              {formatMoney(totalOwedByCustomers)}
+              {formatMoney(totalReceivables)}
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+            <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1 truncate">
               <span>Credit: {formatMoney(totalProductCreditDue)}</span>
               <span>•</span>
               <span>Loans: {formatMoney(totalCashLoansDue)}</span>
+              {totalOtherCreditDue > 0 && (
+                <>
+                  <span>•</span>
+                  <span>Other: {formatMoney(totalOtherCreditDue)}</span>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Card 3: 7TIME Funds Outstanding */}
-        <Card className="bg-white border-emerald-200 shadow-xs bg-emerald-50/10">
-          <CardHeader className="pb-1 pt-4 px-4">
-            <CardTitle className="text-xs font-semibold text-emerald-700 uppercase tracking-wider flex items-center justify-between">
-              7TIME Funds Outstanding
-              <Building2 className="h-4 w-4 text-emerald-600" />
+        {/* Card 3: Amount I Owe Them (Total Payables / Advances) */}
+        <Card className="bg-white border-blue-200 shadow-xs bg-blue-50/10">
+          <CardHeader className="pb-1 pt-3.5 px-4">
+            <CardTitle className="text-xs font-semibold text-blue-700 uppercase tracking-wider flex items-center justify-between">
+              Amount I Owe Them
+              <Wallet className="h-4 w-4 text-blue-500" />
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
-            <div className="text-2xl font-bold text-emerald-700">
-              {formatMoney(total7TimeFundsDue)}
+          <CardContent className="px-4 pb-3.5">
+            <div className="text-2xl font-bold text-blue-700">
+              {formatMoney(totalPayables)}
             </div>
-            <p className="text-xs text-emerald-600/80 font-medium mt-0.5">
-              Supplied from 7TIME business money
+            <p className="text-[11px] text-blue-600/80 font-medium mt-1">
+              {totalPayables > 0 ? "Customer advance balances" : "No payables owed"}
             </p>
           </CardContent>
         </Card>
 
-        {/* Card 4: Personal Funds Outstanding */}
+        {/* Card 4: 7TIME Funds Outstanding */}
+        <Card className="bg-white border-emerald-200 shadow-xs bg-emerald-50/10">
+          <CardHeader className="pb-1 pt-3.5 px-4">
+            <CardTitle className="text-xs font-semibold text-emerald-700 uppercase tracking-wider flex items-center justify-between">
+              7TIME Funds
+              <Building2 className="h-4 w-4 text-emerald-600" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3.5">
+            <div className="text-2xl font-bold text-emerald-700">
+              {formatMoney(total7TimeFundsDue)}
+            </div>
+            <p className="text-[11px] text-emerald-600/80 font-medium mt-1">
+              7TIME business funds
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 5: Personal Funds Outstanding */}
         <Card className="bg-white border-purple-200 shadow-xs bg-purple-50/10">
-          <CardHeader className="pb-1 pt-4 px-4">
+          <CardHeader className="pb-1 pt-3.5 px-4">
             <CardTitle className="text-xs font-semibold text-purple-700 uppercase tracking-wider flex items-center justify-between">
-              Personal Funds Outstanding
+              Personal Funds
               <UserCheck className="h-4 w-4 text-purple-600" />
             </CardTitle>
           </CardHeader>
-          <CardContent className="px-4 pb-4">
+          <CardContent className="px-4 pb-3.5">
             <div className="text-2xl font-bold text-purple-700">
               {formatMoney(totalPersonalFundsDue)}
             </div>
-            <p className="text-xs text-purple-600/80 font-medium mt-0.5">
+            <p className="text-[11px] text-purple-600/80 font-medium mt-1 truncate" title={totalUnallocatedFundsDue > 0 ? `Personal (+ ${formatMoney(totalUnallocatedFundsDue)} unallocated)` : "Personal proprietor money"}>
               {totalUnallocatedFundsDue > 0 
-                ? `Personal funds (+ ${formatMoney(totalUnallocatedFundsDue)} unallocated)` 
-                : "Supplied from personal money"}
+                ? `Personal (+ ${formatMoney(totalUnallocatedFundsDue)} unalloc)` 
+                : "Personal proprietor money"}
             </p>
           </CardContent>
         </Card>
@@ -523,7 +560,7 @@ export default function ResellersPage() {
             </span>
           </div>
           <div className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded border border-amber-300/50 shrink-0">
-            Reconciles: {formatMoney(total7TimeFundsDue)} + {formatMoney(totalPersonalFundsDue)} + {formatMoney(totalUnallocatedFundsDue)} = {formatMoney(totalOwedByCustomers)}
+            Reconciliation: {formatMoney(total7TimeFundsDue)} (7TIME) + {formatMoney(totalPersonalFundsDue)} (Personal) + {formatMoney(totalUnallocatedFundsDue)} (Unallocated) = {formatMoney(totalReceivables)}
           </div>
         </div>
       )}
@@ -534,7 +571,7 @@ export default function ResellersPage() {
           <div>
             <CardTitle className="text-lg font-bold text-slate-900">Local Customers Directory</CardTitle>
             <p className="text-xs text-slate-500">
-              Select any customer to open their ledger, view repayments, or record Product Credit and Cash Loans.
+              Select any customer to open their personal ledger, view repayments, or record Product Credit and Cash Loans.
             </p>
           </div>
 
@@ -544,10 +581,11 @@ export default function ResellersPage() {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as CustomerFilterType)}
-              className="w-full sm:w-44 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-medium"
+              className="w-full sm:w-52 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-medium"
             >
-              <option value="ALL">All Customers</option>
-              <option value="HAS_OUTSTANDING">Has Balance Due</option>
+              <option value="ALL">All Local Contacts</option>
+              <option value="HAS_OUTSTANDING">They Owe Me (Receivables)</option>
+              <option value="HAS_CREDIT_BALANCE">I Owe Them (Payables / Advances)</option>
               <option value="HAS_PRODUCT_CREDIT">Has Product Credit</option>
               <option value="HAS_CASH_LOAN">Has Cash Loan</option>
             </select>
@@ -583,22 +621,23 @@ export default function ResellersPage() {
             <div className="p-12 text-center text-slate-500">
               <Users className="h-10 w-10 mx-auto mb-2 opacity-30 text-slate-400" />
               <p className="text-base font-semibold text-slate-700">
-                {searchQuery ? "No matching customers found" : "No customers found for this filter"}
+                {searchQuery ? "No matching contacts found" : "No contacts found for this filter"}
               </p>
               <p className="text-xs mt-1 text-slate-500">
-                {searchQuery ? "Try a different search term or clear the filter." : "Click '+ Add Customer' to create a customer profile."}
+                {searchQuery ? "Try a different search term or clear the filter." : "Click '+ Add Customer' to create a contact profile."}
               </p>
             </div>
           ) : (
             <div className="overflow-x-auto w-full">
-              <Table className="min-w-[960px]">
+              <Table className="min-w-[1040px]">
                 <TableHeader className="bg-slate-50/70">
                   <TableRow>
                     <TableHead className="font-semibold text-xs text-slate-600 uppercase">Customer Profile</TableHead>
                     <TableHead className="font-semibold text-xs text-slate-600 uppercase">Contact Info</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-emerald-700 uppercase">Product Credit</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-amber-700 uppercase">Cash Loans</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Total Owed</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-red-700 uppercase">They Owe Me</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-blue-700 uppercase">I Owe Them</TableHead>
                     <TableHead className="text-center font-semibold text-xs text-slate-600 uppercase">Funding Source</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Actions</TableHead>
                   </TableRow>
@@ -608,8 +647,8 @@ export default function ResellersPage() {
                     const prodCredit = Number(customer.product_credit_outstanding || 0)
                     const cashLoan = Number(customer.cash_loan_outstanding || 0)
                     const otherCredit = Number(customer.other_credit_outstanding || 0)
-                    const totalCustomerOwed = Number(customer.total_owed !== undefined ? customer.total_owed : (prodCredit + cashLoan + otherCredit))
-                    const isDue = totalCustomerOwed > 0
+                    const theyOweMe = Number(customer.amount_they_owe_me !== undefined ? customer.amount_they_owe_me : (Number(customer.total_owed) || (prodCredit + cashLoan + otherCredit)))
+                    const iOweThem = Number(customer.amount_i_owe_them !== undefined ? customer.amount_i_owe_them : (customer.outstanding && customer.outstanding < 0 ? Math.abs(customer.outstanding) : 0))
                     const f7Time = Number(customer.funds_7time_outstanding || 0)
                     const fPersonal = Number(customer.funds_personal_outstanding || 0)
                     const fUnallocated = Number(customer.funds_unallocated_outstanding || 0)
@@ -634,7 +673,7 @@ export default function ResellersPage() {
                                 {customer.name}
                               </div>
                               <span className="text-[11px] text-slate-400">
-                                Click to open ledger
+                                Click to open personal ledger
                               </span>
                             </div>
                           </div>
@@ -670,15 +709,26 @@ export default function ResellersPage() {
                           {cashLoan > 0 ? formatMoney(cashLoan) : "-"}
                         </TableCell>
 
-                        {/* Total Owed */}
+                        {/* Amount They Owe Me */}
                         <TableCell className="text-right">
-                          <span className={`inline-flex items-center font-bold text-sm px-2.5 py-1 rounded-lg ${
-                            isDue 
-                              ? "bg-red-50 text-red-600 border border-red-200/60" 
-                              : "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
-                          }`}>
-                            {formatMoney(totalCustomerOwed)}
-                          </span>
+                          {theyOweMe > 0 ? (
+                            <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200/60">
+                              {formatMoney(theyOweMe)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">-</span>
+                          )}
+                        </TableCell>
+
+                        {/* Amount I Owe Them */}
+                        <TableCell className="text-right">
+                          {iOweThem > 0 ? (
+                            <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/60" title="Customer advance balance">
+                              {formatMoney(iOweThem)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">-</span>
+                          )}
                         </TableCell>
 
                         {/* Funding Source Breakdown */}
@@ -699,7 +749,7 @@ export default function ResellersPage() {
                                 Unalloc: {formatMoney(fUnallocated)}
                               </span>
                             )}
-                            {!isDue && (
+                            {theyOweMe <= 0 && iOweThem <= 0 && (
                               <span className="text-[11px] text-slate-400 font-medium">Settled</span>
                             )}
                           </div>

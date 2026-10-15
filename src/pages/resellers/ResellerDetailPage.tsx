@@ -13,7 +13,7 @@ export default function ResellerDetailPage() {
     <div className="w-full">
       <ResellerDetailPanel
         id={id}
-        onClose={() => navigate("/resellers")}
+        onClose={() => navigate("/local-customers")}
         onRecordPayment={() => {}}
       />
     </div>

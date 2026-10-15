@@ -17,8 +17,12 @@ export interface ResellerCustomer {
   funds_personal_outstanding?: number
   funds_unallocated_outstanding?: number
   total_owed?: number
+  amount_they_owe_me?: number
+  amount_i_owe_them?: number
   outstanding?: number
 }
+
+export type LocalCustomer = ResellerCustomer
 
 export const getResellers = async (): Promise<ResellerCustomer[]> => {
   const { data, error } = await supabase
@@ -95,6 +99,8 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
     const openingBalance = Number(r.opening_balance || 0)
     const outstanding = (openingBalance + totalSales + totalCredits) - totalReceived
     const totalOwed = (productCreditTotals[r.id] || 0) + (cashLoanTotals[r.id] || 0) + (otherCreditTotals[r.id] || 0)
+    const amountTheyOweMe = Math.max(0, totalOwed > 0 ? totalOwed : Math.max(0, outstanding))
+    const amountIOweThem = outstanding < 0 ? Math.abs(outstanding) : 0
     return {
       ...r,
       total_sales: totalSales,
@@ -106,6 +112,8 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
       funds_personal_outstanding: fundsPersonalTotals[r.id] || 0,
       funds_unallocated_outstanding: fundsUnallocatedTotals[r.id] || 0,
       total_owed: totalOwed,
+      amount_they_owe_me: amountTheyOweMe,
+      amount_i_owe_them: amountIOweThem,
       outstanding
     }
   })

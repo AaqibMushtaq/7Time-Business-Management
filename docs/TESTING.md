@@ -1,8 +1,8 @@
 # 7TIME Business Management — Testing & Quality Assurance
 
 **Document Status:** Verified against test runs and actual command executions  
-**Last Execution Date:** October 15, 2026  
-**Test Suite Status:** 22 Files Passed · 201 Tests Passed · 0 Failures  
+**Last Execution Date:** October 16, 2026  
+**Test Suite Status:** 24 Files Passed · 213 Tests Passed · 0 Failures  
 
 ---
 
@@ -20,15 +20,15 @@ The application maintains a multi-layered verification pipeline incorporating st
 
 ---
 
-## 2. Verified Test Results & Evidence (October 15, 2026)
+## 2. Verified Test Results & Evidence (October 16, 2026)
 
 ### Vitest Test Suite Execution Evidence
 Command executed: `npm run test` (`vitest run`)  
 Output summary:
 ```text
-Test Files  22 passed (22)
-     Tests  201 passed (201)
-  Duration  128.48s
+Test Files  24 passed (24)
+     Tests  213 passed (213)
+  Duration  51.01s
 ```
 
 ### Detailed Breakdown by Test File
@@ -36,18 +36,18 @@ Test Files  22 passed (22)
 | # | Test File Path | Test Count | Domain / Focus Area |
 | :---: | :--- | :---: | :--- |
 | 1 | [`src/pages/general-deliveries/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/general-deliveries/index.test.tsx) | 10 | Daily operations, arithmetic expression evaluation, fuel expenses, and error states |
-| 2 | [`src/pages/resellers/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/resellers/index.test.tsx) | 9 | Customer directory, 4 redesigned summary cards, Edit Profile modal, inline ledger row editing, payment allocations |
+| 2 | [`src/pages/resellers/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/resellers/index.test.tsx) | 11 | Local customer directory, 5 top summary cards (Receivables & Payables), `/local-customers` routing, Edit Profile, inline ledger row editing, payment allocations |
 | 3 | [`src/pages/assistant/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/assistant/index.test.tsx) | 11 | AI chat UI, suggested prompt chips, markdown bubbles, retry states, conversation resets |
 | 4 | [`src/pages/dashboard/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/dashboard/index.test.tsx) | 7 | Executive KPI cards, 4-area unified container, chart toggle, and debt summaries |
 | 5 | [`src/pages/wholesale/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/wholesale/index.test.tsx) | 5 | Wholesale sale creation, stock validation, notes, and actions |
 | 6 | [`src/pages/naeem/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/naeem/index.test.tsx) | 3 | NAEEM route list, daily entries, payment recording |
 | 7 | [`src/hooks/useRealtimeSync.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/hooks/useRealtimeSync.test.tsx) | 4 | WebSocket event handling, 450ms debouncing, query cache invalidation |
 | 8 | [`src/lib/dateUtils.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/dateUtils.test.ts) | 10 | Date boundary calculations, monthly filters, and Indian date formatting |
-| 9 | [`src/services/customerCredits.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/customerCredits.test.ts) | 21 | Product Credit, Cash Loans, Other Credit, 7TIME vs Personal funding sources, multi-transaction repayments, mathematical total debt reconciliation, FIFO auto-allocation, over-allocation guards |
+| 9 | [`src/services/customerCredits.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/customerCredits.test.ts) | 22 | Product Credit, Cash Loans, Other Credit, 7TIME vs Personal funding sources, distinct Amount They Owe Me vs Amount I Owe Them, multi-transaction repayments, mathematical total debt reconciliation, FIFO auto-allocation, over-allocation guards |
 | 10 | [`src/services/dashboard.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dashboard.test.ts) | 9 | Concurrent query batching, cash flow aggregation, fail-safe database error reporting, dealer opening balance & advance isolation |
 | 11 | [`src/services/dealers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dealers.test.ts) | 21 | Dealer opening balance regression tests (17 cases + cross-consistency + advance offsets + error throws) + dealer CRUD |
 | 12 | [`src/services/aiAssistant.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/aiAssistant.test.ts) | 15 | Edge function invocation, token passing, error code mappings (429, 404, 401, timeout) |
-| 13 | [`src/services/resellers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/resellers.test.ts) | 6 | Customer CRUD, balance queries, funding source breakdown calculations, customer notes update persistence |
+| 13 | [`src/services/resellers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/resellers.test.ts) | 6 | Customer CRUD, balance queries, funding source breakdown calculations, customer notes update persistence, amount_they_owe_me & amount_i_owe_them |
 | 14 | [`src/services/generalDeliveries.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/generalDeliveries.test.ts) | 7 | Daily records, nested delivery entries, cascade deletions, arithmetic expression sync |
 | 15 | [`src/services/wholesaleSales.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/wholesaleSales.test.ts) | 22 | Wholesale invoicing, profit recognition, stock deduction validation |
 | 16 | [`src/lib/naeemCalculations.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/naeemCalculations.test.ts) | 12 | Total Due, Outstanding, carry-forward balances, manual override precedence |
@@ -57,13 +57,15 @@ Test Files  22 passed (22)
 | 20 | [`src/lib/arithmeticParser.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/arithmeticParser.test.ts) | 6 | Mathematical addition parsing, whitespace handling, decimal precision, invalid token rejection |
 | 21 | [`src/lib/versionManager.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/versionManager.test.ts) | 4 | Semantic version comparison, cache bust headers, force reload trigger |
 | 22 | [`src/lib/wholesaleCalculations.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/wholesaleCalculations.test.ts) | 3 | Wholesale margins, profit formulas, total sales calculations |
+| 23 | [`src/components/layout/AppLayout.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/components/layout/AppLayout.test.tsx) | 4 | Sidebar navigation categories, PERSONAL LEDGER (`/local-customers`) and WHOLESALE (`/wholesale`) segregation, route links, mobile drawer |
+| 24 | [`src/services/localCustomers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/localCustomers.test.ts) | 5 | Dedicated domain service queries, CRUD proxying, and typed balances without table schema changes |
 
 ### Oxlint Static Analysis Evidence
 Command executed: `npm run lint`  
 Output:
 ```text
 Found 0 warnings and 0 errors.
-Finished in 252ms on 123 files with 116 rules using 4 threads.
+Finished in 368ms on 126 files with 116 rules using 4 threads.
 ```
 
 ### TypeScript & Production Build Evidence
@@ -72,9 +74,9 @@ Output:
 ```text
 ✓ 2652 modules transformed.
 dist/index.html                                            1.93 kB │ gzip:   0.95 kB
-dist/assets/index-*.css                                   85.29 kB │ gzip:  14.58 kB
-dist/assets/index-*.js                                    17.36 kB │ gzip:   5.86 kB
-✓ built in 3.22s
+dist/assets/index-BVaRI5Oh.css                            87.26 kB │ gzip:  14.82 kB
+dist/assets/index-BmwwMSzN.js                             17.53 kB │ gzip:   5.87 kB
+✓ built in 2.81s
 ```
 
 ---

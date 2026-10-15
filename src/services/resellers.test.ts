@@ -106,11 +106,15 @@ describe("Resellers Service", () => {
     expect(r1.total_sales).toBe(1500)
     expect(r1.total_received).toBe(1200)
     expect(r1.outstanding).toBe(300)
+    expect(r1.amount_they_owe_me).toBe(300)
+    expect(r1.amount_i_owe_them).toBe(0)
 
     const r2 = result.find(r => r.id === "r2")!
     expect(r2.total_sales).toBe(2000)
     expect(r2.total_received).toBe(500)
     expect(r2.outstanding).toBe(1500)
+    expect(r2.amount_they_owe_me).toBe(1500)
+    expect(r2.amount_i_owe_them).toBe(0)
   })
 
   it("getResellersWithBalances calculates accurate funding source breakdowns and total owed", async () => {

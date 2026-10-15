@@ -41,9 +41,14 @@ const navGroups = [
     ]
   },
   {
-    name: "Wholesale",
+    name: "PERSONAL LEDGER",
     items: [
-      { name: "Local Customers", href: "/resellers", icon: Users },
+      { name: "Local Customers", href: "/local-customers", icon: Users },
+    ]
+  },
+  {
+    name: "WHOLESALE",
+    items: [
       { name: "Wholesale Sales", href: "/wholesale", icon: ShoppingCart },
     ]
   },

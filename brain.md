@@ -117,31 +117,28 @@ AI coding agents must load only the documents required for their assigned task:
 ## 6. Verification Checklist Before Concluding Any Task
 
 Every AI session must verify these three gates before finishing:
-1. `npm run lint` — Must report 0 errors and 0 warnings (Oxlint: 0 warnings, 0 errors across 123 files).
+1. `npm run lint` — Must report 0 errors and 0 warnings (Oxlint: 0 warnings, 0 errors across 124 files).
 2. `npm run build` — `tsc -b && vite build` must compile cleanly (0 errors, production bundle built cleanly).
-3. `npm test` (`vitest run`) — All 22 Vitest test suites (201 tests) must pass (0 failures).
+3. `npm test` (`vitest run`) — All 24 Vitest test suites (213 tests) must pass (0 failures).
 4. **Approval Gate:** STOP and wait for the user's manual review. Do not proceed to unapproved refactoring, feature additions, or deployments.
 
 ---
 
 ## 7. Current Project Status & Recent Milestones
 
-- **Latest Completed Milestone:** Local Customers Ledger Redesign (Personal customer ledger separation, Money Source tracking for 7TIME Business Funds vs Personal Funds, 4 redesigned summary cards, customer ledger drawer with funding breakdown, and exact mathematical reconciliation).
-- **Verified Local Customers Accounting Status:**
-  - Segregated from wholesale reseller revenue and dealer debt.
-  - Formula: $\text{Total Owed} = \text{Product Credit Outstanding} + \text{Cash Loan Outstanding} + \text{Other Credit Outstanding}$.
-  - Reconciled Funding Total: $\text{Total Owed} = \text{7TIME Funds Outstanding} + \text{Personal Funds Outstanding} + \text{Unallocated Outstanding}$.
-  - Historical records with `funding_source = NULL` rendered as "Unallocated" transparently without guessing.
-- **Verified Dealer Accounting Status:** Dealer opening balances are fully integrated into `src/services/dealers.ts`, `src/services/dashboard.ts`, `DealerDetailPage.tsx`, `DealerDetailPanel.tsx`, and `dealers/index.tsx`. Total Payables formula verified:
-  $$\text{Outstanding} = \text{Opening Balance} + \sum (\text{Purchases.total\_amount} - \text{Purchases.amount\_paid}) - \sum \text{Dealer\_Payments.amount}$$
-  $$\text{Total Payable (Dashboard KPI)} = \sum_{\text{dealers}} \max(0, \text{Outstanding})$$
-- **Reliability & Idempotency Audit Status:** Verified 0 occurrences of dead `idempotencyKey` state in source code. All submission flows across Dealer Payments, Reseller Payments, Customer Credits, General Delivery, and NAEEM are protected against duplicate submissions via TanStack Query `isPending` state, disabled button states, interactive loading spinners, and over-allocation guards.
-- **Security Hardening Status:** Phase 4.5 migration `20261015020000_restrict_customer_credits_rls.sql` applied in Supabase. Migration `20261015030000_add_customer_credits_funding_source.sql` prepared and staged.
+- **Latest Completed Milestone:** Local Customer Ledger Refactor (Personal Debtors/Creditors Separation):
+  - **Dedicated Route & Navigation:** Primary route `/local-customers` (and `/local-customers/:id`) introduced; sidebar link updated to `/local-customers` under `PERSONAL LEDGER`. Legacy URLs (`/resellers`, `/customers`, `/reseller-payments`) preserved as backward-compatible aliases/redirects with zero 404s.
+  - **Safe Domain Model Separation:** Database table `public.reseller_customers` and all foreign keys left 100% intact without risky schema renaming. Clean domain layer introduced via `src/services/localCustomers.ts` exporting `LocalCustomer` and typed aliases.
+  - **Accounting Precision (Receivables vs Payables):** Dual-direction accounting implemented without deceptive netting:
+    - Amount They Owe Me (Total Receivables): $\sum \max(0, \text{Debt})$.
+    - Amount I Owe Them (Total Payables / Customer Advances): $\sum \text{Customer Advances (payments exceeding debt)}$.
+  - **UI Modernization:** 5 comprehensive top metric summary cards (Total Local Contacts, Amount They Owe Me, Amount I Owe Them, 7TIME Funds Due, Personal Funds Due), separate columns in directory table, and conditional rendering of "Historical Wholesale Orders" tab inside customer drawer (only shown if historical orders exist).
+  - **Terminology Cleanup:** Removed "reseller" / "wholesale customer" labels from personal ledger interface in favor of "Person", "Customer Profile", "Product Credit", "Cash Loan", and "Payment Received".
 - **Quality Verification:**
-  - `oxlint`: 0 warnings, 0 errors across 123 files (React Rules of Hooks compliant).
+  - `oxlint`: 0 warnings, 0 errors across 126 files.
   - `tsc -b`: 0 type errors.
-  - `vitest run`: 22 test files, 201 tests passing (0 failures).
-  - `npm run build`: Production bundle compiles cleanly.
+  - `vitest run`: 24 test files, 213 tests passing (0 failures).
+  - `npm run build`: Production bundle compiles cleanly in ~2.8s.
 - **Post-Deployment Live Verification (Phase 10):**
   - Live deployment at `https://aaqibmushtaq.github.io/7Time-Business-Management/` verified via browser subagent.
   - All core operational modules (Dashboard, Dealers, Resellers, Deliveries, Naeem) render real data with 0 console errors and 0 network failures.

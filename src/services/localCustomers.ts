@@ -1,0 +1,24 @@
+/**
+ * Local Customers Domain Service (Personal Ledger)
+ * 
+ * Manages personal ledger contacts, product credits, cash loans, repayments,
+ * and funding sources without altering the underlying database table relationships.
+ */
+import {
+  getResellers,
+  getResellersWithBalances,
+  createReseller,
+  updateReseller,
+  deleteReseller,
+  type ResellerCustomer
+} from "./resellers"
+import type { CustomerLedgerSummary } from "./customerCredits"
+
+export type LocalCustomer = ResellerCustomer
+export type LocalCustomerLedgerSummary = CustomerLedgerSummary
+
+export const getLocalCustomers = getResellers
+export const getLocalCustomersWithBalances = getResellersWithBalances
+export const createLocalCustomer = createReseller
+export const updateLocalCustomer = updateReseller
+export const deleteLocalCustomer = deleteReseller

@@ -215,10 +215,10 @@ export default function RecordResellerPaymentModal({
             </div>
             <div>
               <h2 id="record-customer-payment-title" className="text-xl font-bold leading-tight">
-                Record Customer Payment & Repayments
+                Record Payment Received
               </h2>
               <p className="text-xs text-blue-100 font-medium">
-                {currentReseller ? `Receiving payment from ${currentReseller.name}` : "Credit customer account"}
+                {currentReseller ? `Payment received from ${currentReseller.name}` : "Personal ledger payment received"}
               </p>
             </div>
           </div>
@@ -248,7 +248,7 @@ export default function RecordResellerPaymentModal({
           {/* Customer Selection */}
           <div className="space-y-1.5">
             <Label htmlFor="reseller-select" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Customer Profile <span className="text-red-500">*</span>
+              Person / Customer <span className="text-red-500">*</span>
             </Label>
             <select
               id="reseller-select"

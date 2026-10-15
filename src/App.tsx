@@ -77,11 +77,13 @@ function App() {
                   <Route path="dealers" element={<DealersPage />} />
                   <Route path="dealers/:id" element={<DealerDetailPage />} />
                   <Route path="dealer-payments" element={<DealerPaymentsPage />} />
+                  <Route path="local-customers" element={<ResellersPage />} />
+                  <Route path="local-customers/:id" element={<ResellerDetailPage />} />
                   <Route path="resellers" element={<ResellersPage />} />
                   <Route path="resellers/:id" element={<ResellerDetailPage />} />
-                  <Route path="customers" element={<ResellersPage />} />
+                  <Route path="customers" element={<Navigate to="/local-customers" replace />} />
                   <Route path="customers/:id" element={<ResellerDetailPage />} />
-                  <Route path="reseller-payments" element={<Navigate to="/resellers" replace />} />
+                  <Route path="reseller-payments" element={<Navigate to="/local-customers" replace />} />
                   <Route path="wholesale" element={<WholesaleSalesPage />} />
                   <Route path="general-deliveries" element={<GeneralDeliveriesPage />} />
                   <Route path="naeem" element={<NaeemUnclePage />} />

@@ -687,29 +687,49 @@ export default function ResellerDetailPanel({
 
         {/* Authoritative Financial Summary Cards */}
         {(() => {
-          const totalCustomerDebt = ledgerSummary.productCreditOutstanding + ledgerSummary.cashLoanOutstanding + ledgerSummary.otherCreditOutstanding
+          const theyOweMe = ledgerSummary.amountTheyOweMe
+          const iOweThem = ledgerSummary.amountIOweThem
           return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-              {/* Card 1: Total Customer Debt */}
-              <Card className={`bg-white shadow-xs border ${totalCustomerDebt > 0 ? "border-red-200 bg-red-50/20" : "border-emerald-200 bg-emerald-50/20"}`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+              {/* Card 1: Amount They Owe Me (Receivables) */}
+              <Card className={`bg-white shadow-xs border ${theyOweMe > 0 ? "border-red-200 bg-red-50/20" : "border-emerald-200 bg-emerald-50/20"}`}>
                 <CardHeader className="pb-1 pt-3.5 px-4">
-                  <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Total Customer Debt
+                  <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    Amount They Owe Me
+                    <Wallet className={`h-4 w-4 ${theyOweMe > 0 ? "text-red-500" : "text-emerald-500"}`} />
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-3.5">
-                  <div className={`text-xl lg:text-2xl font-bold ${totalCustomerDebt > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                    {formatMoney(totalCustomerDebt)}
+                  <div className={`text-xl lg:text-2xl font-bold ${theyOweMe > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                    {formatMoney(theyOweMe)}
                   </div>
-                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${totalCustomerDebt > 0 ? "text-red-600/80" : "text-emerald-600/80"}`}>
-                    {totalCustomerDebt > 0 
-                      ? (ledgerSummary.unallocatedPayments > 0 ? `Total Owed (${formatMoney(ledgerSummary.unallocatedPayments)} unallocated payment)` : "Total Outstanding Debt")
-                      : "Account Settled"}
+                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${theyOweMe > 0 ? "text-red-600/80" : "text-emerald-600/80"}`}>
+                    {theyOweMe > 0 
+                      ? (ledgerSummary.unallocatedPayments > 0 ? `Owed (${formatMoney(ledgerSummary.unallocatedPayments)} unallocated payment)` : "Total Outstanding Debt")
+                      : "Receivable Settled"}
                   </p>
                 </CardContent>
               </Card>
 
-              {/* Card 2: Product Credit Outstanding */}
+              {/* Card 2: Amount I Owe Them (Customer Advances / Payables) */}
+              <Card className={`bg-white shadow-xs border ${iOweThem > 0 ? "border-blue-200 bg-blue-50/20" : "border-slate-200"}`}>
+                <CardHeader className="pb-1 pt-3.5 px-4">
+                  <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    Amount I Owe Them
+                    <Wallet className={`h-4 w-4 ${iOweThem > 0 ? "text-blue-500" : "text-slate-400"}`} />
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3.5">
+                  <div className={`text-xl lg:text-2xl font-bold ${iOweThem > 0 ? "text-blue-700" : "text-slate-700"}`}>
+                    {formatMoney(iOweThem)}
+                  </div>
+                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${iOweThem > 0 ? "text-blue-600/80" : "text-slate-400"}`}>
+                    {iOweThem > 0 ? "Customer advance balance" : "No Payable Balance"}
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Card 3: Product Credit Outstanding */}
               <Card className="bg-white border-emerald-200 bg-emerald-50/15 shadow-xs">
                 <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
                   <CardTitle className="text-xs font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -729,7 +749,7 @@ export default function ResellerDetailPanel({
                 </CardContent>
               </Card>
 
-              {/* Card 3: Cash Loans Remaining */}
+              {/* Card 4: Cash Loans Remaining */}
               <Card className="bg-white border-amber-200 bg-amber-50/15 shadow-xs">
                 <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
                   <CardTitle className="text-xs font-semibold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
@@ -749,29 +769,29 @@ export default function ResellerDetailPanel({
                 </CardContent>
               </Card>
 
-              {/* Card 4: Funding Source Breakdown */}
+              {/* Card 5: Funding Source Breakdown */}
               <Card className="bg-white border-slate-200 shadow-xs">
                 <CardHeader className="pb-1 pt-3.5 px-4">
                   <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Funding Source Breakdown
+                    Funding Source
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="px-4 pb-3.5 space-y-1">
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-emerald-700 flex items-center gap-1">
-                      <Building2 className="h-3 w-3" /> 7TIME Funds:
+                      <Building2 className="h-3 w-3" /> 7TIME:
                     </span>
                     <span className="text-emerald-700">{formatMoney(ledgerSummary.funds7TimeOutstanding)}</span>
                   </div>
                   <div className="flex items-center justify-between text-xs font-bold">
                     <span className="text-purple-700 flex items-center gap-1">
-                      <UserCheck className="h-3 w-3" /> Personal Funds:
+                      <UserCheck className="h-3 w-3" /> Personal:
                     </span>
                     <span className="text-purple-700">{formatMoney(ledgerSummary.fundsPersonalOutstanding)}</span>
                   </div>
                   {ledgerSummary.fundsUnallocatedOutstanding > 0 && (
                     <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 pt-0.5 border-t border-slate-100">
-                      <span>Unallocated:</span>
+                      <span>Unalloc:</span>
                       <span>{formatMoney(ledgerSummary.fundsUnallocatedOutstanding)}</span>
                     </div>
                   )}
@@ -883,22 +903,24 @@ export default function ResellerDetailPanel({
             </span>
           </button>
 
-          <button
-            onClick={() => setActiveTab("sales")}
-            className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
-              activeTab === "sales" 
-                ? "text-[#2D7FF9] border-b-2 border-[#2D7FF9]" 
-                : "text-slate-500 hover:text-slate-900"
-            }`}
-          >
-            <ShoppingCart className="h-4 w-4" />
-            Wholesale Sales
-            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-              activeTab === "sales" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
-            }`}>
-              {sales.length}
-            </span>
-          </button>
+          {sales.length > 0 && (
+            <button
+              onClick={() => setActiveTab("sales")}
+              className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === "sales" 
+                  ? "text-[#2D7FF9] border-b-2 border-[#2D7FF9]" 
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              <ShoppingCart className="h-4 w-4" />
+              Historical Wholesale Orders
+              <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+                activeTab === "sales" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
+              }`}>
+                {sales.length}
+              </span>
+            </button>
+          )}
 
           <button
             onClick={() => setActiveTab("payments")}
@@ -909,7 +931,7 @@ export default function ResellerDetailPanel({
             }`}
           >
             <Wallet className="h-4 w-4" />
-            Payments & Repayments
+            Payments Received
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeTab === "payments" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
             }`}>
@@ -1377,10 +1399,10 @@ export default function ResellerDetailPanel({
           </div>
         )}
 
-        {/* TAB 2: WHOLESALE SALES LEDGER */}
+        {/* TAB 2: HISTORICAL WHOLESALE ORDERS */}
         {activeTab === "sales" && (
           <div className="space-y-4">
-            <h3 className="text-base font-bold text-slate-800">Wholesale Sales Orders</h3>
+            <h3 className="text-base font-bold text-slate-800">Historical Wholesale Orders</h3>
             {sales.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500">
                 No wholesale sales recorded for this customer.

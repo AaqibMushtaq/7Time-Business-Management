@@ -140,10 +140,12 @@ export interface CustomerLedgerSummary {
   unallocatedPayments: number // Payments received not yet mapped to credit entries
   unallocatedAdvancePayments: number // Surplus advance (payments exceeding all charges)
 
-  // Authoritative Overall Balance
+  // Authoritative Overall Balance & Distinct Receivables / Payables
   totalCharges: number
   totalCredits: number
   netOutstanding: number
+  amountTheyOweMe: number
+  amountIOweThem: number
 }
 
 /**
@@ -701,7 +703,9 @@ export function calculateCustomerLedgerSummary(
 
     totalCharges,
     totalCredits,
-    netOutstanding
+    netOutstanding,
+    amountTheyOweMe: Math.max(0, netOutstanding),
+    amountIOweThem: unallocatedAdvancePayments
   }
 }
 

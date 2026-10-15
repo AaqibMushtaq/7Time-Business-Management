@@ -211,11 +211,12 @@ describe("Local Customers (ResellersPage Component)", () => {
     expect(await screen.findByText("Local Customers")).toBeDefined()
     expect(screen.getByText(/Manage customer accounts, track Product Credits, Cash Loans/i)).toBeDefined()
 
-    // Summary Metric Cards with distinct badges
-    expect(screen.getByText("Total Local Customers")).toBeDefined()
-    expect(screen.getByText("Total Owed by Customers")).toBeDefined()
-    expect(screen.getByText("7TIME Funds Outstanding")).toBeDefined()
-    expect(screen.getByText("Personal Funds Outstanding")).toBeDefined()
+    // Summary Metric Cards with distinct badges (Receivables and Payables)
+    expect(screen.getByText("Total Local Contacts")).toBeDefined()
+    expect(screen.getByText("Amount They Owe Me")).toBeDefined()
+    expect(screen.getByText("Amount I Owe Them")).toBeDefined()
+    expect(screen.getByText("7TIME Funds")).toBeDefined()
+    expect(screen.getByText("Personal Funds")).toBeDefined()
 
     // Customers rendered in table after loading
     expect(await screen.findByText("Ishfaq ATM")).toBeDefined()
@@ -275,7 +276,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     fireEvent.click(recordButtons[0])
 
     expect(await screen.findByRole("dialog")).toBeDefined()
-    expect(screen.getByText("Record Customer Payment & Repayments")).toBeDefined()
+    expect(screen.getByText("Record Payment Received")).toBeDefined()
 
     // Fill in amount
     const amountInput = screen.getByLabelText(/amount received/i)
@@ -324,8 +325,8 @@ describe("Local Customers (ResellersPage Component)", () => {
       expect(screen.getByRole("button", { name: /all credits & loans/i })).toBeDefined()
     })
 
-    // Click on Payments & Repayments tab to view payments
-    const paymentsTab = screen.getByRole("button", { name: /payments & repayments/i })
+    // Click on Payments Received tab to view payments
+    const paymentsTab = screen.getByRole("button", { name: /payments received/i })
     fireEvent.click(paymentsTab)
 
     // Payment history item rendered
@@ -342,8 +343,8 @@ describe("Local Customers (ResellersPage Component)", () => {
     await screen.findByText("Ishfaq ATM")
     expect(screen.getByText("Tariq Wholesale")).toBeDefined()
 
-    // Filter by Has Outstanding
-    const select = screen.getByDisplayValue("All Customers")
+    // Filter by Has Outstanding (They Owe Me)
+    const select = screen.getByDisplayValue("All Local Contacts")
     fireEvent.change(select, { target: { value: "HAS_OUTSTANDING" } })
 
     // Only Ishfaq ATM has outstanding balance
@@ -351,12 +352,12 @@ describe("Local Customers (ResellersPage Component)", () => {
     expect(screen.queryByText("Tariq Wholesale")).toBeNull()
   })
 
-  it("verifies backwards-compatible route redirection from /reseller-payments to /resellers", () => {
+  it("verifies backwards-compatible route redirection from /reseller-payments to /local-customers", () => {
     const { getByText } = render(
       <MemoryRouter initialEntries={["/reseller-payments"]}>
         <Routes>
-          <Route path="/resellers" element={<div>Consolidated Local Customers Destination</div>} />
-          <Route path="/reseller-payments" element={<Navigate to="/resellers" replace />} />
+          <Route path="/local-customers" element={<div>Consolidated Local Customers Destination</div>} />
+          <Route path="/reseller-payments" element={<Navigate to="/local-customers" replace />} />
         </Routes>
       </MemoryRouter>
     )
@@ -465,5 +466,59 @@ describe("Local Customers (ResellersPage Component)", () => {
         total_amount: 3000
       }))
     })
+  })
+
+  it("filters customer directory by Has Credit / Advance (I Owe Them)", async () => {
+    const customersWithAdvance = [
+      ...mockCustomers,
+      {
+        id: "cust-3",
+        name: "Adil Advance Payee",
+        phone: "+91 9991112222",
+        address: "Town Market",
+        total_sales: 0,
+        total_received: 3000,
+        product_credit_outstanding: 0,
+        cash_loan_outstanding: 0,
+        funds_7time_outstanding: 0,
+        funds_personal_outstanding: 0,
+        funds_unallocated_outstanding: 0,
+        total_owed: 0,
+        amount_they_owe_me: 0,
+        amount_i_owe_them: 3000,
+        outstanding: -3000,
+        created_at: "2026-10-12"
+      }
+    ]
+    ;(getResellersWithBalances as any).mockResolvedValue(customersWithAdvance)
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ResellersPage />
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Adil Advance Payee")
+
+    // Filter by Has Credit / Advance (I Owe Them)
+    const select = screen.getByDisplayValue("All Local Contacts")
+    fireEvent.change(select, { target: { value: "HAS_CREDIT_BALANCE" } })
+
+    // Only Adil Advance Payee has credit balance
+    expect(screen.getByText("Adil Advance Payee")).toBeDefined()
+    expect(screen.queryByText("Ishfaq ATM")).toBeNull()
+  })
+
+  it("renders Local Customers page under /local-customers route preserving /resellers alias", () => {
+    const { getByText } = render(
+      <MemoryRouter initialEntries={["/local-customers"]}>
+        <Routes>
+          <Route path="/local-customers" element={<div>Local Customers Primary Route</div>} />
+          <Route path="/resellers" element={<div>Local Customers Legacy Alias</div>} />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(getByText("Local Customers Primary Route")).toBeDefined()
   })
 })
