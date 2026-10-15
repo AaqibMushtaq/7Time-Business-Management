@@ -277,7 +277,7 @@ export default function ResellersPage() {
         resellers={resellers}
       />
 
-      {/* Create Product Credit / Cash Loan Modal */}
+      {/* Create Expense on Behalf / Qard Hasan Modal */}
       <CreateCustomerCreditModal
         isOpen={isCreditModalOpen}
         onClose={() => {
@@ -289,13 +289,13 @@ export default function ResellersPage() {
         initialType={creditModalInitialType}
       />
 
-      {/* Add / Edit Customer Modal */}
+      {/* Add / Edit Person Modal */}
       {isCustomerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <h2 className="text-lg font-bold tracking-tight">
-                {editingCustomer ? "Edit Customer Profile" : "Add New Customer Profile"}
+                {editingCustomer ? "Edit Person Details" : "Add New Person"}
               </h2>
               <button 
                 onClick={closeCustomerModal}
@@ -316,10 +316,10 @@ export default function ResellersPage() {
             <form onSubmit={handleCustomerSubmit} className="space-y-4 pt-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Customer Name <span className="text-red-500">*</span>
+                  Full Name <span className="text-red-500">*</span>
                 </Label>
                 <Input
-                  placeholder="e.g. Ishfaq ATM"
+                  placeholder="e.g. Ishfaq Ahmad"
                   value={customerFormData.name}
                   onChange={(e) => setCustomerFormData({ ...customerFormData, name: e.target.value })}
                   required
@@ -345,7 +345,7 @@ export default function ResellersPage() {
                 </Label>
                 <textarea
                   className="flex min-h-[70px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-2xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2D7FF9]/20 focus-visible:border-[#2D7FF9]"
-                  placeholder="Business address / location"
+                  placeholder="Location or residential address"
                   value={customerFormData.address}
                   onChange={(e) => setCustomerFormData({ ...customerFormData, address: e.target.value })}
                   disabled={createMutation.isPending || updateMutation.isPending}
@@ -354,11 +354,11 @@ export default function ResellersPage() {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                  Customer Notes (Optional)
+                  Personal Notes (Optional)
                 </Label>
                 <textarea
                   className="flex min-h-[60px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-2xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2D7FF9]/20 focus-visible:border-[#2D7FF9]"
-                  placeholder="Notes about customer, preferences, or credit terms"
+                  placeholder="Notes about dealings, agreed terms, or relationship"
                   value={customerFormData.notes}
                   onChange={(e) => setCustomerFormData({ ...customerFormData, notes: e.target.value })}
                   disabled={createMutation.isPending || updateMutation.isPending}
@@ -396,7 +396,7 @@ export default function ResellersPage() {
                   {(createMutation.isPending || updateMutation.isPending) && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {editingCustomer ? "Save Changes" : "Save Customer"}
+                  {editingCustomer ? "Save Changes" : "Save Person"}
                 </Button>
               </div>
             </form>
@@ -407,70 +407,70 @@ export default function ResellersPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Local Customers</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Personal Ledger</h1>
           <p className="text-slate-500 mt-1 text-sm">
-            Manage customer accounts, track Product Credits, Cash Loans, repayments, and outstanding balances.
+            Track purchases made on behalf of people, money lent or owed, expenses paid personally or by 7TIME, and settlements received or paid.
           </p>
         </div>
 
         {/* Global Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* + Product Credit */}
+          {/* + Record Expense on Behalf */}
           <Button 
             onClick={() => openCreateCredit("PRODUCT_CREDIT")}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
           >
-            <Package className="mr-1.5 h-4 w-4" /> + Product Credit
+            <Package className="mr-1.5 h-4 w-4" /> + Record Expense on Behalf
           </Button>
 
-          {/* + Cash Loan */}
+          {/* + Give Qard Hasan */}
           <Button 
             onClick={() => openCreateCredit("CASH_LOAN")}
             className="bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs"
           >
-            <Coins className="mr-1.5 h-4 w-4" /> + Cash Loan
+            <Coins className="mr-1.5 h-4 w-4" /> + Give Qard Hasan
           </Button>
 
-          {/* Record Payment Button */}
+          {/* Record Settlement Button */}
           <Button 
             onClick={() => openRecordPayment(null)}
             className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white shadow-xs font-semibold"
           >
-            <Wallet className="mr-1.5 h-4 w-4" /> Record Payment
+            <Wallet className="mr-1.5 h-4 w-4" /> Record Settlement
           </Button>
 
-          {/* Add Customer Button */}
+          {/* Add Person Button */}
           <Button 
             onClick={openAddCustomer}
             variant="outline"
             className="border-slate-300 text-slate-800 hover:bg-slate-50 font-medium"
           >
-            <Plus className="mr-1.5 h-4 w-4" /> + Add Customer
+            <Plus className="mr-1.5 h-4 w-4" /> + Add Person
           </Button>
         </div>
       </div>
 
       {/* Top Financial Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: Total Local Contacts */}
+        {/* Card 1: Total People */}
         <Card className="bg-white border-slate-200 shadow-xs">
           <CardHeader className="pb-1 pt-3.5 px-4">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-              Total Local Contacts
+              Total People
               <Users className="h-4 w-4 text-blue-500" />
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-3.5">
             <div className="text-2xl font-bold text-slate-900">{totalResellersCount}</div>
-            <p className="text-xs text-slate-500 mt-0.5">Active ledger contacts</p>
+            <p className="text-xs text-slate-500 mt-0.5">Active ledger accounts</p>
           </CardContent>
         </Card>
 
-        {/* Card 2: Amount They Owe Me (Total Receivables) */}
+        {/* Card 2: Receivable (They Owe Me) */}
         <Card className="bg-white border-red-200 shadow-xs bg-red-50/10">
           <CardHeader className="pb-1 pt-3.5 px-4">
             <CardTitle className="text-xs font-semibold text-red-700 uppercase tracking-wider flex items-center justify-between">
-              Amount They Owe Me
+              Receivable (They Owe Me)
               <Wallet className="h-4 w-4 text-red-500" />
             </CardTitle>
           </CardHeader>
@@ -479,9 +479,9 @@ export default function ResellersPage() {
               {formatMoney(totalReceivables)}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-1 truncate">
-              <span>Credit: {formatMoney(totalProductCreditDue)}</span>
+              <span>Expenses: {formatMoney(totalProductCreditDue)}</span>
               <span>•</span>
-              <span>Loans: {formatMoney(totalCashLoansDue)}</span>
+              <span>Qard Hasan: {formatMoney(totalCashLoansDue)}</span>
               {totalOtherCreditDue > 0 && (
                 <>
                   <span>•</span>
@@ -492,11 +492,11 @@ export default function ResellersPage() {
           </CardContent>
         </Card>
 
-        {/* Card 3: Amount I Owe Them (Total Payables / Advances) */}
+        {/* Card 3: Payable (I Owe Them) */}
         <Card className="bg-white border-blue-200 shadow-xs bg-blue-50/10">
           <CardHeader className="pb-1 pt-3.5 px-4">
             <CardTitle className="text-xs font-semibold text-blue-700 uppercase tracking-wider flex items-center justify-between">
-              Amount I Owe Them
+              Payable (I Owe Them)
               <Wallet className="h-4 w-4 text-blue-500" />
             </CardTitle>
           </CardHeader>
@@ -505,7 +505,7 @@ export default function ResellersPage() {
               {formatMoney(totalPayables)}
             </div>
             <p className="text-[11px] text-blue-600/80 font-medium mt-1">
-              {totalPayables > 0 ? "Customer advance balances" : "No payables owed"}
+              {totalPayables > 0 ? "Advance balances & payables" : "No payables owed"}
             </p>
           </CardContent>
         </Card>
@@ -555,8 +555,8 @@ export default function ResellersPage() {
           <div className="flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
             <span>
-              <strong>Historical Unallocated Notice:</strong> {formatMoney(totalUnallocatedFundsDue)} of customer debt has no recorded funding source. 
-              Open customer ledgers to assign them to 7TIME or Personal funds.
+              <strong>Historical Unallocated Notice:</strong> {formatMoney(totalUnallocatedFundsDue)} of balance has no recorded funding source. 
+              Open personal account ledgers to assign them to 7TIME or Personal funds.
             </span>
           </div>
           <div className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded border border-amber-300/50 shrink-0">
@@ -569,9 +569,9 @@ export default function ResellersPage() {
       <Card className="bg-white border-slate-200 shadow-xs">
         <CardHeader className="pb-3 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-lg font-bold text-slate-900">Local Customers Directory</CardTitle>
+            <CardTitle className="text-lg font-bold text-slate-900">People Directory</CardTitle>
             <p className="text-xs text-slate-500">
-              Select any customer to open their personal ledger, view repayments, or record Product Credit and Cash Loans.
+              Select any person to open their personal account ledger, view settlements, or record expenses on behalf and Qard Hasan.
             </p>
           </div>
 
@@ -581,13 +581,13 @@ export default function ResellersPage() {
             <select
               value={filterType}
               onChange={(e) => setFilterType(e.target.value as CustomerFilterType)}
-              className="w-full sm:w-52 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-medium"
+              className="w-full sm:w-56 px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-medium"
             >
-              <option value="ALL">All Local Contacts</option>
-              <option value="HAS_OUTSTANDING">They Owe Me (Receivables)</option>
-              <option value="HAS_CREDIT_BALANCE">I Owe Them (Payables / Advances)</option>
-              <option value="HAS_PRODUCT_CREDIT">Has Product Credit</option>
-              <option value="HAS_CASH_LOAN">Has Cash Loan</option>
+              <option value="ALL">All People</option>
+              <option value="HAS_OUTSTANDING">Receivable (They Owe Me)</option>
+              <option value="HAS_CREDIT_BALANCE">Payable (I Owe Them)</option>
+              <option value="HAS_PRODUCT_CREDIT">Has Expense on Behalf</option>
+              <option value="HAS_CASH_LOAN">Has Qard Hasan</option>
             </select>
 
             {/* Search Input */}
@@ -612,7 +612,7 @@ export default function ResellersPage() {
           ) : resellersError ? (
             <div className="p-8 text-center text-red-600">
               <AlertCircle className="h-8 w-8 mx-auto mb-2 text-red-500" />
-              <p className="font-semibold text-sm">Failed to load customers</p>
+              <p className="font-semibold text-sm">Failed to load personal ledger accounts</p>
               <p className="text-xs text-slate-500 mt-1">
                 {resellersError instanceof Error ? resellersError.message : "Error connecting to Supabase"}
               </p>
@@ -621,10 +621,10 @@ export default function ResellersPage() {
             <div className="p-12 text-center text-slate-500">
               <Users className="h-10 w-10 mx-auto mb-2 opacity-30 text-slate-400" />
               <p className="text-base font-semibold text-slate-700">
-                {searchQuery ? "No matching contacts found" : "No contacts found for this filter"}
+                {searchQuery ? "No matching people found" : "No people found for this filter"}
               </p>
               <p className="text-xs mt-1 text-slate-500">
-                {searchQuery ? "Try a different search term or clear the filter." : "Click '+ Add Customer' to create a contact profile."}
+                {searchQuery ? "Try a different search term or clear the filter." : "Click '+ Add Person' to create a personal account."}
               </p>
             </div>
           ) : (
@@ -632,12 +632,12 @@ export default function ResellersPage() {
               <Table className="min-w-[1040px]">
                 <TableHeader className="bg-slate-50/70">
                   <TableRow>
-                    <TableHead className="font-semibold text-xs text-slate-600 uppercase">Customer Profile</TableHead>
+                    <TableHead className="font-semibold text-xs text-slate-600 uppercase">Person Details</TableHead>
                     <TableHead className="font-semibold text-xs text-slate-600 uppercase">Contact Info</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-emerald-700 uppercase">Product Credit</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-amber-700 uppercase">Cash Loans</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-red-700 uppercase">They Owe Me</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-blue-700 uppercase">I Owe Them</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-emerald-700 uppercase">Expense on Behalf</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-amber-700 uppercase">Qard Hasan</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-red-700 uppercase">Receivable</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-blue-700 uppercase">Payable</TableHead>
                     <TableHead className="text-center font-semibold text-xs text-slate-600 uppercase">Funding Source</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Actions</TableHead>
                   </TableRow>
@@ -673,7 +673,7 @@ export default function ResellersPage() {
                                 {customer.name}
                               </div>
                               <span className="text-[11px] text-slate-400">
-                                Click to open personal ledger
+                                Click to open personal account ledger
                               </span>
                             </div>
                           </div>
@@ -699,17 +699,17 @@ export default function ResellersPage() {
                           </div>
                         </TableCell>
 
-                        {/* Product Credit Owed */}
+                        {/* Expense on Behalf (Product Credit) Owed */}
                         <TableCell className="text-right font-bold text-sm text-emerald-700">
                           {prodCredit > 0 ? formatMoney(prodCredit) : "-"}
                         </TableCell>
 
-                        {/* Cash Loans Owed */}
+                        {/* Qard Hasan Owed */}
                         <TableCell className="text-right font-bold text-sm text-amber-700">
                           {cashLoan > 0 ? formatMoney(cashLoan) : "-"}
                         </TableCell>
 
-                        {/* Amount They Owe Me */}
+                        {/* Amount They Owe Me (Receivable) */}
                         <TableCell className="text-right">
                           {theyOweMe > 0 ? (
                             <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200/60">
@@ -720,10 +720,10 @@ export default function ResellersPage() {
                           )}
                         </TableCell>
 
-                        {/* Amount I Owe Them */}
+                        {/* Amount I Owe Them (Payable) */}
                         <TableCell className="text-right">
                           {iOweThem > 0 ? (
-                            <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/60" title="Customer advance balance">
+                            <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200/60" title="Advance balance / Payable">
                               {formatMoney(iOweThem)}
                             </span>
                           ) : (
@@ -758,69 +758,69 @@ export default function ResellersPage() {
                         {/* Row Actions */}
                         <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* Record Payment Button */}
+                            {/* Record Settlement Button */}
                             <Button
                               size="sm"
                               className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white h-8 px-2.5 text-xs font-semibold shadow-2xs"
-                              title={`Record payment for ${customer.name}`}
+                              title={`Record settlement for ${customer.name}`}
                               onClick={(e) => openRecordPayment(customer, e)}
                             >
-                              <Wallet className="h-3.5 w-3.5 mr-1" /> Payment
+                              <Wallet className="h-3.5 w-3.5 mr-1" /> Settlement
                             </Button>
 
-                            {/* + Product Credit quick button */}
+                            {/* + Expense on Behalf quick button */}
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-8 px-2 text-emerald-700 hover:bg-emerald-50 border-emerald-200"
-                              title="Record Product Credit"
+                              title="Record Expense on Behalf"
                               onClick={(e) => openCreateCredit("PRODUCT_CREDIT", customer, e)}
                             >
                               <Package className="h-3.5 w-3.5" />
                             </Button>
 
-                            {/* + Cash Loan quick button */}
+                            {/* + Qard Hasan quick button */}
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-8 px-2 text-amber-700 hover:bg-amber-50 border-amber-200"
-                              title="Give Cash Loan"
+                              title="Give Qard Hasan (Interest-Free Assistance)"
                               onClick={(e) => openCreateCredit("CASH_LOAN", customer, e)}
                             >
                               <Coins className="h-3.5 w-3.5" />
                             </Button>
 
-                            {/* View Profile Button */}
+                            {/* View Person Details & Ledger */}
                             <Button
                               variant="outline"
                               size="sm"
                               className="h-8 px-2 text-slate-700 border-slate-200 hover:bg-slate-100"
-                              title="View details & ledger"
+                              title="View person details & ledger"
                               onClick={() => setSelectedResellerId(customer.id)}
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </Button>
 
-                            {/* Edit Customer Button */}
+                            {/* Edit Person Button */}
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-8 px-2 text-slate-600 hover:bg-slate-100"
-                              title="Edit customer details"
+                              title="Edit person details"
                               onClick={(e) => openEditCustomer(customer, e)}
                             >
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
 
-                            {/* Delete Customer Button */}
+                            {/* Delete Person Button */}
                             <Button
                               variant="ghost"
                               size="sm"
                               className="h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              title="Delete customer"
+                              title="Delete person"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                if (window.confirm(`Are you sure you want to delete ${customer.name}? All transaction associations may be affected.`)) {
+                                if (window.confirm(`Are you sure you want to delete ${customer.name}? All personal ledger records may be affected.`)) {
                                   deleteMutation.mutate(customer.id)
                                 }
                               }}

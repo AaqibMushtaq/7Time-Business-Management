@@ -43,7 +43,7 @@ const navGroups = [
   {
     name: "PERSONAL LEDGER",
     items: [
-      { name: "Local Customers", href: "/local-customers", icon: Users },
+      { name: "Personal Ledger", href: "/local-customers", icon: Users },
     ]
   },
   {

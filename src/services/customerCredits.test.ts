@@ -697,9 +697,9 @@ describe("Customer Credits Service", () => {
 
   describe("UI Labels & Badges", () => {
     it("returns correct user-facing labels and badge styles distinguishing credit types", () => {
-      expect(getCreditTypeLabel("PRODUCT_CREDIT")).toBe("Product Credit")
-      expect(getCreditTypeLabel("CASH_LOAN")).toBe("Cash Loan")
-      expect(getCreditTypeLabel("OTHER_CREDIT")).toBe("Other Credit")
+      expect(getCreditTypeLabel("PRODUCT_CREDIT")).toBe("Expense on Behalf")
+      expect(getCreditTypeLabel("CASH_LOAN")).toBe("Qard Hasan")
+      expect(getCreditTypeLabel("OTHER_CREDIT")).toBe("Other Personal")
 
       const pcBadge = getCreditTypeBadgeClasses("PRODUCT_CREDIT")
       expect(pcBadge.text).toContain("emerald")

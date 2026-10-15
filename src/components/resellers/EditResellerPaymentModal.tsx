@@ -86,19 +86,19 @@ export default function EditResellerPaymentModal({
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (!payment) throw new Error("Payment is required.")
+      if (!payment) throw new Error("Settlement record is required.")
       if (isNaN(parsedAmount) || parsedAmount <= 0) {
-        throw new Error("Payment amount must be greater than zero.")
+        throw new Error("Settlement amount must be greater than zero.")
       }
       if (isOverAllocated) {
-        throw new Error(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed payment amount (${formatMoney(parsedAmount)}).`)
+        throw new Error(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed settlement amount (${formatMoney(parsedAmount)}).`)
       }
 
       const allocArray = Object.entries(allocations)
         .map(([creditId, amtStr]) => ({
           creditId,
           amount: parseFloat(amtStr),
-          notes: "Payment allocation"
+          notes: "Settlement allocation"
         }))
         .filter(a => a.amount > 0)
 
@@ -124,7 +124,7 @@ export default function EditResellerPaymentModal({
       onClose()
     },
     onError: (err: any) => {
-      setFormError(err.message || "Failed to update payment record")
+      setFormError(err.message || "Failed to update settlement record")
     }
   })
 
@@ -135,12 +135,12 @@ export default function EditResellerPaymentModal({
     setFormError(null)
 
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      setFormError("Payment amount must be greater than zero.")
+      setFormError("Settlement amount must be greater than zero.")
       return
     }
 
     if (isOverAllocated) {
-      setFormError(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed payment amount (${formatMoney(parsedAmount)}).`)
+      setFormError(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed settlement amount (${formatMoney(parsedAmount)}).`)
       return
     }
 
@@ -166,10 +166,10 @@ export default function EditResellerPaymentModal({
             </div>
             <div>
               <h2 id="edit-payment-title" className="text-lg font-bold leading-tight">
-                Edit & Correct Payment Record
+                Edit & Correct Settlement Record
               </h2>
               <p className="text-xs text-blue-100 font-medium">
-                Modify payment details and adjust ledger allocations safely
+                Modify settlement details and adjust ledger allocations safely
               </p>
             </div>
           </div>
@@ -196,10 +196,10 @@ export default function EditResellerPaymentModal({
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Payment Date */}
+            {/* Settlement Date */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Payment Date <span className="text-red-500">*</span>
+                Settlement Date <span className="text-red-500">*</span>
               </Label>
               <Input
                 type="date"
@@ -233,7 +233,7 @@ export default function EditResellerPaymentModal({
             {/* Method */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Payment Method
+                Settlement Method
               </Label>
               <select
                 className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
@@ -270,7 +270,7 @@ export default function EditResellerPaymentModal({
               Notes
             </Label>
             <Input
-              placeholder="Payment description or correction notes"
+              placeholder="Settlement description or correction notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               disabled={mutation.isPending}
@@ -323,7 +323,7 @@ export default function EditResellerPaymentModal({
                             {formatDate(credit.entry_date)}
                           </td>
                           <td className="py-2 px-3 font-semibold text-slate-900">
-                            {credit.product_name || credit.description || credit.entry_type}
+                            {credit.product_name || credit.description || (credit.entry_type === "CASH_LOAN" ? "Qard Hasan" : credit.entry_type === "PRODUCT_CREDIT" ? "Expense on Behalf" : credit.entry_type)}
                           </td>
                           <td className="py-2 px-3 text-right font-medium text-slate-600">
                             {formatMoney(credit.total_amount)}
@@ -363,7 +363,7 @@ export default function EditResellerPaymentModal({
 
               {unallocatedAmount > 0 && (
                 <p className="text-[11px] text-blue-600 font-medium">
-                  {formatMoney(unallocatedAmount)} will remain as unallocated advance credit.
+                  {formatMoney(unallocatedAmount)} will remain as unallocated advance balance.
                 </p>
               )}
             </div>

@@ -256,12 +256,12 @@ export default function CreateCustomerCreditModal({
             </div>
             <div>
               <h2 id="credit-modal-title" className="text-xl font-bold leading-tight">
-                {entryType === "PRODUCT_CREDIT" && "Record Product Credit"}
-                {entryType === "CASH_LOAN" && "Give Cash Loan"}
-                {entryType === "OTHER_CREDIT" && "Record Other Credit"}
+                {entryType === "PRODUCT_CREDIT" && "Record Expense on Behalf"}
+                {entryType === "CASH_LOAN" && "Give Qard Hasan (Interest-Free Assistance)"}
+                {entryType === "OTHER_CREDIT" && "Record Other Personal Transaction"}
               </h2>
               <p className="text-xs text-white/90 font-medium">
-                {currentCustomer ? `Customer: ${currentCustomer.name}` : "Local Customer Account"}
+                {currentCustomer ? `Person: ${currentCustomer.name}` : "Personal Account Ledger"}
               </p>
             </div>
           </div>
@@ -288,7 +288,7 @@ export default function CreateCustomerCreditModal({
               }`}
             >
               <Package className="h-4 w-4" />
-              Product Credit
+              Expense on Behalf
             </button>
 
             <button
@@ -301,7 +301,7 @@ export default function CreateCustomerCreditModal({
               }`}
             >
               <Coins className="h-4 w-4" />
-              Cash Loan
+              Qard Hasan
             </button>
 
             <button
@@ -314,7 +314,7 @@ export default function CreateCustomerCreditModal({
               }`}
             >
               <FileText className="h-4 w-4" />
-              Other Credit
+              Other Personal
             </button>
           </div>
         </div>
@@ -328,13 +328,13 @@ export default function CreateCustomerCreditModal({
             </div>
           )}
 
-          {/* Customer Selection & Date */}
+          {/* Person Selection & Date */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700">Customer Profile *</Label>
+              <Label className="text-xs font-semibold text-slate-700">Person *</Label>
               {selectedCustomerId ? (
                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-800">
-                  {currentCustomer?.name || "Selected Customer"}
+                  {currentCustomer?.name || "Selected Person"}
                 </div>
               ) : (
                 <select
@@ -343,7 +343,7 @@ export default function CreateCustomerCreditModal({
                   className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                   required
                 >
-                  <option value="">Select a customer...</option>
+                  <option value="">Select a person...</option>
                   {customers.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.name} {c.phone ? `(${c.phone})` : ""}
@@ -375,7 +375,7 @@ export default function CreateCustomerCreditModal({
                 Money Source <span className="text-red-500">*</span>
               </span>
               <span className="text-[11px] font-normal text-slate-500 lowercase">
-                capital origin for this credit/loan
+                capital origin for this personal dealing
               </span>
             </Label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
@@ -427,12 +427,15 @@ export default function CreateCustomerCreditModal({
             </div>
           </div>
 
-          {/* 1. PRODUCT CREDIT FIELDS */}
+          {/* 1. EXPENSE ON BEHALF (PRODUCT CREDIT) FIELDS */}
           {entryType === "PRODUCT_CREDIT" && (
             <div className="space-y-3 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100">
               <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                <Package className="h-4 w-4" /> Item Taken by Customer
+                <Package className="h-4 w-4" /> Item / Purchase Spent on Behalf
               </div>
+              <p className="text-xs text-emerald-700">
+                Purchases made on behalf of this person to be settled later.
+              </p>
 
               {/* Optional Inventory Shortcut */}
               {inventoryProducts.length > 0 && (
@@ -455,10 +458,10 @@ export default function CreateCustomerCreditModal({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="product-name" className="text-xs font-semibold text-slate-700">Product / Item Name *</Label>
+                  <Label htmlFor="product-name" className="text-xs font-semibold text-slate-700">Item / Expense Name *</Label>
                   <Input
                     id="product-name"
-                    placeholder="e.g. Cooking Oil 5L"
+                    placeholder="e.g. Cooking Oil 5L, Vehicle Fuel, Spare Parts"
                     value={productName}
                     onChange={(e) => setProductName(e.target.value)}
                     required
@@ -511,7 +514,7 @@ export default function CreateCustomerCreditModal({
               </div>
 
               <div className="space-y-1">
-                <Label className="text-xs font-semibold text-slate-700">Total Product Amount (Rs) *</Label>
+                <Label className="text-xs font-semibold text-slate-700">Total Amount Spent (Rs) *</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -526,18 +529,18 @@ export default function CreateCustomerCreditModal({
             </div>
           )}
 
-          {/* 2. CASH LOAN FIELDS */}
+          {/* 2. QARD HASAN (INTEREST-FREE FINANCIAL ASSISTANCE) FIELDS */}
           {entryType === "CASH_LOAN" && (
             <div className="space-y-3 p-4 bg-amber-50/50 rounded-xl border border-amber-100">
               <div className="flex items-center gap-2 text-xs font-bold text-amber-800 uppercase tracking-wider">
-                <Coins className="h-4 w-4" /> Cash Given to Customer
+                <Coins className="h-4 w-4" /> Qard Hasan (قرض حسن) — Interest-Free Assistance
               </div>
               <p className="text-xs text-amber-700">
-                Direct cash loan given to this customer profile. No product record is created or required.
+                Direct interest-free financial assistance provided to this person. No interest or markup will ever be charged. Agrees to repayment of principal amount only.
               </p>
 
               <div className="space-y-1">
-                <Label htmlFor="cash-loan-amount" className="text-xs font-semibold text-slate-700">Cash Loan Amount (Rs) *</Label>
+                <Label htmlFor="cash-loan-amount" className="text-xs font-semibold text-slate-700">Amount Provided (Rs) *</Label>
                 <Input
                   id="cash-loan-amount"
                   type="number"
@@ -553,11 +556,11 @@ export default function CreateCustomerCreditModal({
             </div>
           )}
 
-          {/* 3. OTHER CREDIT FIELDS */}
+          {/* 3. OTHER PERSONAL FIELDS */}
           {entryType === "OTHER_CREDIT" && (
             <div className="space-y-3 p-4 bg-purple-50/50 rounded-xl border border-purple-100">
               <div className="flex items-center gap-2 text-xs font-bold text-purple-800 uppercase tracking-wider">
-                <FileText className="h-4 w-4" /> Custom Amount Owed
+                <FileText className="h-4 w-4" /> Other Amount Spent on Behalf / Expense
               </div>
 
               <div className="space-y-1">
@@ -587,7 +590,7 @@ export default function CreateCustomerCreditModal({
             </div>
           )}
 
-          {/* Optional Upfront Payment / Partial Payment Section */}
+          {/* Optional Upfront Settlement / Partial Payment Section */}
           <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
             <div className="flex items-center justify-between">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -599,13 +602,13 @@ export default function CreateCustomerCreditModal({
                 />
                 <span className="text-xs font-bold text-slate-700">
                   {entryType === "CASH_LOAN" 
-                    ? "Customer repaid cash upfront on this entry?" 
-                    : "Customer paid an upfront amount now?"}
+                    ? "Person repaid partial amount upfront?" 
+                    : "Person paid partial settlement upfront?"}
                 </span>
               </label>
               {hasUpfrontPayment && (
                 <span className="text-xs font-bold text-emerald-600">
-                  Partial payment will be allocated
+                  Partial settlement will be allocated
                 </span>
               )}
             </div>
@@ -701,9 +704,9 @@ export default function CreateCustomerCreditModal({
               }`}
             >
               {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {entryType === "PRODUCT_CREDIT" && "Save Product Credit"}
-              {entryType === "CASH_LOAN" && "Record Cash Loan"}
-              {entryType === "OTHER_CREDIT" && "Save Other Credit"}
+              {entryType === "PRODUCT_CREDIT" && "Save Expense on Behalf"}
+              {entryType === "CASH_LOAN" && "Record Qard Hasan"}
+              {entryType === "OTHER_CREDIT" && "Save Other Transaction"}
             </Button>
           </div>
         </form>

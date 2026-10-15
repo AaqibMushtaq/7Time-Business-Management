@@ -849,11 +849,11 @@ export async function reallocateExistingPayment(
 export function getCreditTypeLabel(type: CustomerCreditType): string {
   switch (type) {
     case "PRODUCT_CREDIT":
-      return "Product Credit"
+      return "Expense on Behalf"
     case "CASH_LOAN":
-      return "Cash Loan"
+      return "Qard Hasan"
     case "OTHER_CREDIT":
-      return "Other Credit"
+      return "Other Personal"
     default:
       return type
   }

@@ -126,19 +126,38 @@ Every AI session must verify these three gates before finishing:
 
 ## 7. Current Project Status & Recent Milestones
 
-- **Latest Completed Milestone:** Local Customer Ledger Refactor (Personal Debtors/Creditors Separation):
+- **Latest Completed Milestone: Personal Ledger — Final Naming & Terminology Correction (Separation of Personal Dealings from Wholesale Customers & Islamic Finance Terminology)**:
+  - **Module Separation & Terminology**:
+    - Sidebar menu item and section strictly titled **Personal Ledger** under navigation category `PERSONAL LEDGER`.
+    - Directory and records labeled as **People** and **Person Details** (never "wholesale customers" or "resellers").
+    - Wholesale Customers and Sales module (`/wholesale`) left completely untouched with its native business-to-business terminology.
+    - Page Header: Title `Personal Ledger`, supporting description: *"Track purchases made on behalf of people, money lent or owed, expenses paid personally or by 7TIME, and settlements received or paid."* Primary actions: `+ Add Person`, `+ Record Expense on Behalf`, `+ Give Qard Hasan`, `+ Record Settlement`.
+  - **Mandatory Islamic Finance Compliance**:
+    - Eliminated terms like "Loan", "Cash Loan", "Lending", "Borrower", "Lender", and "Interest" from the personal ledger UI.
+    - Replaced with **Qard Hasan (قرض حسن)** (Interest-Free Assistance) representing genuine interest-free loans repayable according to agreed terms.
+    - Zero interest calculations, time-based penalties, or automatic charges anywhere in the application.
+    - Replaced "Customer Credit" / "Product Credit" with **Expense on Behalf** (or Amount Spent on Behalf).
+    - Replaced "Record Payment" with **Record Settlement** / **Settlement Received**.
+    - Replaced "Customer Owes" / "I Owe" with **Receivable (They Owe Me)** and **Payable (I Owe Them)**.
+    - Replaced "Customer Ledger" with **Personal Account Ledger**.
+  - **Capital Origin & Direction Segregation**:
+    - Distinct origin funding source maintained: **7TIME Business Funds** vs **Personal Funds** vs Unallocated legacy records.
+    - Clear transaction direction: Receivable (They Owe Me) vs Payable (I Owe Them) vs Settled.
+  - **Zero Data Loss & Safe Underlying Persistence**:
+    - PostgreSQL tables (`reseller_customers`, `customer_credits`, `reseller_payments`, `customer_payment_allocations`) and enum values (`PRODUCT_CREDIT`, `CASH_LOAN`, `OTHER_CREDIT`, `7TIME_FUNDS`, `PERSONAL_FUNDS`) remain 100% untouched.
+    - Zero destructive migrations, zero changes to accounting formulas, foreign keys, or RLS policies.
+  - **Quality Gates & Automated Verification**:
+    - `oxlint`: 0 warnings, 0 errors across 126 files.
+    - `tsc -b`: 0 type errors.
+    - `vitest run`: 24 test suites, 213 tests passing (100% pass rate).
+    - `npm run build`: Production bundle compiles cleanly in 3.31s.
+
+- **Previous Milestone: Local Customer Ledger Refactor (Personal Debtors/Creditors Separation)**:
   - **Dedicated Route & Navigation:** Primary route `/local-customers` (and `/local-customers/:id`) introduced; sidebar link updated to `/local-customers` under `PERSONAL LEDGER`. Legacy URLs (`/resellers`, `/customers`, `/reseller-payments`) preserved as backward-compatible aliases/redirects with zero 404s.
-  - **Safe Domain Model Separation:** Database table `public.reseller_customers` and all foreign keys left 100% intact without risky schema renaming. Clean domain layer introduced via `src/services/localCustomers.ts` exporting `LocalCustomer` and typed aliases.
   - **Accounting Precision (Receivables vs Payables):** Dual-direction accounting implemented without deceptive netting:
     - Amount They Owe Me (Total Receivables): $\sum \max(0, \text{Debt})$.
     - Amount I Owe Them (Total Payables / Customer Advances): $\sum \text{Customer Advances (payments exceeding debt)}$.
-  - **UI Modernization:** 5 comprehensive top metric summary cards (Total Local Contacts, Amount They Owe Me, Amount I Owe Them, 7TIME Funds Due, Personal Funds Due), separate columns in directory table, and conditional rendering of "Historical Wholesale Orders" tab inside customer drawer (only shown if historical orders exist).
-  - **Terminology Cleanup:** Removed "reseller" / "wholesale customer" labels from personal ledger interface in favor of "Person", "Customer Profile", "Product Credit", "Cash Loan", and "Payment Received".
-- **Quality Verification:**
-  - `oxlint`: 0 warnings, 0 errors across 126 files.
-  - `tsc -b`: 0 type errors.
-  - `vitest run`: 24 test files, 213 tests passing (0 failures).
-  - `npm run build`: Production bundle compiles cleanly in ~2.8s.
+  - **UI Modernization:** Top metric summary cards, separate columns in directory table, and conditional rendering of "Historical Wholesale Orders" tab inside customer drawer (only shown if historical orders exist).
 - **Post-Deployment Live Verification (Phase 10):**
   - Live deployment at `https://aaqibmushtaq.github.io/7Time-Business-Management/` verified via browser subagent.
   - All core operational modules (Dashboard, Dealers, Resellers, Deliveries, Naeem) render real data with 0 console errors and 0 network failures.

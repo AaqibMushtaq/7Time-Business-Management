@@ -215,10 +215,10 @@ export default function RecordResellerPaymentModal({
             </div>
             <div>
               <h2 id="record-customer-payment-title" className="text-xl font-bold leading-tight">
-                Record Payment Received
+                Record Settlement Received
               </h2>
               <p className="text-xs text-blue-100 font-medium">
-                {currentReseller ? `Payment received from ${currentReseller.name}` : "Personal ledger payment received"}
+                {currentReseller ? `Settlement received from ${currentReseller.name}` : "Personal ledger settlement received"}
               </p>
             </div>
           </div>
@@ -239,16 +239,16 @@ export default function RecordResellerPaymentModal({
             <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-start gap-2.5">
               <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold">Unable to record payment</p>
+                <p className="font-semibold">Unable to record settlement</p>
                 <p className="text-xs text-red-600 mt-0.5">{formError}</p>
               </div>
             </div>
           )}
 
-          {/* Customer Selection */}
+          {/* Person Selection */}
           <div className="space-y-1.5">
             <Label htmlFor="reseller-select" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Person / Customer <span className="text-red-500">*</span>
+              Person <span className="text-red-500">*</span>
             </Label>
             <select
               id="reseller-select"
@@ -261,7 +261,7 @@ export default function RecordResellerPaymentModal({
               }}
               disabled={mutation.isPending}
             >
-              <option value="" disabled>Select Customer</option>
+              <option value="" disabled>Select Person</option>
               {resellers.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name} {c.phone ? `(${c.phone})` : ""}
@@ -281,10 +281,10 @@ export default function RecordResellerPaymentModal({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Payment Date */}
+            {/* Settlement Date */}
             <div className="space-y-1.5">
               <Label htmlFor="payment-date" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Payment Date <span className="text-red-500">*</span>
+                Settlement Date <span className="text-red-500">*</span>
               </Label>
               <Input
                 id="payment-date"
@@ -384,7 +384,7 @@ export default function RecordResellerPaymentModal({
               </div>
 
               <p className="text-[11px] text-slate-500">
-                You can specify exactly how much of this payment covers each outstanding Product Credit, Cash Loan, or Other Credit. Unallocated funds act as customer advance.
+                You can specify exactly how much of this settlement covers each outstanding Expense on Behalf, Qard Hasan, or Other Personal transaction. Unallocated funds act as advance.
               </p>
 
               <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
@@ -402,9 +402,9 @@ export default function RecordResellerPaymentModal({
                             {getCreditTypeLabel(entry.entry_type)}
                           </span>
                           <span className="text-xs font-bold text-slate-800">
-                            {entry.entry_type === "PRODUCT_CREDIT" && entry.product_name}
-                            {entry.entry_type === "CASH_LOAN" && "Cash Loan"}
-                            {entry.entry_type === "OTHER_CREDIT" && entry.description}
+                            {entry.entry_type === "PRODUCT_CREDIT" && (entry.product_name || "Expense on Behalf")}
+                            {entry.entry_type === "CASH_LOAN" && "Qard Hasan"}
+                            {entry.entry_type === "OTHER_CREDIT" && (entry.description || "Other Personal")}
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-500">
@@ -446,7 +446,7 @@ export default function RecordResellerPaymentModal({
                   <span className="font-bold text-blue-800">{formatMoney(totalAllocated)}</span>
                 </div>
                 <div>
-                  <span className="text-slate-600">Customer Advance: </span>
+                  <span className="text-slate-600">Advance Balance: </span>
                   <span className="font-bold text-emerald-700">{formatMoney(unallocatedAdvance)}</span>
                 </div>
               </div>
@@ -454,7 +454,7 @@ export default function RecordResellerPaymentModal({
               {isOverAllocated && (
                 <div className="text-xs text-red-600 font-bold flex items-center gap-1">
                   <AlertCircle className="h-3.5 w-3.5" />
-                  Total allocated exceeds payment amount!
+                  Total allocated exceeds settlement amount!
                 </div>
               )}
             </div>
@@ -467,7 +467,7 @@ export default function RecordResellerPaymentModal({
             </Label>
             <Input
               id="notes"
-              placeholder="e.g. Cleared oil purchase, partial loan repayment"
+              placeholder="e.g. Cleared purchase on behalf, partial repayment of Qard Hasan"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               disabled={mutation.isPending}
@@ -492,7 +492,7 @@ export default function RecordResellerPaymentModal({
               className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold shadow-xs"
             >
               {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Payment
+              Save Settlement
             </Button>
           </div>
         </form>

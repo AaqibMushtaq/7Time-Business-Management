@@ -38,7 +38,7 @@ export default function EditCustomerProfileModal({
       onClose()
     },
     onError: (err: any) => {
-      setFormError(err.message || "Failed to update customer profile")
+      setFormError(err.message || "Failed to update person details")
     }
   })
 
@@ -50,7 +50,7 @@ export default function EditCustomerProfileModal({
 
     const trimmedName = name.trim()
     if (!trimmedName) {
-      setFormError("Customer name is required.")
+      setFormError("Name is required.")
       return
     }
 
@@ -84,10 +84,10 @@ export default function EditCustomerProfileModal({
             </div>
             <div>
               <h2 id="edit-profile-title" className="text-lg font-bold leading-tight">
-                Edit Customer Profile
+                Edit Person Details
               </h2>
               <p className="text-xs text-blue-100 font-medium">
-                Update contact information and ledger notes
+                Update contact details and personal ledger notes
               </p>
             </div>
           </div>
@@ -113,16 +113,16 @@ export default function EditCustomerProfileModal({
             </div>
           )}
 
-          {/* Customer Name */}
+          {/* Person Full Name */}
           <div className="space-y-1.5">
             <Label htmlFor="customer-name" className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-slate-400" />
-              Customer Name <span className="text-red-500">*</span>
+              Full Name <span className="text-red-500">*</span>
             </Label>
             <Input
               id="customer-name"
               required
-              placeholder="e.g. Ishfaq ATM"
+              placeholder="e.g. Ishfaq Ahmad"
               value={name}
               onChange={(e) => setName(e.target.value)}
               disabled={mutation.isPending}
@@ -156,24 +156,24 @@ export default function EditCustomerProfileModal({
               id="customer-address"
               rows={2}
               className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
-              placeholder="Locality, shop number, or delivery landmark"
+              placeholder="Locality, residence, or delivery landmark"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               disabled={mutation.isPending}
             />
           </div>
 
-          {/* Customer Notes */}
+          {/* Personal Ledger Notes */}
           <div className="space-y-1.5">
             <Label htmlFor="customer-notes" className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5 text-slate-400" />
-              Customer Notes / Terms
+              Personal Ledger Notes / Terms
             </Label>
             <textarea
               id="customer-notes"
               rows={3}
               className="flex w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
-              placeholder="Important notes, credit agreement, or special instructions"
+              placeholder="Important notes, agreement, or special instructions"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               disabled={mutation.isPending}

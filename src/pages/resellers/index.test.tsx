@@ -46,7 +46,7 @@ vi.mock("@/lib/supabase", () => ({
   }
 }))
 
-describe("Local Customers (ResellersPage Component)", () => {
+describe("Personal Ledger (ResellersPage Component)", () => {
   let queryClient: QueryClient
 
   const mockCustomers = [
@@ -200,7 +200,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     })
   })
 
-  it("renders page title, summary cards distinguishing Product Credit and Cash Loans, and customer list", async () => {
+  it("renders page title, summary cards distinguishing Expense on Behalf and Qard Hasan, and people list", async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ResellersPage />
@@ -208,13 +208,13 @@ describe("Local Customers (ResellersPage Component)", () => {
     )
 
     // Page title and subtitle
-    expect(await screen.findByText("Local Customers")).toBeDefined()
-    expect(screen.getByText(/Manage customer accounts, track Product Credits, Cash Loans/i)).toBeDefined()
+    expect(await screen.findByText("Personal Ledger")).toBeDefined()
+    expect(screen.getByText(/Track purchases made on behalf of people, money lent or owed/i)).toBeDefined()
 
     // Summary Metric Cards with distinct badges (Receivables and Payables)
-    expect(screen.getByText("Total Local Contacts")).toBeDefined()
-    expect(screen.getByText("Amount They Owe Me")).toBeDefined()
-    expect(screen.getByText("Amount I Owe Them")).toBeDefined()
+    expect(screen.getByText("Total People")).toBeDefined()
+    expect(screen.getAllByText("Receivable (They Owe Me)").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("Payable (I Owe Them)").length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText("7TIME Funds")).toBeDefined()
     expect(screen.getByText("Personal Funds")).toBeDefined()
 
@@ -224,7 +224,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     expect(screen.getByText("+91 9876543210")).toBeDefined()
   })
 
-  it("opens Create Customer Credit modal with Product Credit type when + Product Credit is clicked", async () => {
+  it("opens Create Entry modal with Expense on Behalf type when + Record Expense on Behalf is clicked", async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ResellersPage />
@@ -233,16 +233,16 @@ describe("Local Customers (ResellersPage Component)", () => {
 
     await screen.findByText("Ishfaq ATM")
 
-    // Click global + Product Credit button
-    const prodCreditBtn = screen.getByRole("button", { name: /\+ Product Credit/i })
-    fireEvent.click(prodCreditBtn)
+    // Click global + Record Expense on Behalf button
+    const expOnBehalfBtn = screen.getByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(expOnBehalfBtn)
 
     expect(await screen.findByRole("dialog")).toBeDefined()
-    expect(screen.getByText("Record Product Credit")).toBeDefined()
-    expect(screen.getByLabelText(/Product \/ Item Name/i)).toBeDefined()
+    expect(screen.getByText("Record Expense on Behalf")).toBeDefined()
+    expect(screen.getByLabelText(/Item \/ Expense Name/i)).toBeDefined()
   })
 
-  it("opens Cash Loan modal without requiring a product name when + Cash Loan is clicked", async () => {
+  it("opens Qard Hasan modal when + Give Qard Hasan is clicked", async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ResellersPage />
@@ -251,18 +251,18 @@ describe("Local Customers (ResellersPage Component)", () => {
 
     await screen.findByText("Ishfaq ATM")
 
-    // Click global + Cash Loan button
-    const cashLoanBtn = screen.getByRole("button", { name: /\+ Cash Loan/i })
-    fireEvent.click(cashLoanBtn)
+    // Click global + Give Qard Hasan button
+    const qardHasanBtn = screen.getByRole("button", { name: /\+ Give Qard Hasan/i })
+    fireEvent.click(qardHasanBtn)
 
     expect(await screen.findByRole("dialog")).toBeDefined()
-    expect(screen.getByText("Give Cash Loan")).toBeDefined()
-    expect(screen.getByText(/Direct cash loan given to this customer profile. No product record is created or required./i)).toBeDefined()
-    expect(screen.getByLabelText(/Cash Loan Amount/i)).toBeDefined()
-    expect(screen.queryByLabelText(/Product \/ Item Name/i)).toBeNull()
+    expect(screen.getByText("Give Qard Hasan (Interest-Free Assistance)")).toBeDefined()
+    expect(screen.getByText(/Qard Hasan \(قرض حسن\) — Interest-Free Assistance/i)).toBeDefined()
+    expect(screen.getByLabelText(/Amount Provided \(Rs\)/i)).toBeDefined()
+    expect(screen.queryByLabelText(/Item \/ Expense Name/i)).toBeNull()
   })
 
-  it("opens Record Payment modal with multi-entry allocation support and submits payment", async () => {
+  it("opens Record Settlement modal with multi-entry allocation support and submits settlement", async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ResellersPage />
@@ -271,12 +271,12 @@ describe("Local Customers (ResellersPage Component)", () => {
 
     await screen.findByText("Ishfaq ATM")
 
-    // Click global Record Payment button
-    const recordButtons = screen.getAllByRole("button", { name: /payment/i })
+    // Click global Record Settlement button
+    const recordButtons = screen.getAllByRole("button", { name: /settlement/i })
     fireEvent.click(recordButtons[0])
 
     expect(await screen.findByRole("dialog")).toBeDefined()
-    expect(screen.getByText("Record Payment Received")).toBeDefined()
+    expect(screen.getByText("Record Settlement Received")).toBeDefined()
 
     // Fill in amount
     const amountInput = screen.getByLabelText(/amount received/i)
@@ -291,7 +291,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     fireEvent.change(notesInput, { target: { value: "Test settlement note" } })
 
     // Submit form
-    const submitBtn = screen.getByRole("button", { name: /save payment/i })
+    const submitBtn = screen.getByRole("button", { name: /save settlement/i })
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
@@ -307,7 +307,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     })
   })
 
-  it("opens Customer Ledger panel displaying Product Credit, Cash Loans, and Payment History", async () => {
+  it("opens Personal Ledger panel displaying Expense on Behalf, Qard Hasan, and Settlement History", async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ResellersPage />
@@ -321,19 +321,19 @@ describe("Local Customers (ResellersPage Component)", () => {
 
     // Details panel should render
     await waitFor(() => {
-      expect(screen.getAllByText("Customer Profile").length).toBeGreaterThanOrEqual(1)
-      expect(screen.getByRole("button", { name: /all credits & loans/i })).toBeDefined()
+      expect(screen.getAllByText("Person Details").length).toBeGreaterThanOrEqual(1)
+      expect(screen.getByRole("button", { name: /all entries/i })).toBeDefined()
     })
 
-    // Click on Payments Received tab to view payments
-    const paymentsTab = screen.getByRole("button", { name: /payments received/i })
-    fireEvent.click(paymentsTab)
+    // Click on Settlements Received tab to view settlements
+    const settlementsTab = screen.getByRole("button", { name: /settlements received/i })
+    fireEvent.click(settlementsTab)
 
-    // Payment history item rendered
+    // Settlement history item rendered
     expect(await screen.findByText("Initial deposit")).toBeDefined()
   })
 
-  it("filters customer directory by Has Outstanding, Has Product Credit, and Has Cash Loan", async () => {
+  it("filters people directory by Has Outstanding, Has Expense on Behalf, and Has Qard Hasan", async () => {
     render(
       <QueryClientProvider client={queryClient}>
         <ResellersPage />
@@ -343,8 +343,8 @@ describe("Local Customers (ResellersPage Component)", () => {
     await screen.findByText("Ishfaq ATM")
     expect(screen.getByText("Tariq Wholesale")).toBeDefined()
 
-    // Filter by Has Outstanding (They Owe Me)
-    const select = screen.getByDisplayValue("All Local Contacts")
+    // Filter by Has Outstanding (Receivable)
+    const select = screen.getByDisplayValue("All People")
     fireEvent.change(select, { target: { value: "HAS_OUTSTANDING" } })
 
     // Only Ishfaq ATM has outstanding balance
@@ -365,7 +365,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     expect(getByText("Consolidated Local Customers Destination")).toBeDefined()
   })
 
-  it("opens Edit Profile modal, updates customer details including notes, and submits to Supabase", async () => {
+  it("opens Edit Details modal, updates person details including notes, and submits to Supabase", async () => {
     ;(updateReseller as any).mockResolvedValue({
       id: "cust-1",
       name: "Ishfaq ATM Updated",
@@ -385,15 +385,15 @@ describe("Local Customers (ResellersPage Component)", () => {
     // Open detail modal for Ishfaq ATM
     fireEvent.click(screen.getByText("Ishfaq ATM"))
 
-    // Find and click "Edit Profile" button
-    const editProfileBtn = await screen.findByRole("button", { name: /edit profile/i })
-    fireEvent.click(editProfileBtn)
+    // Find and click "Edit Details" button
+    const editDetailsBtn = await screen.findByRole("button", { name: /edit details/i })
+    fireEvent.click(editDetailsBtn)
 
-    // Edit Profile Modal is rendered
-    expect(await screen.findByText("Edit Customer Profile")).toBeDefined()
+    // Edit Person Details Modal is rendered
+    expect(await screen.findByText("Edit Person Details")).toBeDefined()
 
     // Edit Name
-    const nameInput = screen.getByLabelText(/customer name/i)
+    const nameInput = screen.getByLabelText(/full name/i)
     fireEvent.change(nameInput, { target: { value: "Ishfaq ATM Updated" } })
 
     // Edit Phone
@@ -401,7 +401,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     fireEvent.change(phoneInput, { target: { value: "+91 9999988888" } })
 
     // Edit Notes
-    const notesInput = screen.getByLabelText(/customer notes/i)
+    const notesInput = screen.getByLabelText(/personal ledger notes/i)
     fireEvent.change(notesInput, { target: { value: "Preferred customer with prompt settlements" } })
 
     // Save Changes
@@ -468,7 +468,7 @@ describe("Local Customers (ResellersPage Component)", () => {
     })
   })
 
-  it("filters customer directory by Has Credit / Advance (I Owe Them)", async () => {
+  it("filters people directory by Payable (I Owe Them)", async () => {
     const customersWithAdvance = [
       ...mockCustomers,
       {
@@ -500,8 +500,8 @@ describe("Local Customers (ResellersPage Component)", () => {
 
     await screen.findByText("Adil Advance Payee")
 
-    // Filter by Has Credit / Advance (I Owe Them)
-    const select = screen.getByDisplayValue("All Local Contacts")
+    // Filter by Payable (I Owe Them)
+    const select = screen.getByDisplayValue("All People")
     fireEvent.change(select, { target: { value: "HAS_CREDIT_BALANCE" } })
 
     // Only Adil Advance Payee has credit balance

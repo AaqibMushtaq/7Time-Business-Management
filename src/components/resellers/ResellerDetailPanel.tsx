@@ -473,7 +473,7 @@ export default function ResellerDetailPanel({
         />
       )}
 
-      {/* Confirmation Dialog: Delete Credit Entry */}
+      {/* Confirmation Dialog: Delete Ledger Entry */}
       {creditToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
@@ -482,12 +482,12 @@ export default function ResellerDetailPanel({
                 <Trash2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Delete Credit Entry</h3>
+                <h3 className="font-bold text-slate-900 text-base">Delete Ledger Entry</h3>
                 <p className="text-xs text-slate-500">This action cannot be undone</p>
               </div>
             </div>
             <p className="text-sm text-slate-600">
-              Are you sure you want to delete entry <span className="font-semibold text-slate-900">"{creditToDelete.product_name || creditToDelete.description || creditToDelete.entry_type}"</span> totaling {formatMoney(creditToDelete.total_amount)}?
+              Are you sure you want to delete entry <span className="font-semibold text-slate-900">"{creditToDelete.product_name || creditToDelete.description || (creditToDelete.entry_type === "CASH_LOAN" ? "Qard Hasan" : creditToDelete.entry_type === "PRODUCT_CREDIT" ? "Expense on Behalf" : creditToDelete.entry_type)}"</span> totaling {formatMoney(creditToDelete.total_amount)}?
             </p>
             <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
               <Button
@@ -512,7 +512,7 @@ export default function ResellerDetailPanel({
         </div>
       )}
 
-      {/* Confirmation Dialog: Void Payment */}
+      {/* Confirmation Dialog: Void Settlement */}
       {paymentToVoid && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 animate-in fade-in zoom-in-95">
@@ -521,12 +521,12 @@ export default function ResellerDetailPanel({
                 <Trash2 className="h-6 w-6" />
               </div>
               <div>
-                <h3 className="font-bold text-slate-900 text-base">Void / Delete Payment</h3>
-                <p className="text-xs text-slate-500">Payment of {formatMoney(paymentToVoid.amount)}</p>
+                <h3 className="font-bold text-slate-900 text-base">Void / Delete Settlement</h3>
+                <p className="text-xs text-slate-500">Settlement of {formatMoney(paymentToVoid.amount)}</p>
               </div>
             </div>
             <p className="text-sm text-slate-600">
-              Are you sure you want to void this payment recorded on {formatDate(paymentToVoid.payment_date)}? Any credit entry balances satisfied by this payment will be safely restored.
+              Are you sure you want to void this settlement recorded on {formatDate(paymentToVoid.payment_date)}? Any ledger entry balances satisfied by this settlement will be safely restored.
             </p>
             <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
               <Button
@@ -567,7 +567,7 @@ export default function ResellerDetailPanel({
                   {reseller.name}
                 </h2>
                 <span className="bg-blue-50 text-[#2D7FF9] text-xs font-bold px-2.5 py-0.5 rounded-full border border-blue-200/60 uppercase tracking-wider">
-                  Customer Profile
+                  Person Details
                 </span>
                 {/* Edit Profile Action */}
                 <Button
@@ -576,7 +576,7 @@ export default function ResellerDetailPanel({
                   onClick={() => setIsEditProfileOpen(true)}
                   className="h-7 text-xs font-semibold text-slate-600 hover:text-blue-600 hover:bg-blue-50 border-slate-200 gap-1"
                 >
-                  <Pencil className="h-3 w-3" /> Edit Profile
+                  <Pencil className="h-3 w-3" /> Edit Details
                 </Button>
               </div>
 
@@ -633,34 +633,34 @@ export default function ResellerDetailPanel({
               </Button>
             </div>
 
-            {/* + Product Credit */}
+            {/* + Expense on Behalf */}
             <Button
               onClick={() => openAddCredit("PRODUCT_CREDIT")}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm shadow-xs"
               size="sm"
             >
-              <Package className="mr-1.5 h-4 w-4" /> + Product Credit
+              <Package className="mr-1.5 h-4 w-4" /> + Expense on Behalf
             </Button>
 
-            {/* + Cash Loan */}
+            {/* + Give Qard Hasan */}
             <Button
               onClick={() => openAddCredit("CASH_LOAN")}
               className="bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs sm:text-sm shadow-xs"
               size="sm"
             >
-              <Coins className="mr-1.5 h-4 w-4" /> + Cash Loan
+              <Coins className="mr-1.5 h-4 w-4" /> + Give Qard Hasan
             </Button>
 
-            {/* + Other Credit */}
+            {/* + Other Personal */}
             <Button
               onClick={() => openAddCredit("OTHER_CREDIT")}
               className="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs sm:text-sm shadow-xs"
               size="sm"
             >
-              <FileText className="mr-1.5 h-4 w-4" /> + Other Credit
+              <FileText className="mr-1.5 h-4 w-4" /> + Other Personal
             </Button>
 
-            {/* Primary Action: Record Payment */}
+            {/* Primary Action: Record Settlement */}
             <Button 
               onClick={() => {
                 setRepayTargetCreditId(null)
@@ -669,7 +669,7 @@ export default function ResellerDetailPanel({
               className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white shadow-xs font-semibold text-xs sm:text-sm"
               size="sm"
             >
-              <Wallet className="mr-1.5 h-4 w-4" /> Record Payment
+              <Wallet className="mr-1.5 h-4 w-4" /> Record Settlement
             </Button>
 
             {/* Close Modal Button */}
@@ -695,7 +695,7 @@ export default function ResellerDetailPanel({
               <Card className={`bg-white shadow-xs border ${theyOweMe > 0 ? "border-red-200 bg-red-50/20" : "border-emerald-200 bg-emerald-50/20"}`}>
                 <CardHeader className="pb-1 pt-3.5 px-4">
                   <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                    Amount They Owe Me
+                    Receivable (They Owe Me)
                     <Wallet className={`h-4 w-4 ${theyOweMe > 0 ? "text-red-500" : "text-emerald-500"}`} />
                   </CardTitle>
                 </CardHeader>
@@ -705,7 +705,7 @@ export default function ResellerDetailPanel({
                   </div>
                   <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${theyOweMe > 0 ? "text-red-600/80" : "text-emerald-600/80"}`}>
                     {theyOweMe > 0 
-                      ? (ledgerSummary.unallocatedPayments > 0 ? `Owed (${formatMoney(ledgerSummary.unallocatedPayments)} unallocated payment)` : "Total Outstanding Debt")
+                      ? (ledgerSummary.unallocatedPayments > 0 ? `Receivable (${formatMoney(ledgerSummary.unallocatedPayments)} unallocated settlement)` : "Total Outstanding Receivable")
                       : "Receivable Settled"}
                   </p>
                 </CardContent>
@@ -715,7 +715,7 @@ export default function ResellerDetailPanel({
               <Card className={`bg-white shadow-xs border ${iOweThem > 0 ? "border-blue-200 bg-blue-50/20" : "border-slate-200"}`}>
                 <CardHeader className="pb-1 pt-3.5 px-4">
                   <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                    Amount I Owe Them
+                    Payable (I Owe Them)
                     <Wallet className={`h-4 w-4 ${iOweThem > 0 ? "text-blue-500" : "text-slate-400"}`} />
                   </CardTitle>
                 </CardHeader>
@@ -724,16 +724,16 @@ export default function ResellerDetailPanel({
                     {formatMoney(iOweThem)}
                   </div>
                   <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${iOweThem > 0 ? "text-blue-600/80" : "text-slate-400"}`}>
-                    {iOweThem > 0 ? "Customer advance balance" : "No Payable Balance"}
+                    {iOweThem > 0 ? "Advance balance / Payable" : "No Payable Balance"}
                   </p>
                 </CardContent>
               </Card>
 
-              {/* Card 3: Product Credit Outstanding */}
+              {/* Card 3: Amount Spent on Behalf */}
               <Card className="bg-white border-emerald-200 bg-emerald-50/15 shadow-xs">
                 <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
                   <CardTitle className="text-xs font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5 text-emerald-600" /> Product Credit Owed
+                    <Package className="h-3.5 w-3.5 text-emerald-600" /> Amount Spent on Behalf
                   </CardTitle>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
                     {ledgerSummary.productCreditCount} items
@@ -744,19 +744,19 @@ export default function ResellerDetailPanel({
                     {formatMoney(ledgerSummary.productCreditOutstanding)}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Taken: {formatMoney(ledgerSummary.productCreditTotal)} • Paid: {formatMoney(ledgerSummary.productCreditPaid)}
+                    Spent: {formatMoney(ledgerSummary.productCreditTotal)} • Settled: {formatMoney(ledgerSummary.productCreditPaid)}
                   </p>
                 </CardContent>
               </Card>
 
-              {/* Card 4: Cash Loans Remaining */}
+              {/* Card 4: Outstanding Qard Hasan */}
               <Card className="bg-white border-amber-200 bg-amber-50/15 shadow-xs">
                 <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
                   <CardTitle className="text-xs font-semibold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                    <Coins className="h-3.5 w-3.5 text-amber-600" /> Cash Loans Owed
+                    <Coins className="h-3.5 w-3.5 text-amber-600" /> Outstanding Qard Hasan
                   </CardTitle>
                   <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
-                    {ledgerSummary.cashLoanCount} loans
+                    {ledgerSummary.cashLoanCount} entries
                   </span>
                 </CardHeader>
                 <CardContent className="px-4 pb-3.5">
@@ -764,7 +764,7 @@ export default function ResellerDetailPanel({
                     {formatMoney(ledgerSummary.cashLoanOutstanding)}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-0.5">
-                    Given: {formatMoney(ledgerSummary.cashLoanTotal)} • Repaid: {formatMoney(ledgerSummary.cashLoanPaid)}
+                    Provided: {formatMoney(ledgerSummary.cashLoanTotal)} • Repaid: {formatMoney(ledgerSummary.cashLoanPaid)}
                   </p>
                 </CardContent>
               </Card>
@@ -808,10 +808,10 @@ export default function ResellerDetailPanel({
               <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-blue-950">
-                  Unallocated Payment Reconciliation Notice
+                  Unallocated Settlement Reconciliation Notice
                 </p>
                 <p className="text-blue-700 mt-0.5">
-                  Customer has <span className="font-bold text-blue-900">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded payments that have not yet been mapped to specific credit rows. Total Net Outstanding is accurately calculated as <span className="font-bold text-blue-900">{formatMoney(ledgerSummary.netOutstanding)}</span>.
+                  Person has <span className="font-bold text-blue-900">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements that have not yet been mapped to specific ledger rows. Total Net Outstanding is accurately calculated as <span className="font-bold text-blue-900">{formatMoney(ledgerSummary.netOutstanding)}</span>.
                 </p>
               </div>
             </div>
@@ -844,7 +844,7 @@ export default function ResellerDetailPanel({
                 : "text-slate-500 hover:text-slate-900"
             }`}
           >
-            All Credits & Loans
+            All Entries
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeTab === "all_credits" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
             }`}>
@@ -861,7 +861,7 @@ export default function ResellerDetailPanel({
             }`}
           >
             <Package className="h-4 w-4" />
-            Product Credit
+            Expense on Behalf
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeTab === "product_credit" ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-600"
             }`}>
@@ -878,7 +878,7 @@ export default function ResellerDetailPanel({
             }`}
           >
             <Coins className="h-4 w-4" />
-            Cash Loans
+            Qard Hasan
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeTab === "cash_loan" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"
             }`}>
@@ -895,7 +895,7 @@ export default function ResellerDetailPanel({
             }`}
           >
             <FileText className="h-4 w-4" />
-            Other Credit
+            Other Personal
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeTab === "other_credit" ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-600"
             }`}>
@@ -931,7 +931,7 @@ export default function ResellerDetailPanel({
             }`}
           >
             <Wallet className="h-4 w-4" />
-            Payments Received
+            Settlements Received
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
               activeTab === "payments" ? "bg-blue-100 text-[#2D7FF9]" : "bg-slate-100 text-slate-600"
             }`}>
@@ -952,7 +952,7 @@ export default function ResellerDetailPanel({
                 <div className="relative w-full">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                   <Input
-                    placeholder="Search product, description, notes..."
+                    placeholder="Search item, description, notes..."
                     value={creditSearchQuery}
                     onChange={(e) => setCreditSearchQuery(e.target.value)}
                     className="pl-9 h-9 text-xs border-slate-200 bg-white"
@@ -1008,7 +1008,7 @@ export default function ResellerDetailPanel({
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
                 <Package className="h-10 w-10 text-slate-300 mx-auto mb-2" />
                 <p className="text-sm font-semibold text-slate-700">No entries match your view or filters</p>
-                <p className="text-xs text-slate-500 mt-1">Use "+ Add Entry" or "+ Product Credit" to record amounts owed.</p>
+                <p className="text-xs text-slate-500 mt-1">Use "+ Add Entry" or "+ Expense on Behalf" to record personal transactions.</p>
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
@@ -1020,9 +1020,9 @@ export default function ResellerDetailPanel({
                       <TableHead className="text-xs font-bold uppercase text-slate-500 min-w-[110px]">Type</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 min-w-[115px]">Money Source</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 min-w-[200px]">Item / Description</TableHead>
-                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[100px]">Total Amount</TableHead>
-                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[90px]">Repaid / Paid</TableHead>
-                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[100px]">Remaining Balance</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[100px]">Amount Provided / Spent</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[90px]">Settled / Repaid</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[100px]">Outstanding Balance</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 text-center min-w-[80px]">Status</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[130px]">Actions</TableHead>
                     </TableRow>
@@ -1065,9 +1065,9 @@ export default function ResellerDetailPanel({
                                 onChange={(e: any) => setEditFormData({ ...editFormData, entry_type: e.target.value })}
                                 className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-800 shadow-2xs focus:border-[#2D7FF9] focus:outline-hidden w-full"
                               >
-                                <option value="PRODUCT_CREDIT">Product Credit</option>
-                                <option value="CASH_LOAN">Cash Loan</option>
-                                <option value="OTHER_CREDIT">Other Credit</option>
+                                <option value="PRODUCT_CREDIT">Expense on Behalf</option>
+                                <option value="CASH_LOAN">Qard Hasan (قرض حسن)</option>
+                                <option value="OTHER_CREDIT">Other Personal</option>
                               </select>
                             </TableCell>
 
@@ -1078,7 +1078,7 @@ export default function ResellerDetailPanel({
                                 onChange={(e: any) => setEditFormData({ ...editFormData, funding_source: (e.target.value as CustomerCreditFundingSource) || "" })}
                                 className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-800 shadow-2xs focus:border-[#2D7FF9] focus:outline-hidden w-full"
                               >
-                                <option value="7TIME_FUNDS">7TIME Funds</option>
+                                <option value="7TIME_FUNDS">7TIME Business Funds</option>
                                 <option value="PERSONAL_FUNDS">Personal Funds</option>
                                 {!editFormData.funding_source && <option value="">Unallocated</option>}
                               </select>
@@ -1090,7 +1090,7 @@ export default function ResellerDetailPanel({
                                 {editFormData.entry_type === "PRODUCT_CREDIT" && (
                                   <>
                                     <Input
-                                      placeholder="Product Name *"
+                                      placeholder="Item / Expense Name *"
                                       value={editFormData.product_name}
                                       onChange={(e) => setEditFormData({ ...editFormData, product_name: e.target.value })}
                                       className="h-7 text-xs font-semibold border-slate-300 bg-white"
@@ -1123,8 +1123,8 @@ export default function ResellerDetailPanel({
                                 )}
 
                                 {editFormData.entry_type === "CASH_LOAN" && (
-                                  <div className="text-xs font-bold text-amber-800 flex items-center gap-1">
-                                    <Coins className="h-3.5 w-3.5" /> Cash Loan Entry
+                                  <div className="text-xs font-bold text-emerald-800 flex items-center gap-1">
+                                    <Coins className="h-3.5 w-3.5" /> Qard Hasan (Interest-Free)
                                   </div>
                                 )}
 
@@ -1229,7 +1229,7 @@ export default function ResellerDetailPanel({
                                   type="button"
                                   onClick={() => setExpandedCreditId(isExpanded ? null : credit.id)}
                                   className="p-1 text-slate-400 hover:text-slate-700 rounded-md"
-                                  title={isExpanded ? "Collapse payment history" : "View repayment history"}
+                                  title={isExpanded ? "Collapse settlement history" : "View settlement history"}
                                 >
                                   {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                                 </button>
@@ -1260,9 +1260,9 @@ export default function ResellerDetailPanel({
                             <TableCell>
                               <div className="space-y-0.5">
                                 <div className="text-sm font-semibold text-slate-900">
-                                  {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Product Credit")}
-                                  {credit.entry_type === "CASH_LOAN" && "Cash Loan"}
-                                  {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Credit")}
+                                  {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Expense on Behalf")}
+                                  {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
+                                  {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
                                 </div>
                                 {credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
                                   <div className="text-[11px] text-slate-500">
@@ -1316,7 +1316,7 @@ export default function ResellerDetailPanel({
                                   <Pencil className="h-3.5 w-3.5" />
                                 </Button>
 
-                                {/* Repay Action Button */}
+                                {/* Settle Action Button */}
                                 {credit.balance > 0 && (
                                   <Button
                                     size="sm"
@@ -1324,7 +1324,7 @@ export default function ResellerDetailPanel({
                                     onClick={() => openRepayCredit(credit.id)}
                                     className="h-7 px-2 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200"
                                   >
-                                    Repay
+                                    Settle
                                   </Button>
                                 )}
 
@@ -1342,23 +1342,23 @@ export default function ResellerDetailPanel({
                             </TableCell>
                           </TableRow>
 
-                          {/* Expandable Repayments History Sub-Table */}
+                          {/* Expandable Settlements History Sub-Table */}
                           {isExpanded && allocs.length > 0 && (
                             <TableRow className="bg-slate-50/70 border-b border-slate-200">
                               <TableCell colSpan={10} className="p-3 pl-12">
                                 <div className="space-y-1.5">
                                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                                     <History className="h-3.5 w-3.5 text-blue-600" />
-                                    Repayment History for this Entry ({allocs.length} repayments)
+                                    Settlement History for this Entry ({allocs.length} settlements)
                                   </div>
                                   <div className="border border-slate-200 rounded-lg overflow-hidden bg-white">
                                     <table className="w-full text-xs">
                                       <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
                                         <tr>
-                                          <th className="py-1.5 px-3 text-left">Payment Date</th>
+                                          <th className="py-1.5 px-3 text-left">Settlement Date</th>
                                           <th className="py-1.5 px-3 text-left">Method</th>
                                           <th className="py-1.5 px-3 text-left">Reference</th>
-                                          <th className="py-1.5 px-3 text-right">Repayment Amount</th>
+                                          <th className="py-1.5 px-3 text-right">Settlement Amount</th>
                                           <th className="py-1.5 px-3 text-left">Notes</th>
                                         </tr>
                                       </thead>
@@ -1405,7 +1405,7 @@ export default function ResellerDetailPanel({
             <h3 className="text-base font-bold text-slate-800">Historical Wholesale Orders</h3>
             {sales.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500">
-                No wholesale sales recorded for this customer.
+                No wholesale orders recorded for this person.
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
@@ -1462,14 +1462,14 @@ export default function ResellerDetailPanel({
           </div>
         )}
 
-        {/* TAB 3: CUSTOMER PAYMENTS HISTORY */}
+        {/* TAB 3: SETTLEMENTS HISTORY */}
         {activeTab === "payments" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-800">All Payments & Repayments Received</h3>
+                <h3 className="text-base font-bold text-slate-800">All Settlements Received</h3>
                 <p className="text-xs text-slate-500">
-                  Total payments recorded: {formatMoney(ledgerSummary.totalPaymentsRecorded)}
+                  Total settlements recorded: {formatMoney(ledgerSummary.totalPaymentsRecorded)}
                 </p>
               </div>
               <Button
@@ -1480,20 +1480,20 @@ export default function ResellerDetailPanel({
                 size="sm"
                 className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold text-xs"
               >
-                <Wallet className="h-3.5 w-3.5 mr-1.5" /> Record Payment
+                <Wallet className="h-3.5 w-3.5 mr-1.5" /> Record Settlement
               </Button>
             </div>
 
             {payments.length === 0 ? (
               <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500">
-                No payments recorded for this customer yet.
+                No settlements recorded for this person yet.
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto shadow-2xs">
                 <Table>
                   <TableHeader className="bg-slate-50">
                     <TableRow>
-                      <TableHead className="text-xs font-bold uppercase text-slate-500">Payment Date</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500">Settlement Date</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 text-right">Amount Received</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500">Method</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500">Reference / Notes</TableHead>
@@ -1559,7 +1559,7 @@ export default function ResellerDetailPanel({
                                   setIsEditPaymentOpen(true)
                                 }}
                                 className="h-7 w-7 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md"
-                                title="Edit & Correct Payment"
+                                title="Edit & Correct Settlement"
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -1570,7 +1570,7 @@ export default function ResellerDetailPanel({
                                 variant="ghost"
                                 onClick={() => setPaymentToVoid(p)}
                                 className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md"
-                                title="Void Payment"
+                                title="Void Settlement"
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>

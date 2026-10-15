@@ -24,7 +24,7 @@ describe("AppLayout Navigation Sidebar", () => {
     vi.clearAllMocks()
   })
 
-  it("renders Local Customers under the dedicated PERSONAL LEDGER section", () => {
+  it("renders Personal Ledger under the dedicated PERSONAL LEDGER section", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AppLayout />
@@ -35,10 +35,10 @@ describe("AppLayout Navigation Sidebar", () => {
     const personalLedgerHeadings = screen.getAllByRole("heading", { name: /PERSONAL LEDGER/i })
     expect(personalLedgerHeadings.length).toBeGreaterThan(0)
 
-    // Local Customers link is present with correct route
-    const localCustomersLinks = screen.getAllByRole("link", { name: /Local Customers/i })
-    expect(localCustomersLinks.length).toBeGreaterThan(0)
-    expect(localCustomersLinks[0].getAttribute("href")).toBe("/local-customers")
+    // Personal Ledger link is present with correct route
+    const personalLedgerLinks = screen.getAllByRole("link", { name: /Personal Ledger/i })
+    expect(personalLedgerLinks.length).toBeGreaterThan(0)
+    expect(personalLedgerLinks[0].getAttribute("href")).toBe("/local-customers")
   })
 
   it("renders Wholesale Sales under the WHOLESALE section separately from Local Customers", () => {

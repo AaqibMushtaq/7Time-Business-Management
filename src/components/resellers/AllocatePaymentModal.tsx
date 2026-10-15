@@ -88,12 +88,12 @@ export default function AllocatePaymentModal({
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (!payment) throw new Error("Payment is required.")
+      if (!payment) throw new Error("Settlement record is required.")
       const allocArray = Object.entries(allocations)
         .map(([creditId, amtStr]) => ({
           creditId,
           amount: parseFloat(amtStr),
-          notes: "Payment allocation"
+          notes: "Settlement allocation"
         }))
         .filter(a => a.amount > 0)
 
@@ -120,7 +120,7 @@ export default function AllocatePaymentModal({
     setFormError(null)
 
     if (isOverAllocated) {
-      setFormError(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed payment amount (${formatMoney(paymentAmount)}).`)
+      setFormError(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed settlement amount (${formatMoney(paymentAmount)}).`)
       return
     }
 
@@ -146,10 +146,10 @@ export default function AllocatePaymentModal({
             </div>
             <div>
               <h2 id="allocate-payment-title" className="text-lg font-bold leading-tight">
-                Allocate Payment to Ledger Entries
+                Allocate Settlement to Personal Ledger Entries
               </h2>
               <p className="text-xs text-blue-100 font-medium">
-                Payment of {formatMoney(payment.amount)} on {formatDate(payment.payment_date)}
+                Settlement of {formatMoney(payment.amount)} on {formatDate(payment.payment_date)}
               </p>
             </div>
           </div>
@@ -178,7 +178,7 @@ export default function AllocatePaymentModal({
           {/* Payment summary box */}
           <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
             <div>
-              <span className="text-slate-500 font-medium">Total Payment:</span>
+              <span className="text-slate-500 font-medium">Total Settlement:</span>
               <span className="ml-1.5 text-base font-bold text-slate-900">{formatMoney(paymentAmount)}</span>
             </div>
             <div>
@@ -216,7 +216,7 @@ export default function AllocatePaymentModal({
           {/* Relevant Credits Table */}
           {relevantCredits.length === 0 ? (
             <div className="p-8 text-center bg-white border border-slate-200 rounded-xl text-slate-500 text-sm">
-              No outstanding credit entries found to allocate to.
+              No outstanding ledger entries found to allocate to.
             </div>
           ) : (
             <div className="space-y-2 border border-slate-200 rounded-xl overflow-hidden bg-white">
@@ -244,9 +244,9 @@ export default function AllocatePaymentModal({
                         </td>
                         <td className="py-2.5 px-3">
                           <div className="font-semibold text-slate-900">
-                            {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Product Credit")}
-                            {credit.entry_type === "CASH_LOAN" && "Cash Loan"}
-                            {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Credit")}
+                            {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Expense on Behalf")}
+                            {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
+                            {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
                           </div>
                           {credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
                             <div className="text-[10px] text-slate-400">
