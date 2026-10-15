@@ -495,5 +495,154 @@ describe("Dealers Accounting & Service Regression Tests", () => {
     const totalPayable = result.reduce((sum, d) => sum + Math.max(0, d.outstanding || 0), 0)
     expect(totalPayable).toBe(6000)
   })
+
+  it("throws an error if purchases query or dealer payments query fails", async () => {
+    const mockDealers = [{ id: "d1", name: "Dealer 1", opening_balance: 1000 }]
+
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      if (table === "dealers") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: mockDealers, error: null })
+          })
+        }
+      }
+      if (table === "purchases") {
+        return { select: vi.fn().mockResolvedValue({ data: null, error: { message: "Database connection failed" } }) }
+      }
+      if (table === "dealer_payments") {
+        return { select: vi.fn().mockResolvedValue({ data: [], error: null }) }
+      }
+      return {}
+    })
+
+    await expect(getDealersWithBalances()).rejects.toThrow("Database connection failed")
+  })
+
+  it("offsets negative advance opening balance with subsequent unpaid purchases", async () => {
+    // Initial Advance Deposit: -₹5,000
+    // Purchase: ₹3,000 with ₹0 upfront -> net new debt = ₹3,000
+    // Expected outstanding = -5000 + 3000 = -2000 (still in advance)
+    // Next Purchase: ₹4,000 with ₹0 upfront -> net new debt = ₹4,000
+    // Expected outstanding = -2000 + 4000 = +2000 (now we owe dealer)
+    const mockDealers = [{ id: "d1", name: "Advance Supplier", opening_balance: -5000 }]
+    const mockPurchases = [
+      { dealer_id: "d1", total_amount: 3000, amount_paid: 0 },
+      { dealer_id: "d1", total_amount: 4000, amount_paid: 0 }
+    ]
+    const mockPayments: any[] = []
+
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      if (table === "dealers") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: mockDealers, error: null })
+          })
+        }
+      }
+      if (table === "purchases") {
+        return { select: vi.fn().mockResolvedValue({ data: mockPurchases, error: null }) }
+      }
+      if (table === "dealer_payments") {
+        return { select: vi.fn().mockResolvedValue({ data: mockPayments, error: null }) }
+      }
+      return {}
+    })
+
+    const result = await getDealersWithBalances()
+    expect(result[0].outstanding).toBe(2000)
+  })
+
+  it("full upfront payment at purchase leaves opening balance untouched and prevents double-counting", async () => {
+    // Opening balance: ₹15,000
+    // Purchase 1: ₹50,000 with ₹50,000 upfront payment
+    // Purchase 2: ₹20,000 with ₹20,000 upfront payment
+    // Separate payment toward opening balance: ₹5,000
+    // Expected: 15,000 + (50,000 - 50,000) + (20,000 - 20,000) - 5,000 = 10,000
+    const mockDealers = [{ id: "d1", name: "Strict Cash Dealer", opening_balance: 15000 }]
+    const mockPurchases = [
+      { dealer_id: "d1", total_amount: 50000, amount_paid: 50000 },
+      { dealer_id: "d1", total_amount: 20000, amount_paid: 20000 }
+    ]
+    const mockPayments = [
+      { dealer_id: "d1", amount: 5000 }
+    ]
+
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      if (table === "dealers") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: mockDealers, error: null })
+          })
+        }
+      }
+      if (table === "purchases") {
+        return { select: vi.fn().mockResolvedValue({ data: mockPurchases, error: null }) }
+      }
+      if (table === "dealer_payments") {
+        return { select: vi.fn().mockResolvedValue({ data: mockPayments, error: null }) }
+      }
+      return {}
+    })
+
+    const result = await getDealersWithBalances()
+    expect(result[0].outstanding).toBe(10000)
+  })
+
+  it("verifies multi-dealer cross-consistency between service, detail calculation, and dashboard payables", async () => {
+    const dealersData = [
+      { id: "d1", name: "Alpha", opening_balance: 8000 },
+      { id: "d2", name: "Beta", opening_balance: 0 },
+      { id: "d3", name: "Gamma", opening_balance: -3000 },
+      { id: "d4", name: "Delta", opening_balance: null } // missing opening balance
+    ]
+    const purchasesData = [
+      { dealer_id: "d1", total_amount: 10000, amount_paid: 2000 }, // unpaid 8000
+      { dealer_id: "d2", total_amount: 5000, amount_paid: 5000 },  // unpaid 0
+      { dealer_id: "d3", total_amount: 1000, amount_paid: 0 }     // unpaid 1000
+    ]
+    const paymentsData = [
+      { dealer_id: "d1", amount: 4000 } // paid 4000
+    ]
+
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      if (table === "dealers") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: dealersData, error: null })
+          })
+        }
+      }
+      if (table === "purchases") {
+        return { select: vi.fn().mockResolvedValue({ data: purchasesData, error: null }) }
+      }
+      if (table === "dealer_payments") {
+        return { select: vi.fn().mockResolvedValue({ data: paymentsData, error: null }) }
+      }
+      return {}
+    })
+
+    const serviceResults = await getDealersWithBalances()
+
+    // Dealer 1: 8000 + (10000 - 2000) - 4000 = 12000
+    const d1 = serviceResults.find(d => d.id === "d1")
+    expect(d1?.outstanding).toBe(12000)
+
+    // Dealer 2: 0 + (5000 - 5000) - 0 = 0
+    const d2 = serviceResults.find(d => d.id === "d2")
+    expect(d2?.outstanding).toBe(0)
+
+    // Dealer 3: -3000 + (1000 - 0) - 0 = -2000
+    const d3 = serviceResults.find(d => d.id === "d3")
+    expect(d3?.outstanding).toBe(-2000)
+
+    // Dealer 4: 0 + 0 - 0 = 0
+    const d4 = serviceResults.find(d => d.id === "d4")
+    expect(d4?.outstanding).toBe(0)
+
+    // Dashboard total payable: only positive balances (d1: 12000, d3's -2000 is not subtracted)
+    const dashboardTotalPayable = serviceResults.reduce((acc, d) => acc + Math.max(0, d.outstanding || 0), 0)
+    expect(dashboardTotalPayable).toBe(12000)
+  })
 })
 

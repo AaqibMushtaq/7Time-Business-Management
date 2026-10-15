@@ -45,15 +45,17 @@ export default function DealersPage() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string, data: any }) => updateDealer(id, data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["dealers"] })
+      if (variables?.id) {
+        queryClient.invalidateQueries({ queryKey: ["dealer", variables.id] })
+      }
       closeForm()
     },
     onError: (error) => {
       setFormError(error.message)
     }
   })
-
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -66,7 +68,9 @@ export default function DealersPage() {
       whatsapp: formData.whatsapp.trim() || null,
       address: formData.address.trim() || null,
       notes: formData.notes.trim() || null,
-      opening_balance: formData.opening_balance ? Number(formData.opening_balance) || 0 : 0
+      opening_balance: formData.opening_balance !== "" && !isNaN(Number(formData.opening_balance))
+        ? Number(formData.opening_balance)
+        : 0
     }
 
     if (editingId) {
@@ -86,7 +90,7 @@ export default function DealersPage() {
       whatsapp: dealer.whatsapp || "",
       address: dealer.address || "",
       notes: dealer.notes || "",
-      opening_balance: dealer.opening_balance !== undefined ? String(dealer.opening_balance) : "0"
+      opening_balance: dealer.opening_balance != null ? String(dealer.opening_balance) : "0"
     })
     setIsFormOpen(true)
   }
@@ -318,6 +322,9 @@ export default function DealersPage() {
                     <p className="text-[11px] text-slate-500 font-bold uppercase tracking-widest mb-1.5">Outstanding Balance</p>
                     <p className={`text-2xl font-bold ${Number(dealer.outstanding) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                       {formatMoney(dealer.outstanding || 0)}
+                    </p>
+                    <p className={`text-[10px] font-semibold uppercase tracking-wider mt-0.5 ${Number(dealer.outstanding) > 0 ? 'text-rose-600/80' : 'text-emerald-600/80'}`}>
+                      {Number(dealer.outstanding) > 0 ? "We Owe Dealer" : Number(dealer.outstanding) < 0 ? "Advance / Dealer Owes Us" : "Settled"}
                     </p>
                     {!!dealer.opening_balance && (
                       <p className="text-[11px] text-slate-400 mt-1">

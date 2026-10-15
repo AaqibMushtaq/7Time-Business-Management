@@ -53,18 +53,18 @@
 - **Observed Symptoms:** Dealers with historical opening balances (added via migration `20261015003500_add_reseller_and_dealer_opening_balances.sql`) displayed ₹0 balance if they had no recent purchases, and outstanding balances across `DealerDetailPage`, `DealerDetailPanel`, and `dashboard.ts` ignored `opening_balance`. Furthermore, the dealer modal lacked an input field to view or set opening balances.
 - **Verified Root Cause:** `dealers.ts` and `dashboard.ts` did not seed dealer balances with `opening_balance`, `dashboard.ts` omitted `opening_balance` from its dealer query projection, and detail view formulas computed `totalPurchases - totalPaid` without adding `opening_balance`.
 - **Fix Implemented:**
-  1. Updated `src/services/dealers.ts` (`Dealer` type & `getDealersWithBalances`) to seed balances with `Number(d.opening_balance || 0)`.
+  1. Updated `src/services/dealers.ts` (`Dealer` type & `getDealersWithBalances`) to seed balances with `Number(d.opening_balance || 0)` and throw explicit query errors.
   2. Updated `src/services/dashboard.ts` to select `opening_balance` and seed `trueOutstandingByDealer`.
-  3. Updated `DealerDetailPage.tsx` and `DealerDetailPanel.tsx` to include `opening_balance` in `outstandingBalance` and display an informative breakdown note.
+  3. Updated `DealerDetailPage.tsx` and `DealerDetailPanel.tsx` to include `opening_balance` in `outstandingBalance`, display an informative breakdown note, and position `useMutation` hooks unconditionally at the component top level to guarantee compliance with React Rules of Hooks.
   4. Added `opening_balance` input field to the Add/Edit Dealer modal in `src/pages/dealers/index.tsx`.
-- **Verification Evidence:** 17 tests passing in `src/services/dealers.test.ts` covering 14 accounting cases + CRUD; 8 tests passing in `src/services/dashboard.test.ts`.
+- **Verification Evidence:** 21 tests passing in `src/services/dealers.test.ts` covering 17 accounting cases + cross-consistency + advance offsets + CRUD; 9 tests passing in `src/services/dashboard.test.ts`; 0 oxlint errors across 123 files; 190 total tests passing.
 
 ### Bug 6: Unused Client-Side `idempotencyKey` State in Purchases & Wholesale
 - **Status:** **CLEANED & VERIFIED (October 15, 2026)**
 - **Observed Symptoms:** Forms in `purchases/index.tsx` and `wholesale/index.tsx` initialized and reset a client `idempotencyKey` via `crypto.randomUUID()`, passing it as `id` to `createMutation`.
 - **Verified Root Cause:** The database tables generate `id DEFAULT uuid_generate_v4()`. No database column or backend idempotency check used this key. The submit buttons are already protected against double-clicks by TanStack Query's `isPending` state and `disabled` attributes.
 - **Fix Implemented:** Made `id` optional in `createPurchase` and `createWholesaleSale`, and removed unused `idempotencyKey` state, setters, and payload pass-through from `purchases/index.tsx` and `wholesale/index.tsx`.
-- **Verification Evidence:** All 27 tests in `wholesaleSales.test.ts` and `wholesale/index.test.tsx` passing; 185 total tests passing.
+- **Verification Evidence:** All 27 tests in `wholesaleSales.test.ts` and `wholesale/index.test.tsx` passing; 190 total tests passing.
 
 ---
 

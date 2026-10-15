@@ -73,7 +73,7 @@ These documents are the active source of truth. Always refer to these for curren
 - **[`docs/DESIGN.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DESIGN.md):** Brand colors, typography, touch targets, and responsive breakpoint matrix.
 - **[`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md):** 14 database tables, triggers, constraints, accounting formulas, and reconciliation rules.
 - **[`docs/SECURITY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/SECURITY.md):** Auth session flows, RLS policies, arithmetic parser safety, and secret handling.
-- **[`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md):** Test frameworks, verified evidence (167 tests), financial reconciliation tests, and known limitations.
+- **[`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md):** Test frameworks, verified evidence (195 tests), financial reconciliation tests, and known limitations.
 - **[`docs/BUGS_AND_DECISIONS.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/BUGS_AND_DECISIONS.md):** Confirmed historical bugs, verified root causes, approved decisions (ADRs), and open questions.
 - **[`docs/PERFORMANCE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PERFORMANCE.md):** Production bundle chunk breakdown, query parallelization, and free-tier limits.
 - **[`docs/DEPLOYMENT_AND_RECOVERY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DEPLOYMENT_AND_RECOVERY.md):** GitHub Pages hosting, CI/CD workflows, migrations, and frontend rollback.
@@ -117,25 +117,29 @@ AI coding agents must load only the documents required for their assigned task:
 ## 6. Verification Checklist Before Concluding Any Task
 
 Every AI session must verify these three gates before finishing:
-1. `npm run lint` — Must report 0 errors and 0 warnings.
-2. `npm run build` — `tsc -b && vite build` must compile cleanly.
-3. `npm test` (`vitest run`) — All 22 Vitest test suites (185 tests) must pass.
+1. `npm run lint` — Must report 0 errors and 0 warnings (Oxlint: 0 warnings, 0 errors across 123 files).
+2. `npm run build` — `tsc -b && vite build` must compile cleanly (0 errors, production bundle built cleanly).
+3. `npm test` (`vitest run`) — All 22 Vitest test suites (195 tests) must pass (0 failures).
 4. **Approval Gate:** STOP and wait for the user's manual review. Do not proceed to unapproved refactoring, feature additions, or deployments.
 
 ---
 
 ## 7. Current Project Status & Recent Milestones
 
-- **Latest Completed Milestone:** Phase 5 (Dealer Opening Balance Accounting), Phase 6 (Reliability Cleanup of Idempotency State), Phase 7 (Quality & Security Verification), Phase 8 (Documentation Sync), and Phase 9 (Production Release v1.3.1 Deployed).
+- **Latest Completed Milestone:** Phase 8 (Documentation Sync), Phase 9 (Release Review), and Phase 10 (Post-Deployment Verification & Recovery Readiness).
 - **Verified Dealer Accounting Status:** Dealer opening balances are fully integrated into `src/services/dealers.ts`, `src/services/dashboard.ts`, `DealerDetailPage.tsx`, `DealerDetailPanel.tsx`, and `dealers/index.tsx`. Total Payables formula verified:
   $$\text{Outstanding} = \text{Opening Balance} + \sum (\text{Purchases.total\_amount} - \text{Purchases.amount\_paid}) - \sum \text{Dealer\_Payments.amount}$$
   $$\text{Total Payable (Dashboard KPI)} = \sum_{\text{dealers}} \max(0, \text{Outstanding})$$
-- **Reliability Cleanup Status:** Dead client-side `idempotencyKey` state removed from purchases and wholesale forms. Rapid repeated submission protection is handled cleanly by TanStack Query `isPending` states and disabled buttons.
+- **Reliability & Idempotency Audit Status:** Verified 0 occurrences of dead `idempotencyKey` state in source code. All submission flows across Dealer Payments, Reseller Payments, Customer Credits, General Delivery, and NAEEM are protected against duplicate submissions via TanStack Query `isPending` state, disabled button states, interactive loading spinners, and over-allocation guards.
 - **Security Hardening Status:** Phase 4.5 migration `20261015020000_restrict_customer_credits_rls.sql` applied in Supabase. Anonymous full access policies dropped and direct privileges revoked from `anon` on `customer_credits` and `customer_payment_allocations`. Authenticated policies use `USING (true)`.
 - **Quality Verification:**
-  - `oxlint`: 0 warnings, 0 errors across 123 files.
+  - `oxlint`: 0 warnings, 0 errors across 123 files (React Rules of Hooks compliant).
   - `tsc -b`: 0 type errors.
-  - `vitest run`: 22 test files, 185 tests passing (0 failures).
-  - `npm run build`: Production bundle compiles cleanly in 4.87s.
-- **Deployment Status:** Release v1.3.1 committed and pushed to `main` (`881b7be`). GitHub Actions pipeline (`deploy.yml`) active for automated continuous deployment to GitHub Pages.
+  - `vitest run`: 22 test files, 195 tests passing (0 failures).
+  - `npm run build`: Production bundle compiles cleanly in 3.28s.
+- **Post-Deployment Live Verification (Phase 10):**
+  - Live deployment at `https://aaqibmushtaq.github.io/7Time-Business-Management/` verified via browser subagent.
+  - All core operational modules (Dashboard, Dealers, Resellers, Deliveries, Naeem) render real data with 0 console errors and 0 network failures.
+  - Database records preserved intact; RLS verified active.
+  - Disaster recovery runbook verified in `docs/production-backup.md`. Cloud backup status is marked unverified without Supabase Dashboard credentials.
 

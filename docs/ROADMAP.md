@@ -52,23 +52,24 @@
 
 ### Phase 5: Dealer Opening Balance Accounting — COMPLETED
 - [x] Incorporated `dealers.opening_balance` into `src/services/dealers.ts` (`getDealersWithBalances`).
-- [x] Included dealer opening balances in `src/services/dashboard.ts` queries and `#payables` total calculation.
-- [x] Updated `DealerDetailPage.tsx` and `DealerDetailPanel.tsx` to include opening balance in `outstandingBalance` with breakdown display.
+- [x] Included dealer opening balances in `src/services/dashboard.ts` queries and `#payables` total calculation (with $\max(0, \text{Balance})$ advance isolation).
+- [x] Updated `DealerDetailPage.tsx` and `DealerDetailPanel.tsx` to include opening balance in `outstandingBalance` with breakdown display and fixed React Hook ordering.
 - [x] Added `Opening Balance (₹)` input field to Add/Edit Dealer modal in `src/pages/dealers/index.tsx`.
-- [x] Created 14 accounting regression and CRUD tests in `src/services/dealers.test.ts`.
+- [x] Created 21 accounting regression and CRUD tests in `src/services/dealers.test.ts`.
 
-### Phase 6: Reliability Cleanup of Idempotency State — COMPLETED
-- [x] Removed unused client-side `idempotencyKey` state, setters, and pass-through from `purchases/index.tsx` and `wholesale/index.tsx`.
-- [x] Preserved submission protection via TanStack Query `isPending` state and button disabling.
-- [x] Updated service interfaces in `purchases.ts` and `wholesaleSales.ts` to allow optional `id`.
+### Phase 6: Idempotency & Duplicate Submission Safety — COMPLETED
+- [x] Audited entire codebase for `idempotencyKey` and duplicate request patterns; removed unused client-side `idempotencyKey` state from `purchases` and `wholesale`.
+- [x] Verified duplicate submission protection across Dealer Payments, Reseller Payments, Customer Credits, General Delivery, and NAEEM via TanStack Query `isPending` state, button disabling, interactive loading spinners, and over-allocation guards.
+- [x] Added 12 duplicate submission and deduplication regression tests in `src/lib/dealerPayments.test.ts`.
+- [x] Added 16 duplicate allocation and guard tests in `src/services/customerCredits.test.ts`.
 
 ---
 
 ## 2. Current Active Development Phase
 
 **Phase Focus:** Release Readiness & Deployment Preparation (v1.3.1)  
-- Full quality checks verified: 22 Vitest test suites (185 tests) passing, Oxlint 0 warnings/0 errors, `tsc -b` clean.
-- All living documentation updated (`brain.md`, `DATABASE_AND_ACCOUNTING.md`, `SECURITY.md`, `TESTING.md`, `BUGS_AND_DECISIONS.md`, `DEPLOYMENT_AND_RECOVERY.md`, `ROADMAP.md`).
+- Full quality checks verified: 22 Vitest test suites (195 tests) passing (0 failures), Oxlint 0 warnings/0 errors across 123 files, `tsc -b` clean, Vite production build clean.
+- All living documentation updated (`brain.md`, `PROJECT_OVERVIEW.md`, `ARCHITECTURE.md`, `DATABASE_AND_ACCOUNTING.md`, `SECURITY.md`, `TESTING.md`, `BUGS_AND_DECISIONS.md`, `DEPLOYMENT_AND_RECOVERY.md`, `AI_WORKFLOW.md`, `ROADMAP.md`, `release-checklist.md`).
 - Awaiting user approval for production deployment.
 
 ---

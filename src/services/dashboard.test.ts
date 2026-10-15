@@ -450,6 +450,53 @@ describe('Dashboard Stats Calculations', () => {
     expect(dealerA?.outstanding).toBe(5000)
     expect(dealerB?.outstanding).toBe(1500)
   })
+
+  it('isolates negative dealer advance balances from reducing totalPayable while keeping negative balance visible in dealer list', async () => {
+    const mockDealers = [
+      { id: 'd1', name: 'Dealer Payable', opening_balance: 4000 },
+      { id: 'd2', name: 'Dealer Advance', opening_balance: -2000 }
+    ]
+    const mockPurchases: any[] = []
+    const mockPayments: any[] = []
+
+    const fromMock = vi.fn().mockImplementation((table) => {
+      const qb: any = {
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null }),
+        limit: vi.fn().mockResolvedValue({ data: [] }),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ data: [] }),
+        order: vi.fn().mockReturnThis(),
+        then: function(resolve: any) { resolve({ data: [] }); }
+      }
+
+      if (table === 'app_settings') {
+        qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+      } else if (table === 'dealers') {
+        qb.select = vi.fn().mockResolvedValue({ data: mockDealers })
+      } else if (table === 'purchases') {
+        qb.limit = vi.fn().mockResolvedValue({ data: mockPurchases })
+        qb.lte = vi.fn().mockResolvedValue({ data: mockPurchases })
+        qb.then = function(resolve: any) { resolve({ data: mockPurchases }); }
+      } else if (table === 'dealer_payments') {
+        qb.limit = vi.fn().mockResolvedValue({ data: mockPayments })
+        qb.lte = vi.fn().mockResolvedValue({ data: mockPayments })
+        qb.then = function(resolve: any) { resolve({ data: mockPayments }); }
+      }
+      return qb
+    })
+
+    ;(supabase.from as any) = fromMock
+
+    const stats = await getDashboardStats('THIS_MONTH')
+
+    // totalPayable includes only positive balances: ₹4,000 (Dealer 2's -₹2,000 does NOT reduce totalPayable)
+    expect(stats.purchases.totalPayable).toBe(4000)
+
+    // Dealer 2's advance balance of -₹2,000 remains visible in dealers list
+    const dealerAdvance = stats.dealers.find(d => d.id === 'd2')
+    expect(dealerAdvance?.outstanding).toBe(-2000)
+  })
 })
 
 

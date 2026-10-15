@@ -35,7 +35,7 @@ These files represent the active single source of truth for the codebase:
 - [`docs/DESIGN.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DESIGN.md) — Verified brand colors, typography, touch targets, and responsive layout standards.
 - [`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md) — Tables, triggers, constraints, accounting formulas, and reconciliation rules.
 - [`docs/SECURITY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/SECURITY.md) — Authentication, RLS policies, arithmetic parser safety, and secret handling.
-- [`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md) — Test suites, verified evidence (167 tests), and financial test strategies.
+- [`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md) — Test suites, verified evidence (195 tests), and financial test strategies.
 - [`docs/BUGS_AND_DECISIONS.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/BUGS_AND_DECISIONS.md) — Confirmed historical bugs, root causes, and architectural decisions (ADRs).
 - [`docs/PERFORMANCE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PERFORMANCE.md) — Current production bundle architecture, query batching, and caching rules.
 - [`docs/DEPLOYMENT_AND_RECOVERY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DEPLOYMENT_AND_RECOVERY.md) — GitHub Pages hosting, CI/CD pipelines, and rollback steps.

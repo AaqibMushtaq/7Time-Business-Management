@@ -1,6 +1,6 @@
 # 7TIME Business Management — Database Schema & Accounting Engine
 
-**Document Status:** Verified against migrations `00001` through `20261015010000`  
+**Document Status:** Verified against migrations `00001` through `20261015020000`  
 **Last Updated:** October 2026  
 **Database Backend:** PostgreSQL 15+ (Supabase)  
 

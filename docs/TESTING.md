@@ -2,7 +2,7 @@
 
 **Document Status:** Verified against test runs and actual command executions  
 **Last Execution Date:** October 15, 2026  
-**Test Suite Status:** 22 Files Passed · 185 Tests Passed · 0 Failures  
+**Test Suite Status:** 22 Files Passed · 195 Tests Passed · 0 Failures  
 
 ---
 
@@ -27,8 +27,8 @@ Command executed: `npm run test` (`vitest run`)
 Output summary:
 ```text
 Test Files  22 passed (22)
-     Tests  185 passed (185)
-  Duration  67.43s
+     Tests  195 passed (195)
+  Duration  51.63s
 ```
 
 ### Detailed Breakdown by Test File
@@ -43,15 +43,15 @@ Test Files  22 passed (22)
 | 6 | [`src/pages/naeem/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/naeem/index.test.tsx) | 3 | NAEEM route list, daily entries, payment recording |
 | 7 | [`src/hooks/useRealtimeSync.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/hooks/useRealtimeSync.test.tsx) | 4 | WebSocket event handling, 450ms debouncing, query cache invalidation |
 | 8 | [`src/lib/dateUtils.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/dateUtils.test.ts) | 10 | Date boundary calculations, monthly filters, and Indian date formatting |
-| 9 | [`src/services/customerCredits.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/customerCredits.test.ts) | 14 | Product Credit, Cash Loans, Other Credit, FIFO auto-allocation, discrepancy reconciliation |
-| 10 | [`src/services/dashboard.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dashboard.test.ts) | 8 | Concurrent query batching, cash flow aggregation, fail-safe database error reporting, dealer opening balance integration |
-| 11 | [`src/services/dealers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dealers.test.ts) | 17 | Dealer opening balance regression tests (14 cases) + dealer CRUD operations |
+| 9 | [`src/services/customerCredits.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/customerCredits.test.ts) | 16 | Product Credit, Cash Loans, Other Credit, FIFO auto-allocation, duplicate submission & over-allocation guards |
+| 10 | [`src/services/dashboard.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dashboard.test.ts) | 9 | Concurrent query batching, cash flow aggregation, fail-safe database error reporting, dealer opening balance & advance isolation |
+| 11 | [`src/services/dealers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dealers.test.ts) | 21 | Dealer opening balance regression tests (17 cases + cross-consistency + advance offsets + error throws) + dealer CRUD |
 | 12 | [`src/services/aiAssistant.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/aiAssistant.test.ts) | 15 | Edge function invocation, token passing, error code mappings (429, 404, 401, timeout) |
 | 13 | [`src/services/resellers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/resellers.test.ts) | 5 | Customer CRUD, balance queries, customer notes update persistence |
 | 14 | [`src/services/generalDeliveries.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/generalDeliveries.test.ts) | 7 | Daily records, nested delivery entries, cascade deletions, arithmetic expression sync |
 | 15 | [`src/services/wholesaleSales.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/wholesaleSales.test.ts) | 22 | Wholesale invoicing, profit recognition, stock deduction validation |
 | 16 | [`src/lib/naeemCalculations.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/naeemCalculations.test.ts) | 12 | Total Due, Outstanding, carry-forward balances, manual override precedence |
-| 17 | [`src/lib/dealerPayments.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/dealerPayments.test.ts) | 9 | Dealer liability balances, point-of-sale deduction, separate payment deduction |
+| 17 | [`src/lib/dealerPayments.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/dealerPayments.test.ts) | 12 | Dealer liability balances, point-of-sale deduction, separate payment deduction, duplicate submission & idempotent guard protection |
 | 18 | [`src/services/resellerPayments.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/resellerPayments.test.ts) | 3 | Payment CRUD, multi-entry allocations, safe voiding |
 | 19 | [`src/services/receivables.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/receivables.test.ts) | 1 | Cross-module receivables consolidation across Wholesale, NAEEM, and Deliveries |
 | 20 | [`src/lib/arithmeticParser.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/arithmeticParser.test.ts) | 6 | Mathematical addition parsing, whitespace handling, decimal precision, invalid token rejection |

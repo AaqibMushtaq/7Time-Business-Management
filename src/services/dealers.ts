@@ -30,6 +30,8 @@ export const getDealersWithBalances = async (): Promise<Dealer[]> => {
   ])
 
   if (dealersRes.error) throw new Error(dealersRes.error.message)
+  if (purchasesRes.error) throw new Error(purchasesRes.error.message)
+  if (paymentsRes.error) throw new Error(paymentsRes.error.message)
   const dealers = dealersRes.data || []
   
   const balances: Record<string, number> = {}

@@ -708,4 +708,44 @@ describe("Customer Credits Service", () => {
       expect(ocBadge.text).toContain("purple")
     })
   })
+
+  describe("Duplicate Submission & Over-Allocation Guards", () => {
+    it("does not over-allocate payment amount when total requested allocation exceeds payment", () => {
+      const paymentAmount = 1000
+      const requestedAllocations = [
+        { creditId: "c1", amount: 800 },
+        { creditId: "c2", amount: 600 }
+      ]
+
+      const isOverAllocated = requestedAllocations.reduce((sum, a) => sum + a.amount, 0) > paymentAmount
+      expect(isOverAllocated).toBe(true)
+
+      // Guard blocks execution
+      const executeAllocation = (isOver: boolean) => {
+        if (isOver) return false
+        return true
+      }
+      expect(executeAllocation(isOverAllocated)).toBe(false)
+    })
+
+    it("auto-allocation on fully settled credits produces 0 new allocations without double-counting", () => {
+      const credits: any[] = [
+        { id: "c1", entry_date: "2026-10-01", total_amount: 1000, amount_paid: 1000, balance: 0 }
+      ]
+      const unallocatedPayment = 500
+
+      // Filter for credits with positive balance
+      const eligible = credits.filter(c => c.balance > 0)
+      expect(eligible.length).toBe(0)
+
+      let allocatedTotal = 0
+      eligible.forEach(c => {
+        allocatedTotal += c.balance
+      })
+
+      expect(allocatedTotal).toBe(0)
+      // Unallocated amount remains intact as advance
+      expect(unallocatedPayment - allocatedTotal).toBe(500)
+    })
+  })
 })

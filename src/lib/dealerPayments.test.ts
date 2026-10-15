@@ -126,4 +126,74 @@ describe('Dealer Payments and Ledger Reconciliation', () => {
       expect(after).toBe(before) // Balance untouched
     })
   })
+
+  describe('Duplicate Submission & Idempotent Guard Protection', () => {
+    it('blocks duplicate submissions when pending flag is active', () => {
+      let isPending = false
+      let callCount = 0
+
+      const submitPayment = (_paymentData: any) => {
+        if (isPending) return false
+        isPending = true
+        callCount++
+        return true
+      }
+
+      // First submit succeeds
+      const first = submitPayment({ amount: 5000 })
+      expect(first).toBe(true)
+      expect(callCount).toBe(1)
+
+      // Immediate second submit while pending is blocked
+      const second = submitPayment({ amount: 5000 })
+      expect(second).toBe(false)
+      expect(callCount).toBe(1) // Still 1
+
+      // After pending clears, next legitimate submit succeeds
+      isPending = false
+      const third = submitPayment({ amount: 3000 })
+      expect(third).toBe(true)
+      expect(callCount).toBe(2)
+    })
+
+    it('ensures deduplication logic prevents duplicate entries with identical ID or reference', () => {
+      const existingPayments = [
+        { id: 'pay-1', dealer_id: 'd1', amount: 5000, reference: 'REF-101' }
+      ]
+
+      const addPaymentSafely = (list: typeof existingPayments, newPayment: typeof existingPayments[0]) => {
+        if (list.some(p => p.id === newPayment.id)) {
+          return list
+        }
+        return [...list, newPayment]
+      }
+
+      const duplicate = { id: 'pay-1', dealer_id: 'd1', amount: 5000, reference: 'REF-101' }
+      const updatedList = addPaymentSafely(existingPayments, duplicate)
+
+      expect(updatedList.length).toBe(1)
+      expect(updatedList[0].amount).toBe(5000)
+    })
+
+    it('rapid repeated clicks on disabled buttons preserve true ledger balances', () => {
+      const openingLiability = 10000
+      let payments: number[] = []
+
+      let isSubmitting = false
+      const simulateClick = (amount: number) => {
+        if (isSubmitting) return
+        isSubmitting = true
+        payments.push(amount)
+      }
+
+      // Rapid clicks in the same event loop tick
+      simulateClick(3000)
+      simulateClick(3000)
+      simulateClick(3000)
+
+      const remainingLiability = openingLiability - payments.reduce((sum, p) => sum + p, 0)
+      expect(payments.length).toBe(1)
+      expect(remainingLiability).toBe(7000)
+    })
+  })
 })

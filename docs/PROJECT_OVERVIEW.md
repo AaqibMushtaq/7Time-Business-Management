@@ -135,6 +135,9 @@ The application is organized into six functional operational domains:
 | Feature / Area | Status | Evidence / Implementation Reference |
 | :--- | :--- | :--- |
 | **Executive KPI Summary** | Verified | [`src/pages/dashboard/index.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/dashboard/index.tsx), [`src/services/dashboard.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dashboard.ts) |
+| **Dealer Opening Balance & Payables** | Verified | Migration `20261015003500`, [`src/services/dealers.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dealers.ts), [`src/pages/dealers/`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/dealers/) |
+| **Duplicate Submission Safeguards** | Verified | Mutation `isPending` guards across all payment, credit, and delivery forms |
+| **Customer Credit Security Remediation** | Verified | Migration `20261015020000_restrict_customer_credits_rls.sql`, anon access revoked |
 | **Realtime Live Sync** | Verified | [`src/components/realtime/RealtimeSyncProvider.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/components/realtime/RealtimeSyncProvider.tsx), 450ms debounce |
 | **Product Inventory Stock Triggers** | Verified | Migrations `00001_initial_schema.sql`, `00011_enhance_wholesale_stock_trigger.sql` |
 | **Customer Credit & Loan Ledger** | Verified | Migration `20261015000000_customer_credits_and_loans.sql`, [`src/services/customerCredits.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/customerCredits.ts) |

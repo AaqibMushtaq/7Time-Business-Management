@@ -1,14 +1,28 @@
+import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
+import { updateDealer } from "@/services/dealers"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { formatMoney, formatDate } from "@/lib/utils"
 import { Loader2, ArrowLeft, Package, Wallet, ShoppingCart, Pencil } from "lucide-react"
 
 export default function DealerDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const queryClient = useQueryClient()
+  const [isEditOpen, setIsEditOpen] = useState(false)
+  const [editFormError, setEditFormError] = useState<string | null>(null)
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    phone: "",
+    whatsapp: "",
+    address: "",
+    notes: "",
+    opening_balance: ""
+  })
 
   const { data: dealer, isLoading: isLoadingDealer } = useQuery({
     queryKey: ["dealer", id],
@@ -46,6 +60,56 @@ export default function DealerDetailPage() {
     },
   })
 
+  const updateMutation = useMutation({
+    mutationFn: (data: any) => updateDealer(id!, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dealer", id] })
+      queryClient.invalidateQueries({ queryKey: ["dealers"] })
+      setIsEditOpen(false)
+    },
+    onError: (error: any) => {
+      setEditFormError(error.message)
+    }
+  })
+
+  const openEditModal = () => {
+    if (!dealer) return
+    setEditFormError(null)
+    setEditFormData({
+      name: dealer.name || "",
+      phone: dealer.phone || "",
+      whatsapp: dealer.whatsapp || "",
+      address: dealer.address || "",
+      notes: dealer.notes || "",
+      opening_balance: dealer.opening_balance != null ? String(dealer.opening_balance) : "0"
+    })
+    setIsEditOpen(true)
+  }
+
+  const closeEditModal = () => {
+    setIsEditOpen(false)
+    setEditFormError(null)
+  }
+
+  const handleEditSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    setEditFormError(null)
+    if (!editFormData.name.trim()) return
+
+    const payload = {
+      name: editFormData.name.trim(),
+      phone: editFormData.phone.trim() || null,
+      whatsapp: editFormData.whatsapp.trim() || null,
+      address: editFormData.address.trim() || null,
+      notes: editFormData.notes.trim() || null,
+      opening_balance: editFormData.opening_balance !== "" && !isNaN(Number(editFormData.opening_balance))
+        ? Number(editFormData.opening_balance)
+        : 0
+    }
+
+    updateMutation.mutate(payload)
+  }
+
   if (isLoadingDealer) {
     return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
   }
@@ -72,6 +136,9 @@ export default function DealerDetailPage() {
           <h1 className="text-3xl font-bold tracking-tight text-slate-900">{dealer.name}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={openEditModal}>
+            <Pencil className="mr-2 h-4 w-4" /> Edit Dealer
+          </Button>
           <Link to="/purchases">
             <Button variant="outline"><ShoppingCart className="mr-2 h-4 w-4" /> Add Purchase</Button>
           </Link>
@@ -223,6 +290,86 @@ export default function DealerDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Edit Dealer Dialog */}
+      {isEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-[425px] rounded-lg border bg-card text-card-foreground shadow-xl p-6 animate-in fade-in zoom-in-95 duration-150">
+            <h2 className="text-lg font-semibold leading-none tracking-tight mb-4">Edit Dealer</h2>
+
+            {editFormError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
+                <p className="font-semibold mb-1">Error saving dealer</p>
+                <p>{editFormError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Dealer Name *</label>
+                <Input
+                  placeholder="e.g., AL INFAQ TRADERS"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Phone Number</label>
+                <Input
+                  placeholder="+91..."
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">WhatsApp Number</label>
+                <Input
+                  placeholder="Optional (falls back to phone)"
+                  value={editFormData.whatsapp}
+                  onChange={(e) => setEditFormData({ ...editFormData, whatsapp: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Opening Balance (₹)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={editFormData.opening_balance}
+                  onChange={(e) => setEditFormData({ ...editFormData, opening_balance: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Historical balance owed to this dealer before using 7TIME.</p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Address</label>
+                <textarea
+                  className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Business Address"
+                  value={editFormData.address}
+                  onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Notes</label>
+                <textarea
+                  className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  placeholder="Additional notes"
+                  value={editFormData.notes}
+                  onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                />
+              </div>
+              <div className="pt-2 flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={closeEditModal}>Cancel</Button>
+                <Button type="submit" disabled={updateMutation.isPending}>
+                  {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Save Changes
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

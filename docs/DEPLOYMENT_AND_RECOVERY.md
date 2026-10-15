@@ -94,7 +94,7 @@ Database migrations are strictly version-controlled under `supabase/migrations/`
   - Complete dealer opening balance accounting integration across services, pages, modals, and dashboard.
   - Advance isolation logic preventing supplier credits from offsetting creditor payables.
   - Removal of dead client-side `idempotencyKey` state in purchase and wholesale forms while retaining button-disabled pending protection.
-  - Zero-defect quality verification: 185 tests passing (22 suites), 0 Oxlint warnings/errors, 0 TypeScript compilation errors, clean Vite production bundle.
+  - Zero-defect quality verification: 195 tests passing (22 suites), 0 Oxlint warnings/errors, 0 TypeScript compilation errors, clean Vite production bundle.
 - **Deployment Gate:** Stopped at Phase 9 approval gate. Pushing to `origin main` or deploying to production requires explicit user authorization.
 
 ---
