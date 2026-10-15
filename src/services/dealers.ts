@@ -7,6 +7,7 @@ export interface Dealer {
   whatsapp?: string | null
   address?: string | null
   notes?: string | null
+  opening_balance?: number
   created_at?: string
   outstanding?: number // added for UI
 }
@@ -33,20 +34,25 @@ export const getDealersWithBalances = async (): Promise<Dealer[]> => {
   
   const balances: Record<string, number> = {}
   
+  // Seed each dealer's balance with their opening balance
+  dealers.forEach(d => {
+    balances[d.id] = Number(d.opening_balance || 0)
+  })
+  
   purchasesRes.data?.forEach(p => {
-    if (!balances[p.dealer_id]) balances[p.dealer_id] = 0
+    if (balances[p.dealer_id] === undefined) balances[p.dealer_id] = 0
     balances[p.dealer_id] += Number(p.total_amount || 0)
     balances[p.dealer_id] -= Number(p.amount_paid || 0)
   })
   
   paymentsRes.data?.forEach(p => {
-    if (!balances[p.dealer_id]) balances[p.dealer_id] = 0
+    if (balances[p.dealer_id] === undefined) balances[p.dealer_id] = 0
     balances[p.dealer_id] -= Number(p.amount || 0)
   })
 
   return dealers.map(d => ({
     ...d,
-    outstanding: balances[d.id] || 0
+    outstanding: balances[d.id] !== undefined ? balances[d.id] : Number(d.opening_balance || 0)
   }))
 }
 

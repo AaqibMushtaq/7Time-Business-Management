@@ -90,7 +90,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id"), "delivery_date"),
     applyDateFilter(supabase.from("naeem_payments").select("amount"), "payment_date"),
     getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false })),
-    supabase.from("dealers").select("id, name"),
+    supabase.from("dealers").select("id, name, opening_balance"),
     supabase.from("reseller_customers").select("id, name, opening_balance"),
     supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, entry_type").limit(999999)
   ])
@@ -213,14 +213,19 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
 
   // True outstanding balance calculation (independent of date filter)
   const trueOutstandingByDealer: Record<string, number> = {}
+
+  // Initialize with dealer opening balances
+  dealersMasterRes.data?.forEach((d: any) => {
+    trueOutstandingByDealer[d.id] = Number(d.opening_balance || 0)
+  })
   
   allPurchases?.forEach((p: any) => {
-    if (!trueOutstandingByDealer[p.dealer_id]) trueOutstandingByDealer[p.dealer_id] = 0
+    if (trueOutstandingByDealer[p.dealer_id] === undefined) trueOutstandingByDealer[p.dealer_id] = 0
     trueOutstandingByDealer[p.dealer_id] += Number(p.total_amount || 0) - Number(p.amount_paid || 0)
   })
   
   allDealerPayments?.forEach((p: any) => {
-    if (!trueOutstandingByDealer[p.dealer_id]) trueOutstandingByDealer[p.dealer_id] = 0
+    if (trueOutstandingByDealer[p.dealer_id] === undefined) trueOutstandingByDealer[p.dealer_id] = 0
     trueOutstandingByDealer[p.dealer_id] -= Number(p.amount || 0)
   })
   

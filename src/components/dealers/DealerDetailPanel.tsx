@@ -56,11 +56,12 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
   }
 
   // Calculate totals
+  const openingBalance = Number(dealer.opening_balance || 0)
   const totalPurchases = purchases?.reduce((sum: number, p: any) => sum + Number(p.total_amount || 0), 0) || 0
   const totalPaidAtPurchase = purchases?.reduce((sum: number, p: any) => sum + Number(p.amount_paid || 0), 0) || 0
   const totalSeparatePaid = payments?.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0) || 0
   const totalPaid = totalPaidAtPurchase + totalSeparatePaid
-  const outstandingBalance = totalPurchases - totalPaid
+  const outstandingBalance = openingBalance + totalPurchases - totalPaid
 
   return (
     <div className="flex flex-col h-full bg-background rounded-xl">
@@ -138,7 +139,14 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
             <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-500 font-medium">Outstanding Balance</CardTitle></CardHeader>
             <CardContent className="px-4 pb-4">
               <div className={`text-2xl lg:text-3xl font-bold ${outstandingBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatMoney(outstandingBalance)}</div>
-              <p className={`text-xs font-semibold uppercase mt-1 tracking-wider ${outstandingBalance > 0 ? 'text-rose-600/70' : 'text-emerald-600/70'}`}>We Owe Dealer</p>
+              <p className={`text-xs font-semibold uppercase mt-1 tracking-wider ${outstandingBalance > 0 ? 'text-rose-600/70' : 'text-emerald-600/70'}`}>
+                {outstandingBalance >= 0 ? "We Owe Dealer" : "Advance / Dealer Owes Us"}
+              </p>
+              {openingBalance !== 0 && (
+                <p className="text-xs text-slate-500 mt-1">
+                  (Includes Opening: {formatMoney(openingBalance)})
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>

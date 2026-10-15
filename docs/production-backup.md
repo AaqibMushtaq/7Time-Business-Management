@@ -3,6 +3,10 @@
 ## Overview
 This document outlines the backup and recovery procedures for the 7TIME Business Management Supabase production database. Financial records (e.g., NAEEM payments, deliveries, opening balances) are critical and must be strictly protected.
 
+> **DOCUMENT CLASSIFICATION: TIER 2 — OPERATIONAL STANDARD & RUNBOOK**  
+> **Purpose:** Database logical dump, export, and disaster recovery procedures.  
+> **Related Documents:** See [`docs/DEPLOYMENT_AND_RECOVERY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DEPLOYMENT_AND_RECOVERY.md) for full deployment and recovery architecture.  
+
 ## Backup Process
 
 ### Supabase Project

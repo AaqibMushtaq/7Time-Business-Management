@@ -1,5 +1,9 @@
 # Release Checklist
 
+> **DOCUMENT CLASSIFICATION: TIER 2 — OPERATIONAL CHECKLIST**  
+> **Purpose:** Tactical pre-flight release checklist to verify before triggering production deployments.  
+> **Policy & Rollback Procedures:** For complete release governance and emergency rollback steps, see [`docs/RELEASE_PROCESS.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/RELEASE_PROCESS.md).  
+
 Before marking a new release as stable and triggering a production deployment, ensure the following checklist is completed:
 
 - [ ] **PR CI Passed**: Ensure `npm ci`, `npm run lint`, and `npm run build` pass in the Pull Request CI workflow.

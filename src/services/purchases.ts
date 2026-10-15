@@ -33,7 +33,7 @@ export const getPurchases = async (): Promise<Purchase[]> => {
   return data || []
 }
 
-export const createPurchase = async (purchase: Omit<Purchase, "created_at" | "dealer" | "product">): Promise<Purchase> => {
+export const createPurchase = async (purchase: Omit<Purchase, "id" | "created_at" | "dealer" | "product"> & { id?: string }): Promise<Purchase> => {
   const { data, error } = await supabase
     .from("purchases")
     .insert([purchase])

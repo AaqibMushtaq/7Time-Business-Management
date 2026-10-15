@@ -43,7 +43,7 @@ export const getWholesaleSales = async (): Promise<WholesaleSale[]> => {
   return data || []
 }
 
-export const createWholesaleSale = async (sale: Omit<WholesaleSale, "created_at" | "customer" | "product" | "dealer">): Promise<WholesaleSale> => {
+export const createWholesaleSale = async (sale: Omit<WholesaleSale, "id" | "created_at" | "customer" | "product" | "dealer"> & { id?: string }): Promise<WholesaleSale> => {
   const { data, error } = await supabase
     .from("wholesale_sales")
     .insert([sale])

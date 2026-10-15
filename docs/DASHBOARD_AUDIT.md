@@ -5,6 +5,10 @@
 **Audited Target:** Main Dashboard (`src/pages/dashboard/index.tsx`, `src/services/dashboard.ts`)  
 **Database Backend:** Supabase (PostgreSQL)  
 
+> **DOCUMENT CLASSIFICATION: TIER 3 — SPECIALIZED HISTORICAL AUDIT REPORT**  
+> **Purpose:** This document preserves the deep-dive domain audit of the executive dashboard, metric formulas, zero-balance accounting observations, and double-counting prevention mechanisms.  
+> **Authoritative System Wide Schemas:** For full cross-module schemas and recent multi-entry customer credit ledgers, refer to [`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md).  
+
 ---
 
 ## 1. Executive Summary

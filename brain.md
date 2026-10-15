@@ -1,0 +1,140 @@
+# 7TIME Business Management — Project Brain & Persistent Memory
+
+> **MANDATORY FIRST-READ FOR ALL AI CODING SESSIONS**  
+> This file is the primary memory, governance index, and operational entry point for 7TIME Business Management.  
+> *Note on missing documents:* `PROJECT_GOVERNANCE_REVIEW.md` was requested during initial audit but was **not found** in the repository. Its governance principles and business rules have been verified and codified directly herein.
+
+---
+
+## 1. Project Purpose & Core Context
+
+**7TIME Business Management** is an active, production-grade enterprise ledger, wholesale distribution, and delivery tracking application built specifically for 7TIME FMCG operations in Jammu & Kashmir (India).
+
+- **Production URL:** [https://aaqibmushtaq.github.io/7Time-Business-Management/](https://aaqibmushtaq.github.io/7Time-Business-Management/)
+- **Repository:** `AaqibMushtaq/7Time-Business-Management`
+- **Hosting:** GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`)
+- **Backend & Database:** Supabase (`haofuuvwciqsambgeqyn.supabase.co`) with PostgreSQL 15+, RLS, and Deno Edge Functions
+- **Current Version:** v1.3.0
+
+---
+
+## 2. Existing Architecture Summary
+
+- **Frontend Framework:** React 19 (`^19.2.8`), TypeScript (`^5.6.2`), Vite 8 (`^8.3.0`).
+- **Styling & Design System:** Tailwind CSS v4 (`^4.3.3`) with `@theme` brand tokens (`#2D7FF9` Royal Blue, `#4A39D6` Indigo, `#33C5F3` Sky Blue, `#0E2A47` Dark Navy).
+- **Client Routing:** `HashRouter` (`/#/`) — guarantees zero 404s on static GitHub Pages hosting.
+- **Server State & Realtime:** TanStack Query (`staleTime: 3m`) + Supabase Realtime WebSocket with 450ms debounced cache invalidation (`useRealtimeSync`).
+- **Edge Computing:** Supabase Deno Edge Function `gemini-assistant` invoking Google Gemini 2.5 Flash for strictly read-only financial synthesis. Server secrets never leak to the client.
+
+---
+
+## 3. Critical Business Rules & Constraints (Non-Negotiable)
+
+1. **Aesthetics Never Compromise Business Logic:** Visual or layout refactoring must never alter or bypass financial calculations.
+2. **Authoritative Numbers Only:** All balances, debts, and margins must derive from database records and pure mathematical functions. Never hardcode financial numbers.
+3. **No Silent Data Mutation:** Never reset, truncate, or fabricate financial records. Production migrations must be strictly additive and idempotent.
+4. **No Online Payment Gateways:** Online payment gateways, webhooks, or automated merchant processing are excluded from current scope. All payments are verified offline entries (Cash, Bank Transfer, Cheque).
+5. **No Service Role Keys in Frontend:** The Supabase `service_role` key must never be used in client code or committed to git.
+6. **Double-Counting Prevention:** Inflows from point-of-sale cash (`amount_received`) are tracked separately from post-sale debt settlements (`reseller_payments`). Down payments (`amount_paid`) are separate from subsequent dealer payments.
+
+---
+
+## 4. Documentation Hierarchy & Directory Structure
+
+To ensure accuracy and prevent AI agents from confusing historical proposals with current rules, the documentation is strictly tiered into three categories:
+
+```text
+                                  ┌────────────┐
+                                  │  brain.md  │ (Mandatory First-Read)
+                                  └─────┬──────┘
+                                        │
+     ┌──────────────────────────────────┼──────────────────────────────────┐
+     ▼                                  ▼                                  ▼
+[ TIER 1: LIVING SPECS ]      [ TIER 2: RUNBOOKS ]          [ TIER 3: HISTORICAL AUDITS ]
+Current Single Source         Operational Standards         Diagnostic & Historical Context
+of Truth                      & Release Procedures          (Do NOT treat as living rules)
+├── PROJECT_OVERVIEW.md       ├── RELEASE_PROCESS.md        ├── DASHBOARD_AUDIT.md
+├── ARCHITECTURE.md           ├── release-checklist.md      ├── DELIVERY_MODULE_AUDIT.md
+├── DESIGN.md                 └── production-backup.md      ├── PERFORMANCE_AUDIT.md
+├── DATABASE_AND_ACCOUNTING.md                              ├── FINANCIAL_REPORTING.md [Snapshot]
+├── SECURITY.md                                             ├── MODULE_AUDIT.md [Snapshot]
+├── TESTING.md                                              └── RESPONSIVE_AUDIT.md [Snapshot]
+├── BUGS_AND_DECISIONS.md
+├── PERFORMANCE.md
+├── DEPLOYMENT_AND_RECOVERY.md
+├── AI_WORKFLOW.md
+└── ROADMAP.md
+```
+
+### Tier 1: Current Authoritative Living Specifications
+These documents are the active source of truth. Always refer to these for current business logic, schemas, and UI standards:
+- **[`docs/PROJECT_OVERVIEW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PROJECT_OVERVIEW.md):** Business purpose, target users, 6 module boundaries, and verified workflows.
+- **[`docs/ARCHITECTURE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/ARCHITECTURE.md):** System topology, runtime specifications, routing lifecycles, and trade-offs.
+- **[`docs/DESIGN.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DESIGN.md):** Brand colors, typography, touch targets, and responsive breakpoint matrix.
+- **[`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md):** 14 database tables, triggers, constraints, accounting formulas, and reconciliation rules.
+- **[`docs/SECURITY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/SECURITY.md):** Auth session flows, RLS policies, arithmetic parser safety, and secret handling.
+- **[`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md):** Test frameworks, verified evidence (167 tests), financial reconciliation tests, and known limitations.
+- **[`docs/BUGS_AND_DECISIONS.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/BUGS_AND_DECISIONS.md):** Confirmed historical bugs, verified root causes, approved decisions (ADRs), and open questions.
+- **[`docs/PERFORMANCE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PERFORMANCE.md):** Production bundle chunk breakdown, query parallelization, and free-tier limits.
+- **[`docs/DEPLOYMENT_AND_RECOVERY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DEPLOYMENT_AND_RECOVERY.md):** GitHub Pages hosting, CI/CD workflows, migrations, and frontend rollback.
+- **[`docs/AI_WORKFLOW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/AI_WORKFLOW.md):** Mandatory rules for AI coding assistants, evidence tiers, and verification standards.
+- **[`docs/ROADMAP.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/ROADMAP.md):** Completed milestones, active phase, and proposed future phases.
+
+### Tier 2: Operational Standards & Runbooks
+- **[`docs/RELEASE_PROCESS.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/RELEASE_PROCESS.md):** Release governance standard, environment rules, and rollback procedures.
+- **[`docs/release-checklist.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/release-checklist.md):** Condensed pre-flight checklist with checkboxes.
+- **[`docs/production-backup.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/production-backup.md):** Specific database backup, dump, and PITR recovery runbook.
+
+### Tier 3: Specialized Historical Audits & Snapshots
+*Important:* These files preserve historical context, specialized subsystem derivations, and empirical diagnostics. **Do not treat "planned" or "to be added" items in these files as missing features**—always verify against Tier 1 specifications:
+- **[`docs/DASHBOARD_AUDIT.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DASHBOARD_AUDIT.md):** Detailed accounting derivations for the executive dashboard.
+- **[`docs/DELIVERY_MODULE_AUDIT.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DELIVERY_MODULE_AUDIT.md):** Production delivery audit for General Delivery and NAEEM contractual route.
+- **[`docs/PERFORMANCE_AUDIT.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PERFORMANCE_AUDIT.md):** Empirical diagnostics showing how Lighthouse scores rose from 27 to 95/100.
+- **[`docs/FINANCIAL_REPORTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/FINANCIAL_REPORTING.md):** *[Historical Phase 7 Snapshot]* Early financial planning notes; superseded by `DATABASE_AND_ACCOUNTING.md`.
+- **[`docs/MODULE_AUDIT.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/MODULE_AUDIT.md):** *[Historical Phase 6 Snapshot]* Module checklist; superseded by `PROJECT_OVERVIEW.md`.
+- **[`docs/RESPONSIVE_AUDIT.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/RESPONSIVE_AUDIT.md):** *[Historical Pre-Implementation Snapshot]* Responsive notes; planned fixes now live in `DESIGN.md`.
+
+---
+
+## 5. Task-Specific Reading Matrix
+
+AI coding agents must load only the documents required for their assigned task:
+
+| Task Being Performed | Required Files to Read |
+| :--- | :--- |
+| **UI, Styling, or Layout** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/DESIGN.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DESIGN.md) + Target component |
+| **Architecture or Refactoring** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/ARCHITECTURE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/ARCHITECTURE.md) + [`docs/PROJECT_OVERVIEW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PROJECT_OVERVIEW.md) |
+| **Accounting or Database Bug** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md) + [`docs/BUGS_AND_DECISIONS.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/BUGS_AND_DECISIONS.md) + Migrations |
+| **Security or Secrets** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/SECURITY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/SECURITY.md) + `src/lib/supabase.ts` |
+| **Test Failures or New Tests** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md) + Target `.test.ts(x)` files |
+| **Performance & Bundling** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/PERFORMANCE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PERFORMANCE.md) + `vite.config.ts` |
+| **Deployment or CI/CD** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/DEPLOYMENT_AND_RECOVERY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DEPLOYMENT_AND_RECOVERY.md) + `.github/workflows/` |
+| **New Roadmap Feature** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/PROJECT_OVERVIEW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PROJECT_OVERVIEW.md) + [`docs/ROADMAP.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/ROADMAP.md) |
+| **AI Agent Operating Protocol** | [`brain.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/brain.md) + [`docs/AI_WORKFLOW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/AI_WORKFLOW.md) |
+
+---
+
+## 6. Verification Checklist Before Concluding Any Task
+
+Every AI session must verify these three gates before finishing:
+1. `npm run lint` — Must report 0 errors and 0 warnings.
+2. `npm run build` — `tsc -b && vite build` must compile cleanly.
+3. `npm test` (`vitest run`) — All 22 Vitest test suites (185 tests) must pass.
+4. **Approval Gate:** STOP and wait for the user's manual review. Do not proceed to unapproved refactoring, feature additions, or deployments.
+
+---
+
+## 7. Current Project Status & Recent Milestones
+
+- **Latest Completed Milestone:** Phase 5 (Dealer Opening Balance Accounting) & Phase 6 (Reliability Cleanup of Idempotency State).
+- **Verified Dealer Accounting Status:** Dealer opening balances are fully integrated into `src/services/dealers.ts`, `src/services/dashboard.ts`, `DealerDetailPage.tsx`, `DealerDetailPanel.tsx`, and `dealers/index.tsx`. Total Payables formula verified:
+  $$\text{Outstanding} = \text{Opening Balance} + \sum (\text{Purchases.total\_amount} - \text{Purchases.amount\_paid}) - \sum \text{Dealer\_Payments.amount}$$
+  $$\text{Total Payable (Dashboard KPI)} = \sum_{\text{dealers}} \max(0, \text{Outstanding})$$
+- **Reliability Cleanup Status:** Dead client-side `idempotencyKey` state removed from purchases and wholesale forms. Rapid repeated submission protection is handled cleanly by TanStack Query `isPending` states and disabled buttons.
+- **Security Hardening Status:** Phase 4.5 migration `20261015020000_restrict_customer_credits_rls.sql` applied in Supabase. Anonymous full access policies dropped and direct privileges revoked from `anon` on `customer_credits` and `customer_payment_allocations`. Authenticated policies use `USING (true)`.
+- **Quality Verification:**
+  - `oxlint`: 0 warnings, 0 errors across 123 files.
+  - `tsc -b`: 0 type errors.
+  - `vitest run`: 22 test files, 185 tests passing (0 failures).
+  - `npm run build`: Production bundle compiles cleanly.
+- **Next Recommended Action:** Phase 9 Release & Deployment sign-off (requires explicit user approval).

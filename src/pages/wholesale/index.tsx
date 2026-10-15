@@ -28,7 +28,6 @@ export default function WholesaleSalesPage() {
   const [amountReceived, setAmountReceived] = useState("")
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [notes, setNotes] = useState("")
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
   const [todayDate] = useState(() => new Date())
 
   // Edit State
@@ -71,7 +70,6 @@ export default function WholesaleSalesPage() {
       setQuantity("")
       setAmountReceived("")
       setNotes("")
-      setIdempotencyKey(crypto.randomUUID())
     },
     onError: (error) => {
       setFormError(error.message)
@@ -179,7 +177,6 @@ export default function WholesaleSalesPage() {
     }
 
     createMutation.mutate({
-      id: idempotencyKey,
       customer_id: customerId,
       product_id: productId,
       dealer_id: dealerId,

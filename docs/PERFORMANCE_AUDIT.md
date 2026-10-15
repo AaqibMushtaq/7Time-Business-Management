@@ -3,6 +3,10 @@
 ## Executive Summary
 This document records the comprehensive performance analysis, baseline measurements, verified root causes, code optimizations, route-by-route verification, and production measurements for the 7TIME Business Management System.
 
+> **DOCUMENT CLASSIFICATION: TIER 3 — SPECIALIZED HISTORICAL AUDIT REPORT**  
+> **Purpose:** This document preserves the empirical diagnostic investigation, root-cause analysis, and optimization benchmarks that raised the Lighthouse performance score from 27/100 to 95/100.  
+> **Authoritative Living Performance Guide:** For current production bundle statistics, query parallelization, and ongoing performance standards, refer to [`docs/PERFORMANCE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PERFORMANCE.md).  
+
 ---
 
 ## 1. Measured Lighthouse Performance & Core Web Vitals

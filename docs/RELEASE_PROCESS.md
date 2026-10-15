@@ -2,6 +2,10 @@
 
 This document describes the process for releasing updates to the 7TIME Business Management System safely.
 
+> **DOCUMENT CLASSIFICATION: TIER 2 — OPERATIONAL STANDARD & RUNBOOK**  
+> **Purpose:** Release governance, deployment checklists, and safe rollback procedures for production deployments.  
+> **Related Documents:** See [`docs/release-checklist.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/release-checklist.md) for quick pre-flight checks and [`docs/DEPLOYMENT_AND_RECOVERY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DEPLOYMENT_AND_RECOVERY.md) for CI/CD architecture.  
+
 ## Overview
 All deployments to Production must go through automated checks. Code is developed on feature branches, validated via Pull Requests to the `main` branch, and automatically deployed to GitHub Pages only upon a verified merge.
 

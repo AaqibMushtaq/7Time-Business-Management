@@ -23,7 +23,6 @@ export default function PurchasesPage() {
   const [amountPaid, setAmountPaid] = useState("")
   const [reference, setReference] = useState("")
   const [notes, setNotes] = useState("")
-  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
 
   const { data: purchases, isLoading: isLoadingPurchases } = useQuery({
     queryKey: ["purchases"],
@@ -59,7 +58,6 @@ export default function PurchasesPage() {
     setAmountPaid("")
     setReference("")
     setNotes("")
-    setIdempotencyKey(crypto.randomUUID())
   }
 
   const invalidateQueries = () => {
@@ -145,7 +143,7 @@ export default function PurchasesPage() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, purchase: payload })
     } else {
-      createMutation.mutate({ ...payload, id: idempotencyKey })
+      createMutation.mutate(payload)
     }
   }
 

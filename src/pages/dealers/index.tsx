@@ -21,7 +21,8 @@ export default function DealersPage() {
     phone: "",
     whatsapp: "",
     address: "",
-    notes: ""
+    notes: "",
+    opening_balance: ""
   })
 
   const [formError, setFormError] = useState<string | null>(null)
@@ -64,7 +65,8 @@ export default function DealersPage() {
       phone: formData.phone.trim() || null,
       whatsapp: formData.whatsapp.trim() || null,
       address: formData.address.trim() || null,
-      notes: formData.notes.trim() || null
+      notes: formData.notes.trim() || null,
+      opening_balance: formData.opening_balance ? Number(formData.opening_balance) || 0 : 0
     }
 
     if (editingId) {
@@ -83,7 +85,8 @@ export default function DealersPage() {
       phone: dealer.phone || "",
       whatsapp: dealer.whatsapp || "",
       address: dealer.address || "",
-      notes: dealer.notes || ""
+      notes: dealer.notes || "",
+      opening_balance: dealer.opening_balance !== undefined ? String(dealer.opening_balance) : "0"
     })
     setIsFormOpen(true)
   }
@@ -92,7 +95,7 @@ export default function DealersPage() {
     setIsFormOpen(false)
     setFormError(null)
     setEditingId(null)
-    setFormData({ name: "", phone: "", whatsapp: "", address: "", notes: "" })
+    setFormData({ name: "", phone: "", whatsapp: "", address: "", notes: "", opening_balance: "" })
   }
 
   const filteredDealers = useMemo(() => {
@@ -155,6 +158,17 @@ export default function DealersPage() {
                   value={formData.whatsapp}
                   onChange={(e) => setFormData({...formData, whatsapp: e.target.value})}
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Opening Balance (₹)</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={formData.opening_balance}
+                  onChange={(e) => setFormData({...formData, opening_balance: e.target.value})}
+                />
+                <p className="text-xs text-muted-foreground">Historical balance owed to this dealer before using 7TIME.</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Address</label>
@@ -305,6 +319,11 @@ export default function DealersPage() {
                     <p className={`text-2xl font-bold ${Number(dealer.outstanding) > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                       {formatMoney(dealer.outstanding || 0)}
                     </p>
+                    {!!dealer.opening_balance && (
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Opening: {formatMoney(dealer.opening_balance)}
+                      </p>
+                    )}
                   </div>
                 </div>
                 

@@ -396,6 +396,60 @@ describe('Dashboard Stats Calculations', () => {
     expect(stats.cashFlow.totalOutflows).toBe(0)
     expect(stats.cashFlow.net).toBe(0)
   })
+
+  it('incorporates dealer opening balance into dashboard totalPayable and dealer breakdown', async () => {
+    const mockDealers = [
+      { id: 'd1', name: 'Dealer A', opening_balance: 3000 },
+      { id: 'd2', name: 'Dealer B', opening_balance: 1500 }
+    ]
+    const mockPurchases = [
+      { id: '1', total_amount: 5000, amount_paid: 1000, dealer_id: 'd1', purchase_date: '2026-10-05', dealer: { id: 'd1', name: 'Dealer A' } }
+    ]
+    const mockPayments = [
+      { id: '1', amount: 2000, dealer_id: 'd1', payment_date: '2026-10-07', dealer: { name: 'Dealer A' } }
+    ]
+
+    const fromMock = vi.fn().mockImplementation((table) => {
+      const qb: any = {
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: null }),
+        limit: vi.fn().mockResolvedValue({ data: [] }),
+        gte: vi.fn().mockReturnThis(),
+        lte: vi.fn().mockResolvedValue({ data: [] }),
+        order: vi.fn().mockReturnThis(),
+        then: function(resolve: any) { resolve({ data: [] }); }
+      }
+
+      if (table === 'app_settings') {
+        qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+      } else if (table === 'dealers') {
+        qb.select = vi.fn().mockResolvedValue({ data: mockDealers })
+      } else if (table === 'purchases') {
+        qb.limit = vi.fn().mockResolvedValue({ data: mockPurchases })
+        qb.lte = vi.fn().mockResolvedValue({ data: mockPurchases })
+        qb.then = function(resolve: any) { resolve({ data: mockPurchases }); }
+      } else if (table === 'dealer_payments') {
+        qb.limit = vi.fn().mockResolvedValue({ data: mockPayments })
+        qb.lte = vi.fn().mockResolvedValue({ data: mockPayments })
+        qb.then = function(resolve: any) { resolve({ data: mockPayments }); }
+      }
+      return qb
+    })
+
+    ;(supabase.from as any) = fromMock
+
+    const stats = await getDashboardStats('THIS_MONTH')
+
+    // Dealer A: Opening ₹3,000 + Purchases (₹5,000 - ₹1,000) - Payments ₹2,000 = ₹5,000
+    // Dealer B: Opening ₹1,500 + Purchases ₹0 - Payments ₹0 = ₹1,500
+    // Total Payable = ₹5,000 + ₹1,500 = ₹6,500
+    expect(stats.purchases.totalPayable).toBe(6500)
+    
+    const dealerA = stats.dealers.find(d => d.id === 'd1')
+    const dealerB = stats.dealers.find(d => d.id === 'd2')
+    expect(dealerA?.outstanding).toBe(5000)
+    expect(dealerB?.outstanding).toBe(1500)
+  })
 })
 
 

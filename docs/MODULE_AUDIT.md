@@ -1,6 +1,15 @@
 # MODULE AUDIT REPORT - Phase 6
 
-## 1. Application Inventory
+> **DOCUMENT CLASSIFICATION: TIER 3 — HISTORICAL AUDIT SNAPSHOT (PHASE 6)**  
+> **Historical Context:** This document records the empirical module verification status as of Development Phase 6 (prior to the v1.3.0 Gemini AI Assistant and October 2026 Editable Customer Ledger releases).  
+> **Authoritative Current Documentation:**  
+> - For current application modules, responsibilities, and workflows: see [`docs/PROJECT_OVERVIEW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PROJECT_OVERVIEW.md).  
+> - For system architecture and code-splitting: see [`docs/ARCHITECTURE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/ARCHITECTURE.md).  
+> - For database tables, triggers, and accounting rules: see [`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md).  
+
+---
+
+## 1. Application Inventory (Phase 6 Baseline)
 - **Dashboard**
 - **Products & Inventory**
 - **Purchases**
@@ -12,6 +21,10 @@
 - **Reports**
 - **Settings**
 - **Backup & Audit**
+
+*(Note: The AI Assistant module was subsequently introduced in Phase 2 / v1.3.0 under `/assistant`, and is documented in [`docs/PROJECT_OVERVIEW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PROJECT_OVERVIEW.md)).*
+
+---
 
 ## 2. Audit Details
 
@@ -50,7 +63,7 @@
 | Area | Status | Notes |
 |---|---|---|
 | Read | PASS | Shows Reseller details, calculates balances correctly natively. |
-| Create | PASS | Allows recording separate payments reliably. |
+| Create | PASS | Allows recording separate payments reliably. *(Upgraded in October 2026 with multi-entry allocations and editable credit ledgers; see [`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md)).* |
 
 ### 2.6 Wholesale Sales
 | Area | Status | Notes |

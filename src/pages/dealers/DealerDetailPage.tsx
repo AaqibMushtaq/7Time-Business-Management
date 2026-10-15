@@ -55,11 +55,12 @@ export default function DealerDetailPage() {
   }
 
   // Calculate totals
+  const openingBalance = Number(dealer.opening_balance || 0)
   const totalPurchases = purchases?.reduce((sum: number, p: any) => sum + Number(p.total_amount || 0), 0) || 0
   const totalPaidAtPurchase = purchases?.reduce((sum: number, p: any) => sum + Number(p.amount_paid || 0), 0) || 0
   const totalSeparatePaid = payments?.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0) || 0
   const totalPaid = totalPaidAtPurchase + totalSeparatePaid
-  const outstandingBalance = totalPurchases - totalPaid
+  const outstandingBalance = openingBalance + totalPurchases - totalPaid
 
   return (
     <div className="space-y-6">
@@ -91,11 +92,18 @@ export default function DealerDetailPage() {
           <CardContent><div className="text-3xl font-bold">{formatMoney(totalPaid)}</div></CardContent>
         </Card>
 
-        <Card className="bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-sm">
+        <Card className={`bg-gradient-to-br ${outstandingBalance > 0 ? 'from-rose-500 to-rose-600' : 'from-emerald-500 to-emerald-600'} text-white shadow-sm`}>
           <CardHeader className="pb-2"><CardTitle className="text-sm opacity-90">Outstanding Balance</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{formatMoney(outstandingBalance)}</div>
-            <p className="text-xs font-semibold uppercase mt-1 tracking-wider opacity-90">We Owe Dealer</p>
+            <p className="text-xs font-semibold uppercase mt-1 tracking-wider opacity-90">
+              {outstandingBalance >= 0 ? "We Owe Dealer" : "Advance / Dealer Owes Us"}
+            </p>
+            {openingBalance !== 0 && (
+              <p className="text-xs opacity-80 mt-1">
+                (Includes Opening: {formatMoney(openingBalance)})
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

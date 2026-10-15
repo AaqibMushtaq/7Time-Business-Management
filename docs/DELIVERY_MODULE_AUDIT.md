@@ -2,6 +2,10 @@
 **7TIME Business Management System | P0 Production Delivery Audit**
 **Date:** October 10, 2026
 
+> **DOCUMENT CLASSIFICATION: TIER 3 — SPECIALIZED HISTORICAL AUDIT REPORT**  
+> **Purpose:** This document preserves the P0 production delivery audit for General Daily Delivery and NAEEM Dedicated Delivery operations, including arithmetic expression persistence, schema fixes, and monthly balance carry-forward rules.  
+> **Authoritative System Wide Schemas:** For active cross-module schemas and architecture, refer to [`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md) and [`docs/PROJECT_OVERVIEW.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PROJECT_OVERVIEW.md).  
+
 ---
 
 ## 1. Executive Summary

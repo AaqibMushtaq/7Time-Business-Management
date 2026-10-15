@@ -1,6 +1,15 @@
 # FINANCIAL REPORTING & DASHBOARD (Phase 7)
 
-## 1. Audit of Existing Dashboard
+> **DOCUMENT CLASSIFICATION: TIER 3 — HISTORICAL PLANNING & METRIC SNAPSHOT (PHASE 7)**  
+> **Historical Context:** This document records early financial metric definitions and proposed dashboard improvements designed during Phase 7.  
+> **VERIFIED IMPLEMENTATION STATUS:** Items marked below as *"To be added"* (such as Net Cash Movement / Cash Flow) and *"Planned Improvements"* (such as drill-down navigation and cash flow charts) have been **fully implemented in v1.2.1/v1.3.0**.  
+> **Authoritative Current Documentation:**  
+> - For current authoritative database tables, triggers, and accounting formulas: see [`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md).  
+> - For specialized dashboard metric derivations and double-counting prevention: see [`docs/DASHBOARD_AUDIT.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DASHBOARD_AUDIT.md).  
+
+---
+
+## 1. Audit of Existing Dashboard (Phase 7 Baseline)
 
 ### Layout and Components
 - The dashboard is built primarily in `src/pages/dashboard/index.tsx`.
@@ -43,9 +52,10 @@ The metrics displayed on the dashboard are defined as follows based strictly on 
 - **Source:** `products` table.
 - **Applicable Date:** N/A (Always represents the live, real-time snapshot).
 
-### Net Cash Movement (To be added)
+### Net Cash Movement *(Implemented in v1.2.1)*
 - **Definition:** Total cash inflows minus total cash outflows for the selected period.
 - **Formula:** `(Wholesale Received + Separate Reseller Payments) - (Purchase Initial Payments + Separate Dealer Payments + General Fuel Expenses)`.
+- **Status:** *[LIVE & VERIFIED]* Implemented in `src/services/dashboard.ts` and visualized on the Cash Flow & Collections chart.
 - **Note:** Excludes Naeem transactions as they operate on an isolated partner ledger.
 
 ### We Owe Dealers (Total Payable)
@@ -63,15 +73,10 @@ The metrics displayed on the dashboard are defined as follows based strictly on 
 
 ---
 
-## 3. Planned Improvements
+## 3. Planned Improvements Status
 
-1. **Month-to-Month Comparisons:** 
-   - Add visual indicators (e.g., green up arrow or red down arrow) on primary KPIs comparing the selected period with the previous period.
-2. **Net Cash Movement:** 
-   - Add a high-level summary of cash flow.
-3. **Drill-down Navigation:** 
-   - Update summary cards and dealer/reseller tables to link directly to their respective detail pages (e.g., clicking a dealer jumps to `/dealers/:id`).
-4. **Export Completeness:** 
-   - Update the export queries in `ReportsPage` to disable row limits so multi-thousand-row CSVs aren't truncated by Supabase defaults.
-5. **Chart Readability:** 
-   - Enhance the wholesale chart tooltip and add visual cues for missing data.
+1. **Month-to-Month Comparisons:** Visual indicators comparing the selected period with the previous period. *(Status: Evaluated in Executive KPI grid)*.
+2. **Net Cash Movement:** High-level summary of cash flow. *(Status: COMPLETED in v1.2.1; see [`docs/DASHBOARD_AUDIT.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DASHBOARD_AUDIT.md))*.
+3. **Drill-down Navigation:** Summary cards and tables link directly to respective detail pages. *(Status: COMPLETED)*.
+4. **Export Completeness:** Export queries in `ReportsPage` support multi-thousand-row CSV exports. *(Status: COMPLETED)*.
+5. **Chart Readability:** Enhanced wholesale chart tooltips with lazy code-splitting. *(Status: COMPLETED)*.
