@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { 
@@ -63,8 +63,10 @@ export default function CreateCustomerCreditModal({
 
   const [notes, setNotes] = useState<string>("")
   const [formError, setFormError] = useState<string | null>(null)
+  const [prevIsOpen, setPrevIsOpen] = useState<boolean>(false)
 
-  useEffect(() => {
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
     if (isOpen) {
       setEntryType(initialType)
       if (selectedCustomerId) {
@@ -73,7 +75,7 @@ export default function CreateCustomerCreditModal({
         setCustomerId(customers[0].id)
       }
     }
-  }, [isOpen, initialType, selectedCustomerId, customers])
+  }
 
   // Fetch inventory products for optional autofill
   const { data: inventoryProducts = [] } = useQuery({

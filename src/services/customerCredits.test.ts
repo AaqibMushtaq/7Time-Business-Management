@@ -1,7 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import {
   createCustomerCredit,
+  updateCustomerCredit,
+  deleteCustomerCredit,
   recordMultiEntryPayment,
+  reallocateExistingPayment,
+  autoAllocateCustomerPayments,
   calculateCustomerLedgerSummary,
   getCreditTypeLabel,
   getCreditTypeBadgeClasses
@@ -215,6 +219,92 @@ describe("Customer Credits Service", () => {
     })
   })
 
+  describe("Editing & Deleting Credit Entries", () => {
+    it("successfully edits product credit details including quantity, rate, total, and notes", async () => {
+      const mockUpdated = {
+        id: "cred-1",
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        product_name: "Cooking Oil 15L",
+        quantity: 5,
+        unit: "tins",
+        rate_per_unit: 1400,
+        total_amount: 7000,
+        notes: "Updated batch size"
+      }
+
+      const updateMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+
+      const selectMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: mockUpdated, error: null })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return {
+            update: updateMock,
+            select: selectMock
+          }
+        }
+        return {}
+      })
+
+      const res = await updateCustomerCredit("cred-1", {
+        product_name: "Cooking Oil 15L",
+        quantity: 5,
+        rate_per_unit: 1400,
+        total_amount: 7000,
+        notes: "Updated batch size"
+      })
+
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({
+        product_name: "Cooking Oil 15L",
+        quantity: 5,
+        rate_per_unit: 1400,
+        total_amount: 7000,
+        notes: "Updated batch size"
+      }))
+      expect(res.product_name).toBe("Cooking Oil 15L")
+      expect(res.total_amount).toBe(7000)
+    })
+
+    it("rejects editing with invalid or empty required fields", async () => {
+      await expect(updateCustomerCredit("cred-1", {
+        entry_type: "PRODUCT_CREDIT",
+        product_name: ""
+      })).rejects.toThrow("Product name is required")
+
+      await expect(updateCustomerCredit("cred-1", {
+        entry_type: "OTHER_CREDIT",
+        description: ""
+      })).rejects.toThrow("Description is required")
+
+      await expect(updateCustomerCredit("cred-1", {
+        total_amount: -50
+      })).rejects.toThrow("Total amount must be greater than zero")
+    })
+
+    it("successfully deletes a credit entry", async () => {
+      const deleteMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { delete: deleteMock }
+        }
+        return {}
+      })
+
+      await deleteCustomerCredit("cred-1")
+      expect(deleteMock).toHaveBeenCalled()
+    })
+  })
+
   describe("Multi-Entry Payment Allocation & Repayments", () => {
     it("records a single payment covering multiple entries with explicit allocations and advances", async () => {
       const mockPayment = {
@@ -285,6 +375,138 @@ describe("Customer Credits Service", () => {
           { creditId: "cred-2", amount: 500 } // sum = 1200 > 1000
         ]
       })).rejects.toThrow("cannot exceed payment amount")
+    })
+
+    it("reallocates an existing payment by safely replacing previous allocations", async () => {
+      // 1. Existing payment has 1 prior allocation to cred-1
+      const selectAllocationsMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({
+          data: [{ credit_id: "cred-1" }],
+          error: null
+        })
+      })
+
+      const deleteAllocationsMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+
+      const insertAllocationsMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_payments") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { id: "pay-100", amount: 1000 },
+                  error: null
+                })
+              })
+            })
+          }
+        }
+        if (table === "customer_payment_allocations") {
+          return {
+            select: selectAllocationsMock,
+            delete: deleteAllocationsMock,
+            insert: insertAllocationsMock
+          }
+        }
+        if (table === "customer_credits") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                single: vi.fn().mockResolvedValue({
+                  data: { id: "cred-2", total_amount: 1000 },
+                  error: null
+                })
+              })
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null })
+            })
+          }
+        }
+        return {}
+      })
+
+      await reallocateExistingPayment("pay-100", [
+        { creditId: "cred-2", amount: 500, notes: "Moved to cred-2" }
+      ])
+
+      expect(deleteAllocationsMock).toHaveBeenCalled()
+      expect(insertAllocationsMock).toHaveBeenCalledWith([
+        { payment_id: "pay-100", credit_id: "cred-2", amount: 500, notes: "Moved to cred-2" }
+      ])
+    })
+
+    it("auto-allocates unallocated payments to pending credits in chronological FIFO order", async () => {
+      const pendingCredits = [
+        { id: "cred-diaper", total_amount: 1920, amount_paid: 0, balance: 1920, entry_date: "2026-10-10" },
+        { id: "cred-dates", total_amount: 350, amount_paid: 0, balance: 350, entry_date: "2026-10-12" }
+      ]
+
+      const unallocatedPayments = [
+        {
+          id: "pay-ummer-1",
+          amount: 1725,
+          customer_payment_allocations: [] // 0 allocations -> entire 1725 unallocated
+        }
+      ]
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                gt: vi.fn().mockReturnValue({
+                  order: vi.fn().mockReturnValue({
+                    order: vi.fn().mockResolvedValue({ data: pendingCredits, error: null })
+                  })
+                })
+              })
+            }),
+            update: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ error: null })
+            })
+          }
+        }
+        if (table === "reseller_payments") {
+          return {
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockResolvedValue({ data: unallocatedPayments, error: null })
+                })
+              })
+            })
+          }
+        }
+        if (table === "customer_payment_allocations") {
+          return {
+            insert: insertAllocMock,
+            select: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ data: [{ amount: 1725 }], error: null })
+            })
+          }
+        }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-ummer")
+
+      expect(res.allocatedCount).toBe(1)
+      expect(res.totalAllocated).toBe(1725)
+      expect(insertAllocMock).toHaveBeenCalledWith([
+        {
+          payment_id: "pay-ummer-1",
+          credit_id: "cred-diaper",
+          amount: 1725,
+          notes: "Auto-allocated payment"
+        }
+      ])
     })
   })
 
@@ -385,6 +607,88 @@ describe("Customer Credits Service", () => {
       // 29000 - 13500 = 15500
       // Notice: 3000 (pc) + 7000 (cl) + 1000 (oc) + 5000 (sales) + 500 (opening) - 1000 (advance) = 15500!
       expect(summary.netOutstanding).toBe(15500)
+    })
+
+    it("identifies and reconciles the screenshot discrepancy: product total 2,270, payments 1,725, net 545, with unallocated payments accounted for", () => {
+      // Replicate the exact situation from the user prompt & screenshot:
+      // Two credit entries:
+      // 1. diaper: qty 4 @ 480 = 1920
+      // 2. dates: qty 1 @ 350 = 350
+      // Sum = 2270
+      const initialCredits: any[] = [
+        {
+          id: "c1",
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "diaper",
+          quantity: 4,
+          rate_per_unit: 480,
+          total_amount: 1920,
+          amount_paid: 0, // Initially 0 paid because allocations weren't linked
+          balance: 1920,
+          status: "PENDING"
+        },
+        {
+          id: "c2",
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "dates",
+          quantity: 1,
+          rate_per_unit: 350,
+          total_amount: 350,
+          amount_paid: 0, // Initially 0 paid
+          balance: 350,
+          status: "PENDING"
+        }
+      ]
+
+      // Payment recorded: 1725, but allocations were missing
+      const payments: any[] = [
+        { id: "p1", amount: 1725, payment_date: "2026-10-14" }
+      ]
+
+      // Step 1: Check summary before allocation
+      const summaryBefore = calculateCustomerLedgerSummary(initialCredits, [], payments, 0)
+      expect(summaryBefore.productCreditTotal).toBe(2270)
+      expect(summaryBefore.totalCredits).toBe(1725)
+      expect(summaryBefore.netOutstanding).toBe(545) // 2270 - 1725 = 545
+      // Item level paid sum is 0
+      expect(summaryBefore.productCreditPaid).toBe(0)
+      // Discrepancy detector correctly surfaces 1725 unallocated payments
+      expect(summaryBefore.unallocatedPayments).toBe(1725)
+
+      // Step 2: Now simulate after auto-allocating the 1725 payment FIFO to the oldest entry (c1 diaper)
+      const reconciledCredits: any[] = [
+        {
+          id: "c1",
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "diaper",
+          quantity: 4,
+          rate_per_unit: 480,
+          total_amount: 1920,
+          amount_paid: 1725, // 1725 allocated
+          balance: 195,      // 1920 - 1725 = 195
+          status: "PARTIAL"
+        },
+        {
+          id: "c2",
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "dates",
+          quantity: 1,
+          rate_per_unit: 350,
+          total_amount: 350,
+          amount_paid: 0,
+          balance: 350,
+          status: "PENDING"
+        }
+      ]
+
+      const summaryAfter = calculateCustomerLedgerSummary(reconciledCredits, [], payments, 0)
+      expect(summaryAfter.productCreditTotal).toBe(2270)
+      expect(summaryAfter.productCreditPaid).toBe(1725)
+      expect(summaryAfter.productCreditOutstanding).toBe(545)
+      expect(summaryAfter.netOutstanding).toBe(545)
+      expect(summaryAfter.unallocatedPayments).toBe(0)
+      // The row balances (195 + 350) now sum to EXACTLY the net outstanding 545!
+      expect(reconciledCredits[0].balance + reconciledCredits[1].balance).toBe(summaryAfter.netOutstanding)
     })
   })
 

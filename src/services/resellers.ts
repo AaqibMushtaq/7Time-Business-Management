@@ -5,6 +5,7 @@ export interface ResellerCustomer {
   name: string
   phone: string | null
   address: string | null
+  notes?: string | null
   opening_balance?: number
   created_at?: string
   total_sales?: number

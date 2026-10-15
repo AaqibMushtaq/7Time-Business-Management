@@ -75,6 +75,7 @@ export interface CreateCustomerCreditInput {
 
 export interface UpdateCustomerCreditInput {
   entry_date?: string
+  entry_type?: CustomerCreditType
   product_id?: string | null
   product_name?: string | null
   category?: string | null
@@ -116,7 +117,8 @@ export interface CustomerLedgerSummary {
   // Payments & Advances
   totalPaymentsRecorded: number
   totalAllocatedToCredits: number
-  unallocatedAdvancePayments: number
+  unallocatedPayments: number // Payments received not yet mapped to credit entries
+  unallocatedAdvancePayments: number // Surplus advance (payments exceeding all charges)
 
   // Authoritative Overall Balance
   totalCharges: number
@@ -323,6 +325,19 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
 export async function updateCustomerCredit(id: string, input: UpdateCustomerCreditInput): Promise<CustomerCredit> {
   const updatePayload: Record<string, any> = {}
 
+  if (input.entry_type !== undefined) {
+    updatePayload.entry_type = input.entry_type
+    if (input.entry_type === "PRODUCT_CREDIT") {
+      if (input.product_name !== undefined && (!input.product_name || !input.product_name.trim())) {
+        throw new Error("Product name is required for Product Credit.")
+      }
+    } else if (input.entry_type === "OTHER_CREDIT") {
+      if (input.description !== undefined && (!input.description || !input.description.trim())) {
+        throw new Error("Description is required for Other Credit.")
+      }
+    }
+  }
+
   if (input.entry_date !== undefined) updatePayload.entry_date = input.entry_date
   if (input.product_id !== undefined) updatePayload.product_id = input.product_id || null
   if (input.product_name !== undefined) updatePayload.product_name = input.product_name?.trim() || null
@@ -331,7 +346,13 @@ export async function updateCustomerCredit(id: string, input: UpdateCustomerCred
   if (input.unit !== undefined) updatePayload.unit = input.unit?.trim() || null
   if (input.rate_per_unit !== undefined) updatePayload.rate_per_unit = input.rate_per_unit
   if (input.description !== undefined) updatePayload.description = input.description?.trim() || null
-  if (input.total_amount !== undefined) updatePayload.total_amount = Number(input.total_amount)
+  if (input.total_amount !== undefined) {
+    const tot = Number(input.total_amount)
+    if (isNaN(tot) || tot <= 0) {
+      throw new Error("Total amount must be greater than zero.")
+    }
+    updatePayload.total_amount = tot
+  }
   if (input.notes !== undefined) updatePayload.notes = input.notes?.trim() || null
 
   const { error } = await supabase
@@ -574,6 +595,9 @@ export function calculateCustomerLedgerSummary(
   const totalCredits = totalPaymentsRecorded
   const netOutstanding = totalCharges - totalCredits
 
+  // Unallocated payments on account: payments made by customer that have not yet been assigned to individual credit entries
+  const unallocatedPayments = Math.max(0, totalSeparatePayments - totalAllocatedToCredits)
+
   // Unallocated advance payments
   // An advance exists when total separate payments exceed what was allocated to credits and wholesale sales
   const unallocatedAdvancePayments = Math.max(0, -netOutstanding)
@@ -602,11 +626,146 @@ export function calculateCustomerLedgerSummary(
 
     totalPaymentsRecorded,
     totalAllocatedToCredits,
+    unallocatedPayments,
     unallocatedAdvancePayments,
 
     totalCharges,
     totalCredits,
     netOutstanding
+  }
+}
+
+/**
+ * Automatically allocates any unallocated payments for a customer across their pending credits
+ * in chronological order (FIFO / oldest entries first).
+ */
+export async function autoAllocateCustomerPayments(customerId: string): Promise<{ allocatedCount: number; totalAllocated: number }> {
+  if (!customerId) throw new Error("Customer ID is required.")
+
+  // 1. Fetch customer's payments and their existing allocations
+  const { data: payments, error: payError } = await supabase
+    .from("reseller_payments")
+    .select(`
+      id,
+      amount,
+      payment_date,
+      created_at,
+      allocations:customer_payment_allocations(id, amount)
+    `)
+    .eq("customer_id", customerId)
+    .order("payment_date", { ascending: true })
+    .order("created_at", { ascending: true })
+
+  if (payError) throw new Error(payError.message)
+  if (!payments || payments.length === 0) return { allocatedCount: 0, totalAllocated: 0 }
+
+  // 2. Fetch customer's pending credits
+  const { data: credits, error: credError } = await supabase
+    .from("customer_credits")
+    .select("id, total_amount, amount_paid, balance, entry_date, created_at")
+    .eq("customer_id", customerId)
+    .gt("balance", 0)
+    .order("entry_date", { ascending: true })
+    .order("created_at", { ascending: true })
+
+  if (credError) throw new Error(credError.message)
+  if (!credits || credits.length === 0) return { allocatedCount: 0, totalAllocated: 0 }
+
+  const creditRemainingMap: Record<string, number> = {}
+  credits.forEach(c => {
+    creditRemainingMap[c.id] = Number(c.balance || 0)
+  })
+
+  const newAllocations: Array<{ payment_id: string; credit_id: string; amount: number; notes: string }> = []
+  let totalAllocatedSum = 0
+
+  for (const payment of payments) {
+    const existingAllocSum = (payment.allocations || []).reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
+    let paymentUnallocated = Math.max(0, Number(payment.amount || 0) - existingAllocSum)
+
+    if (paymentUnallocated <= 0.001) continue
+
+    for (const credit of credits) {
+      if (paymentUnallocated <= 0.001) break
+      const remainingCredBal = creditRemainingMap[credit.id] || 0
+      if (remainingCredBal <= 0.001) continue
+
+      const allocAmt = Math.min(paymentUnallocated, remainingCredBal)
+      if (allocAmt > 0) {
+        newAllocations.push({
+          payment_id: payment.id,
+          credit_id: credit.id,
+          amount: Math.round(allocAmt * 100) / 100,
+          notes: "Auto-allocated payment"
+        })
+        paymentUnallocated -= allocAmt
+        creditRemainingMap[credit.id] -= allocAmt
+        totalAllocatedSum += allocAmt
+      }
+    }
+  }
+
+  if (newAllocations.length > 0) {
+    const { error: insError } = await supabase
+      .from("customer_payment_allocations")
+      .insert(newAllocations)
+
+    if (insError) throw new Error(insError.message)
+  }
+
+  return {
+    allocatedCount: newAllocations.length,
+    totalAllocated: totalAllocatedSum
+  }
+}
+
+/**
+ * Re-allocates or updates allocations for an existing payment.
+ */
+export async function reallocateExistingPayment(
+  paymentId: string,
+  allocations: { creditId: string; amount: number; notes?: string }[]
+): Promise<void> {
+  if (!paymentId) throw new Error("Payment ID is required.")
+
+  const { data: payment, error: pErr } = await supabase
+    .from("reseller_payments")
+    .select("id, amount")
+    .eq("id", paymentId)
+    .single()
+
+  if (pErr) throw new Error(pErr.message)
+
+  const paymentAmount = Number(payment.amount || 0)
+  const totalAllocated = allocations.reduce((sum, a) => sum + Number(a.amount || 0), 0)
+
+  if (totalAllocated > paymentAmount + 0.01) {
+    throw new Error(`Total allocated (${totalAllocated}) cannot exceed payment amount (${paymentAmount}).`)
+  }
+
+  // Delete existing allocations for this payment
+  const { error: delErr } = await supabase
+    .from("customer_payment_allocations")
+    .delete()
+    .eq("payment_id", paymentId)
+
+  if (delErr) throw new Error(delErr.message)
+
+  const validAllocs = allocations
+    .filter(a => Number(a.amount) > 0)
+    .map(a => ({
+      payment_id: paymentId,
+      credit_id: a.creditId,
+      amount: Number(a.amount),
+      notes: a.notes?.trim() || null
+    }))
+
+  if (validAllocs.length > 0) {
+    const { error: insErr } = await supabase
+      .from("customer_payment_allocations")
+      .insert(validAllocs)
+
+    if (insErr) throw new Error(insErr.message)
   }
 }
 

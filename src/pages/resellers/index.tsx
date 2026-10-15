@@ -58,6 +58,7 @@ export default function ResellersPage() {
     name: "",
     phone: "",
     address: "",
+    notes: "",
     opening_balance: ""
   })
   const [customerFormError, setCustomerFormError] = useState<string | null>(null)
@@ -105,7 +106,7 @@ export default function ResellersPage() {
   // Modal handlers
   const openAddCustomer = () => {
     setEditingCustomer(null)
-    setCustomerFormData({ name: "", phone: "", address: "", opening_balance: "" })
+    setCustomerFormData({ name: "", phone: "", address: "", notes: "", opening_balance: "" })
     setCustomerFormError(null)
     setIsCustomerModalOpen(true)
   }
@@ -117,6 +118,7 @@ export default function ResellersPage() {
       name: customer.name || "",
       phone: customer.phone || "",
       address: customer.address || "",
+      notes: customer.notes || "",
       opening_balance: customer.opening_balance ? customer.opening_balance.toString() : ""
     })
     setCustomerFormError(null)
@@ -126,7 +128,7 @@ export default function ResellersPage() {
   const closeCustomerModal = () => {
     setIsCustomerModalOpen(false)
     setEditingCustomer(null)
-    setCustomerFormData({ name: "", phone: "", address: "", opening_balance: "" })
+    setCustomerFormData({ name: "", phone: "", address: "", notes: "", opening_balance: "" })
     setCustomerFormError(null)
   }
 
@@ -141,7 +143,8 @@ export default function ResellersPage() {
     const payload: Record<string, any> = {
       name: customerFormData.name.trim(),
       phone: customerFormData.phone.trim() || null,
-      address: customerFormData.address.trim() || null
+      address: customerFormData.address.trim() || null,
+      notes: customerFormData.notes.trim() || null
     }
 
     if (customerFormData.opening_balance) {
@@ -307,6 +310,19 @@ export default function ResellersPage() {
                   placeholder="Business address / location"
                   value={customerFormData.address}
                   onChange={(e) => setCustomerFormData({ ...customerFormData, address: e.target.value })}
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                  Customer Notes (Optional)
+                </Label>
+                <textarea
+                  className="flex min-h-[60px] w-full rounded-md border border-slate-200 bg-transparent px-3 py-2 text-sm shadow-2xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2D7FF9]/20 focus-visible:border-[#2D7FF9]"
+                  placeholder="Notes about customer, preferences, or credit terms"
+                  value={customerFormData.notes}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, notes: e.target.value })}
                   disabled={createMutation.isPending || updateMutation.isPending}
                 />
               </div>

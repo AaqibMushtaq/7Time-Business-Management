@@ -4,11 +4,13 @@ import { MemoryRouter, Routes, Route, Navigate } from "react-router-dom"
 import ResellersPage from "./index"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { 
-  getResellersWithBalances 
+  getResellersWithBalances,
+  updateReseller
 } from "@/services/resellers"
 import { 
   recordMultiEntryPayment, 
-  getCustomerCredits
+  getCustomerCredits,
+  updateCustomerCredit
 } from "@/services/customerCredits"
 import { supabase } from "@/lib/supabase"
 
@@ -32,6 +34,9 @@ vi.mock("@/services/customerCredits", async (importOriginal) => {
     getCustomerCredits: vi.fn(),
     recordMultiEntryPayment: vi.fn(),
     createCustomerCredit: vi.fn(),
+    updateCustomerCredit: vi.fn(),
+    deleteCustomerCredit: vi.fn(),
+    autoAllocateCustomerPayments: vi.fn(),
   }
 })
 
@@ -349,5 +354,108 @@ describe("Local Customers (ResellersPage Component)", () => {
     )
 
     expect(getByText("Consolidated Local Customers Destination")).toBeDefined()
+  })
+
+  it("opens Edit Profile modal, updates customer details including notes, and submits to Supabase", async () => {
+    ;(updateReseller as any).mockResolvedValue({
+      id: "cust-1",
+      name: "Ishfaq ATM Updated",
+      phone: "+91 9999988888",
+      address: "Shop 12 New Market",
+      notes: "Preferred customer with prompt settlements"
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ResellersPage />
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Ishfaq ATM")
+
+    // Open detail modal for Ishfaq ATM
+    fireEvent.click(screen.getByText("Ishfaq ATM"))
+
+    // Find and click "Edit Profile" button
+    const editProfileBtn = await screen.findByRole("button", { name: /edit profile/i })
+    fireEvent.click(editProfileBtn)
+
+    // Edit Profile Modal is rendered
+    expect(await screen.findByText("Edit Customer Profile")).toBeDefined()
+
+    // Edit Name
+    const nameInput = screen.getByLabelText(/customer name/i)
+    fireEvent.change(nameInput, { target: { value: "Ishfaq ATM Updated" } })
+
+    // Edit Phone
+    const phoneInput = screen.getByLabelText(/phone number/i)
+    fireEvent.change(phoneInput, { target: { value: "+91 9999988888" } })
+
+    // Edit Notes
+    const notesInput = screen.getByLabelText(/customer notes/i)
+    fireEvent.change(notesInput, { target: { value: "Preferred customer with prompt settlements" } })
+
+    // Save Changes
+    const saveBtn = screen.getByRole("button", { name: /save changes/i })
+    fireEvent.click(saveBtn)
+
+    await waitFor(() => {
+      expect(updateReseller).toHaveBeenCalledWith("cust-1", expect.objectContaining({
+        name: "Ishfaq ATM Updated",
+        phone: "+91 9999988888",
+        notes: "Preferred customer with prompt settlements"
+      }))
+    })
+  })
+
+  it("supports inline row editing of credit entries in the ledger table", async () => {
+    ;(updateCustomerCredit as any).mockResolvedValue({
+      id: "cred-101",
+      customer_id: "cust-1",
+      entry_type: "PRODUCT_CREDIT",
+      product_name: "Cooking Oil 5L",
+      quantity: 6,
+      rate_per_unit: 500,
+      total_amount: 3000,
+      notes: "Increased by 1 tin"
+    })
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ResellersPage />
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Ishfaq ATM")
+
+    // Open detail modal for Ishfaq ATM
+    fireEvent.click(screen.getByText("Ishfaq ATM"))
+
+    // Ensure credits table rendered
+    await screen.findByText("Cooking Oil 5L")
+
+    // Find the inline Edit button (title="Edit Entry")
+    const editBtns = screen.getAllByTitle("Edit Entry")
+    expect(editBtns.length).toBeGreaterThan(0)
+    fireEvent.click(editBtns[0])
+
+    // Quantity input is now rendered in edit mode with placeholder="Qty"
+    const qtyInput = screen.getByPlaceholderText("Qty")
+    expect(qtyInput).toBeDefined()
+
+    // Change quantity to 6
+    fireEvent.change(qtyInput, { target: { value: "6" } })
+
+    // Save changes
+    const saveBtn = screen.getByRole("button", { name: /save/i })
+    fireEvent.click(saveBtn)
+
+    await waitFor(() => {
+      expect(updateCustomerCredit).toHaveBeenCalledWith("cred-101", expect.objectContaining({
+        quantity: 6,
+        rate_per_unit: 500,
+        total_amount: 3000
+      }))
+    })
   })
 })

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react"
+import { useState, useMemo } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { 
   recordMultiEntryPayment, 
@@ -63,15 +63,15 @@ export default function RecordResellerPaymentModal({
   }, [customerCredits])
 
   // Pre-fill target credit when modal is opened with a targetCreditId
-  useEffect(() => {
-    if (isOpen && targetCreditId && !amount) {
-      const target = customerCredits.find(c => c.id === targetCreditId)
-      if (target && target.balance > 0) {
-        setAmount(target.balance.toString())
-        setAllocations({ [target.id]: target.balance.toString() })
-      }
+  const [prefilledTargetId, setPrefilledTargetId] = useState<string | null>(null)
+  if (isOpen && targetCreditId && targetCreditId !== prefilledTargetId) {
+    const target = customerCredits.find(c => c.id === targetCreditId)
+    if (target && target.balance > 0) {
+      setPrefilledTargetId(targetCreditId)
+      setAmount(target.balance.toString())
+      setAllocations({ [target.id]: target.balance.toString() })
     }
-  }, [isOpen, targetCreditId, customerCredits, amount])
+  }
 
   const currentReseller = resellers.find(r => r.id === customerId) || (selectedReseller?.id === customerId ? selectedReseller : null)
 
