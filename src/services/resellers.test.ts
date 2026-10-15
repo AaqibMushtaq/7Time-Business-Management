@@ -113,6 +113,51 @@ describe("Resellers Service", () => {
     expect(r2.outstanding).toBe(1500)
   })
 
+  it("getResellersWithBalances calculates accurate funding source breakdowns and total owed", async () => {
+    const mockResellers = [
+      { id: "r1", name: "Local Customer 1", phone: "111", address: "Market" }
+    ]
+
+    const mockCredits = [
+      { customer_id: "r1", entry_type: "PRODUCT_CREDIT", funding_source: "7TIME_FUNDS", balance: 800 },
+      { customer_id: "r1", entry_type: "CASH_LOAN", funding_source: "PERSONAL_FUNDS", balance: 400 },
+      { customer_id: "r1", entry_type: "PRODUCT_CREDIT", funding_source: null, balance: 200 }
+    ]
+
+    ;(supabase.from as any).mockImplementation((table: string) => {
+      if (table === "reseller_customers") {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: mockResellers, error: null })
+          })
+        }
+      }
+      if (table === "customer_credits") {
+        return {
+          select: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({ data: mockCredits, error: null })
+          })
+        }
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({ data: [], error: null })
+        })
+      }
+    })
+
+    const result = await getResellersWithBalances()
+    const r1 = result.find(r => r.id === "r1")!
+
+    expect(r1.funds_7time_outstanding).toBe(800)
+    expect(r1.funds_personal_outstanding).toBe(400)
+    expect(r1.funds_unallocated_outstanding).toBe(200)
+    expect(r1.product_credit_outstanding).toBe(1000) // 800 + 200
+    expect(r1.cash_loan_outstanding).toBe(400)
+    expect(r1.total_owed).toBe(1400)
+    expect(r1.funds_7time_outstanding + r1.funds_personal_outstanding + r1.funds_unallocated_outstanding).toBe(r1.total_owed)
+  })
+
   it("createReseller inserts customer into reseller_customers", async () => {
     const newCustomer = { name: "Gamma Reseller", phone: "333", address: "Market 3" }
     const savedCustomer = { id: "r3", ...newCustomer, created_at: "2026-10-11" }

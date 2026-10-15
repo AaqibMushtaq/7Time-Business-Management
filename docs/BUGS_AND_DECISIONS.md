@@ -79,6 +79,7 @@
 | **FIFO Auto-Allocation for Unallocated Payments** | Reconciles unallocated payments into line item balances automatically without requiring tedious manual mapping. | Forcing manual entry allocation upfront (rejected as high friction for field staff). | Approved & Live |
 | **Dealer Advance Isolation on Dashboard** | Applies $\max(0, \text{Balance})$ per dealer on executive dashboard `#payables` KPI so supplier advance balances do not artificially deflate debts owed to other creditors. | Blindly summing all balances (rejected as mathematically distorting total liabilities). | Approved & Live |
 | **Double-Submission Prevention via `isPending`** | Disables submit buttons and renders spinners using TanStack Query mutation state rather than ad-hoc client UUID keys. | Complex backend idempotency middleware (unnecessary for current single-tenant administrative workflow). | Approved & Live |
+| **Local Customers Personal Ledger & Funding Source Segregation** | Clarified Local Customers as a personal customer ledger (goods on credit, personal cash loans, and repayments) strictly isolated from wholesale revenue and dealer accounting. Added `funding_source` (`'7TIME_FUNDS'` vs `'PERSONAL_FUNDS'`) to `customer_credits`. Historical records with `NULL` source are rendered as "Unallocated" with warning banners rather than guessed. | Merging customer credits into wholesale accounts or guessing funding sources for historical records (rejected as corrupting historical financial auditability). | Approved & Staged |
 
 ---
 

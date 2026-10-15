@@ -3,6 +3,7 @@ import type { ResellerCustomer } from "./resellers"
 
 export type CustomerCreditType = "PRODUCT_CREDIT" | "CASH_LOAN" | "OTHER_CREDIT"
 export type CustomerCreditStatus = "PENDING" | "PARTIAL" | "PAID"
+export type CustomerCreditFundingSource = "7TIME_FUNDS" | "PERSONAL_FUNDS"
 
 export interface CustomerPaymentAllocation {
   id: string
@@ -28,6 +29,7 @@ export interface CustomerCredit {
   customer_id: string
   entry_type: CustomerCreditType
   entry_date: string
+  funding_source?: CustomerCreditFundingSource | null
   product_id: string | null
   product_name: string | null
   category: string | null
@@ -56,6 +58,7 @@ export interface CreateCustomerCreditInput {
   customer_id: string
   entry_type: CustomerCreditType
   entry_date?: string
+  funding_source?: CustomerCreditFundingSource | null
   // Product Credit fields
   product_id?: string | null
   product_name?: string | null
@@ -76,6 +79,7 @@ export interface CreateCustomerCreditInput {
 export interface UpdateCustomerCreditInput {
   entry_date?: string
   entry_type?: CustomerCreditType
+  funding_source?: CustomerCreditFundingSource | null
   product_id?: string | null
   product_name?: string | null
   category?: string | null
@@ -105,6 +109,22 @@ export interface CustomerLedgerSummary {
   otherCreditPaid: number
   otherCreditOutstanding: number
   otherCreditCount: number
+
+  // Funding Source Breakdown
+  funds7TimeTotal: number
+  funds7TimePaid: number
+  funds7TimeOutstanding: number
+  funds7TimeCount: number
+
+  fundsPersonalTotal: number
+  fundsPersonalPaid: number
+  fundsPersonalOutstanding: number
+  fundsPersonalCount: number
+
+  fundsUnallocatedTotal: number
+  fundsUnallocatedPaid: number
+  fundsUnallocatedOutstanding: number
+  fundsUnallocatedCount: number
 
   // Wholesale Sales
   wholesaleSalesTotal: number
@@ -262,6 +282,7 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
     unit: unit?.trim() || (entry_type === "PRODUCT_CREDIT" ? "pcs" : null),
     rate_per_unit: rate_per_unit ?? (entry_type === "PRODUCT_CREDIT" && quantity ? total_amount / quantity : null),
     description: entry_type === "OTHER_CREDIT" ? description?.trim() || null : (description?.trim() || null),
+    funding_source: input.funding_source || null,
     total_amount: Number(total_amount),
     amount_paid: 0,
     balance: Number(total_amount),
@@ -353,6 +374,7 @@ export async function updateCustomerCredit(id: string, input: UpdateCustomerCred
     }
     updatePayload.total_amount = tot
   }
+  if (input.funding_source !== undefined) updatePayload.funding_source = input.funding_source || null
   if (input.notes !== undefined) updatePayload.notes = input.notes?.trim() || null
 
   const { error } = await supabase
@@ -552,6 +574,22 @@ export function calculateCustomerLedgerSummary(
   let otherCreditOutstanding = 0
   let otherCreditCount = 0
 
+  // Funding Source Breakdown
+  let funds7TimeTotal = 0
+  let funds7TimePaid = 0
+  let funds7TimeOutstanding = 0
+  let funds7TimeCount = 0
+
+  let fundsPersonalTotal = 0
+  let fundsPersonalPaid = 0
+  let fundsPersonalOutstanding = 0
+  let fundsPersonalCount = 0
+
+  let fundsUnallocatedTotal = 0
+  let fundsUnallocatedPaid = 0
+  let fundsUnallocatedOutstanding = 0
+  let fundsUnallocatedCount = 0
+
   credits.forEach(c => {
     const tot = Number(c.total_amount || 0)
     const paid = Number(c.amount_paid || 0)
@@ -572,6 +610,23 @@ export function calculateCustomerLedgerSummary(
       otherCreditPaid += paid
       otherCreditOutstanding += bal
       otherCreditCount++
+    }
+
+    if (c.funding_source === "7TIME_FUNDS") {
+      funds7TimeTotal += tot
+      funds7TimePaid += paid
+      funds7TimeOutstanding += bal
+      funds7TimeCount++
+    } else if (c.funding_source === "PERSONAL_FUNDS") {
+      fundsPersonalTotal += tot
+      fundsPersonalPaid += paid
+      fundsPersonalOutstanding += bal
+      fundsPersonalCount++
+    } else {
+      fundsUnallocatedTotal += tot
+      fundsUnallocatedPaid += paid
+      fundsUnallocatedOutstanding += bal
+      fundsUnallocatedCount++
     }
   })
 
@@ -617,6 +672,21 @@ export function calculateCustomerLedgerSummary(
     otherCreditPaid,
     otherCreditOutstanding,
     otherCreditCount,
+
+    funds7TimeTotal,
+    funds7TimePaid,
+    funds7TimeOutstanding,
+    funds7TimeCount,
+
+    fundsPersonalTotal,
+    fundsPersonalPaid,
+    fundsPersonalOutstanding,
+    fundsPersonalCount,
+
+    fundsUnallocatedTotal,
+    fundsUnallocatedPaid,
+    fundsUnallocatedOutstanding,
+    fundsUnallocatedCount,
 
     wholesaleSalesTotal,
     wholesaleSalesPaid,
@@ -800,3 +870,29 @@ export function getCreditTypeBadgeClasses(type: CustomerCreditType): { bg: strin
       return { bg: "bg-slate-50", text: "text-slate-700", border: "border-slate-200" }
   }
 }
+
+/**
+ * Funding Source display label helper
+ */
+export function getFundingSourceLabel(source?: CustomerCreditFundingSource | null): string {
+  if (source === "7TIME_FUNDS") return "7TIME Funds"
+  if (source === "PERSONAL_FUNDS") return "Personal Funds"
+  return "Unallocated"
+}
+
+/**
+ * Funding Source badge styling helper
+ * - 7TIME Funds: Green / Emerald
+ * - Personal Funds: Purple / Violet
+ * - Unallocated: Slate / Gray
+ */
+export function getFundingSourceBadgeClasses(source?: CustomerCreditFundingSource | null): { bg: string; text: string; border: string } {
+  if (source === "7TIME_FUNDS") {
+    return { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" }
+  }
+  if (source === "PERSONAL_FUNDS") {
+    return { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200" }
+  }
+  return { bg: "bg-slate-100", text: "text-slate-600", border: "border-slate-200" }
+}
+

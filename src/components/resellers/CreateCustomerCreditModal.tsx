@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { 
   createCustomerCredit, 
-  type CustomerCreditType 
+  type CustomerCreditType,
+  type CustomerCreditFundingSource
 } from "@/services/customerCredits"
 import type { ResellerCustomer } from "@/services/resellers"
 import { Button } from "@/components/ui/button"
@@ -17,7 +18,9 @@ import {
   X, 
   Loader2, 
   AlertCircle,
-  Calendar
+  Calendar,
+  Building2,
+  UserCheck
 } from "lucide-react"
 
 interface CreateCustomerCreditModalProps {
@@ -40,6 +43,7 @@ export default function CreateCustomerCreditModal({
   const queryClient = useQueryClient()
 
   const [entryType, setEntryType] = useState<CustomerCreditType>(initialType)
+  const [fundingSource, setFundingSource] = useState<CustomerCreditFundingSource>("7TIME_FUNDS")
   const [customerId, setCustomerId] = useState<string>(selectedCustomerId || (customers.length > 0 ? customers[0].id : ""))
   const [entryDate, setEntryDate] = useState<string>(() => new Date().toISOString().split("T")[0])
 
@@ -69,6 +73,7 @@ export default function CreateCustomerCreditModal({
     setPrevIsOpen(isOpen)
     if (isOpen) {
       setEntryType(initialType)
+      setFundingSource("7TIME_FUNDS")
       if (selectedCustomerId) {
         setCustomerId(selectedCustomerId)
       } else if (customers.length > 0) {
@@ -143,6 +148,7 @@ export default function CreateCustomerCreditModal({
   })
 
   const resetForm = () => {
+    setFundingSource("7TIME_FUNDS")
     setProductName("")
     setSelectedProductId("")
     setCategory("")
@@ -203,6 +209,7 @@ export default function CreateCustomerCreditModal({
       customer_id: customerId,
       entry_type: entryType,
       entry_date: entryDate,
+      funding_source: fundingSource,
       product_id: selectedProductId || null,
       product_name: entryType === "PRODUCT_CREDIT" ? productName.trim() : null,
       category: category.trim() || null,
@@ -358,6 +365,65 @@ export default function CreateCustomerCreditModal({
                 />
                 <Calendar className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               </div>
+            </div>
+          </div>
+
+          {/* Money Source Selector */}
+          <div className="space-y-1.5 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200">
+            <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                Money Source <span className="text-red-500">*</span>
+              </span>
+              <span className="text-[11px] font-normal text-slate-500 lowercase">
+                capital origin for this credit/loan
+              </span>
+            </Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setFundingSource("7TIME_FUNDS")}
+                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                  fundingSource === "7TIME_FUNDS"
+                    ? "border-emerald-500 bg-emerald-50 text-emerald-950 ring-2 ring-emerald-500/20 shadow-xs"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <div className={`p-2 rounded-lg shrink-0 ${fundingSource === "7TIME_FUNDS" ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                  <Building2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold flex items-center gap-1.5">
+                    7TIME Business Funds
+                    {fundingSource === "7TIME_FUNDS" && (
+                      <span className="text-[10px] bg-emerald-200/80 text-emerald-800 font-bold px-1.5 py-0.2 rounded">Active</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Company business money</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFundingSource("PERSONAL_FUNDS")}
+                className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+                  fundingSource === "PERSONAL_FUNDS"
+                    ? "border-purple-500 bg-purple-50 text-purple-950 ring-2 ring-purple-500/20 shadow-xs"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <div className={`p-2 rounded-lg shrink-0 ${fundingSource === "PERSONAL_FUNDS" ? "bg-purple-600 text-white" : "bg-slate-100 text-slate-500"}`}>
+                  <UserCheck className="h-4 w-4" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold flex items-center gap-1.5">
+                    Personal Funds
+                    {fundingSource === "PERSONAL_FUNDS" && (
+                      <span className="text-[10px] bg-purple-200/80 text-purple-800 font-bold px-1.5 py-0.2 rounded">Active</span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">Proprietor personal money</div>
+                </div>
+              </button>
             </div>
           </div>
 

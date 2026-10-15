@@ -11,11 +11,14 @@ import {
   calculateCustomerLedgerSummary,
   getCreditTypeBadgeClasses,
   getCreditTypeLabel,
+  getFundingSourceBadgeClasses,
+  getFundingSourceLabel,
   updateCustomerCredit,
   deleteCustomerCredit,
   autoAllocateCustomerPayments,
   type CustomerCredit,
-  type CustomerCreditType
+  type CustomerCreditType,
+  type CustomerCreditFundingSource
 } from "@/services/customerCredits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -44,7 +47,9 @@ import {
   Search,
   Wand2,
   CheckCircle2,
-  Info
+  Info,
+  Building2,
+  UserCheck
 } from "lucide-react"
 import CreateCustomerCreditModal from "./CreateCustomerCreditModal"
 import RecordResellerPaymentModal from "./RecordResellerPaymentModal"
@@ -98,6 +103,7 @@ export default function ResellerDetailPanel({
   const [editFormData, setEditFormData] = useState<{
     entry_date: string
     entry_type: CustomerCreditType
+    funding_source: CustomerCreditFundingSource | ""
     product_name: string
     category: string
     quantity: string
@@ -109,6 +115,7 @@ export default function ResellerDetailPanel({
   }>({
     entry_date: "",
     entry_type: "PRODUCT_CREDIT",
+    funding_source: "7TIME_FUNDS",
     product_name: "",
     category: "",
     quantity: "1",
@@ -268,6 +275,7 @@ export default function ResellerDetailPanel({
     setEditFormData({
       entry_date: credit.entry_date || "2026-10-15",
       entry_type: credit.entry_type,
+      funding_source: credit.funding_source || "",
       product_name: credit.product_name || "",
       category: credit.category || "",
       quantity: credit.quantity ? credit.quantity.toString() : "",
@@ -305,6 +313,7 @@ export default function ResellerDetailPanel({
     const payload: any = {
       entry_date: editFormData.entry_date,
       entry_type: editFormData.entry_type,
+      funding_source: editFormData.funding_source || null,
       product_name: editFormData.entry_type === "PRODUCT_CREDIT" ? editFormData.product_name.trim() : null,
       category: editFormData.category.trim() || null,
       quantity: editFormData.quantity ? parseFloat(editFormData.quantity) : null,
@@ -677,89 +686,100 @@ export default function ResellerDetailPanel({
         </div>
 
         {/* Authoritative Financial Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* Card 1: Total Net Outstanding */}
-          <Card className={`bg-white shadow-xs border ${ledgerSummary.netOutstanding > 0 ? "border-red-200 bg-red-50/20" : "border-emerald-200 bg-emerald-50/20"}`}>
-            <CardHeader className="pb-1 pt-3.5 px-4">
-              <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Net Outstanding
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-3.5">
-              <div className={`text-xl lg:text-2xl font-bold ${ledgerSummary.netOutstanding > 0 ? "text-red-600" : "text-emerald-600"}`}>
-                {formatMoney(ledgerSummary.netOutstanding)}
-              </div>
-              <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${ledgerSummary.netOutstanding > 0 ? "text-red-600/80" : "text-emerald-600/80"}`}>
-                {ledgerSummary.netOutstanding > 0 
-                  ? (ledgerSummary.unallocatedPayments > 0 ? `Net Debt (includes ${formatMoney(ledgerSummary.unallocatedPayments)} unallocated)` : "Total Customer Debt")
-                  : ledgerSummary.unallocatedAdvancePayments > 0 
-                  ? `Advance Credit: ${formatMoney(ledgerSummary.unallocatedAdvancePayments)}` 
-                  : "Account Settled"}
-              </p>
-            </CardContent>
-          </Card>
+        {(() => {
+          const totalCustomerDebt = ledgerSummary.productCreditOutstanding + ledgerSummary.cashLoanOutstanding + ledgerSummary.otherCreditOutstanding
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              {/* Card 1: Total Customer Debt */}
+              <Card className={`bg-white shadow-xs border ${totalCustomerDebt > 0 ? "border-red-200 bg-red-50/20" : "border-emerald-200 bg-emerald-50/20"}`}>
+                <CardHeader className="pb-1 pt-3.5 px-4">
+                  <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Total Customer Debt
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3.5">
+                  <div className={`text-xl lg:text-2xl font-bold ${totalCustomerDebt > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                    {formatMoney(totalCustomerDebt)}
+                  </div>
+                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${totalCustomerDebt > 0 ? "text-red-600/80" : "text-emerald-600/80"}`}>
+                    {totalCustomerDebt > 0 
+                      ? (ledgerSummary.unallocatedPayments > 0 ? `Total Owed (${formatMoney(ledgerSummary.unallocatedPayments)} unallocated payment)` : "Total Outstanding Debt")
+                      : "Account Settled"}
+                  </p>
+                </CardContent>
+              </Card>
 
-          {/* Card 2: Product Credit Outstanding */}
-          <Card className="bg-white border-emerald-200 bg-emerald-50/15 shadow-xs">
-            <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Package className="h-3.5 w-3.5 text-emerald-600" /> Product Credit Owed
-              </CardTitle>
-              <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
-                {ledgerSummary.productCreditCount} items
-              </span>
-            </CardHeader>
-            <CardContent className="px-4 pb-3.5">
-              <div className="text-xl lg:text-2xl font-bold text-emerald-700">
-                {formatMoney(ledgerSummary.productCreditOutstanding)}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Taken: {formatMoney(ledgerSummary.productCreditTotal)} • Paid: {formatMoney(ledgerSummary.productCreditPaid)}
-              </p>
-            </CardContent>
-          </Card>
+              {/* Card 2: Product Credit Outstanding */}
+              <Card className="bg-white border-emerald-200 bg-emerald-50/15 shadow-xs">
+                <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs font-semibold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Package className="h-3.5 w-3.5 text-emerald-600" /> Product Credit Owed
+                  </CardTitle>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded">
+                    {ledgerSummary.productCreditCount} items
+                  </span>
+                </CardHeader>
+                <CardContent className="px-4 pb-3.5">
+                  <div className="text-xl lg:text-2xl font-bold text-emerald-700">
+                    {formatMoney(ledgerSummary.productCreditOutstanding)}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Taken: {formatMoney(ledgerSummary.productCreditTotal)} • Paid: {formatMoney(ledgerSummary.productCreditPaid)}
+                  </p>
+                </CardContent>
+              </Card>
 
-          {/* Card 3: Cash Loans Remaining */}
-          <Card className="bg-white border-amber-200 bg-amber-50/15 shadow-xs">
-            <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
-              <CardTitle className="text-xs font-semibold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Coins className="h-3.5 w-3.5 text-amber-600" /> Cash Loans Owed
-              </CardTitle>
-              <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
-                {ledgerSummary.cashLoanCount} loans
-              </span>
-            </CardHeader>
-            <CardContent className="px-4 pb-3.5">
-              <div className="text-xl lg:text-2xl font-bold text-amber-700">
-                {formatMoney(ledgerSummary.cashLoanOutstanding)}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Given: {formatMoney(ledgerSummary.cashLoanTotal)} • Repaid: {formatMoney(ledgerSummary.cashLoanPaid)}
-              </p>
-            </CardContent>
-          </Card>
+              {/* Card 3: Cash Loans Remaining */}
+              <Card className="bg-white border-amber-200 bg-amber-50/15 shadow-xs">
+                <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
+                  <CardTitle className="text-xs font-semibold text-amber-800 uppercase tracking-wider flex items-center gap-1.5">
+                    <Coins className="h-3.5 w-3.5 text-amber-600" /> Cash Loans Owed
+                  </CardTitle>
+                  <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded">
+                    {ledgerSummary.cashLoanCount} loans
+                  </span>
+                </CardHeader>
+                <CardContent className="px-4 pb-3.5">
+                  <div className="text-xl lg:text-2xl font-bold text-amber-700">
+                    {formatMoney(ledgerSummary.cashLoanOutstanding)}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Given: {formatMoney(ledgerSummary.cashLoanTotal)} • Repaid: {formatMoney(ledgerSummary.cashLoanPaid)}
+                  </p>
+                </CardContent>
+              </Card>
 
-          {/* Card 4: Total Payments & Repayments Received */}
-          <Card className="bg-white border-slate-200 shadow-xs">
-            <CardHeader className="pb-1 pt-3.5 px-4">
-              <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Total Payments Received
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-4 pb-3.5">
-              <div className="text-xl lg:text-2xl font-bold text-slate-900">
-                {formatMoney(ledgerSummary.totalPaymentsRecorded)}
-              </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                {ledgerSummary.wholesaleSalesOutstanding > 0 
-                  ? `Wholesale Due: ${formatMoney(ledgerSummary.wholesaleSalesOutstanding)}` 
-                  : ledgerSummary.unallocatedPayments > 0 
-                  ? `Unallocated: ${formatMoney(ledgerSummary.unallocatedPayments)}` 
-                  : "All payments allocated"}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+              {/* Card 4: Funding Source Breakdown */}
+              <Card className="bg-white border-slate-200 shadow-xs">
+                <CardHeader className="pb-1 pt-3.5 px-4">
+                  <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    Funding Source Breakdown
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-3.5 space-y-1">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-emerald-700 flex items-center gap-1">
+                      <Building2 className="h-3 w-3" /> 7TIME Funds:
+                    </span>
+                    <span className="text-emerald-700">{formatMoney(ledgerSummary.funds7TimeOutstanding)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-purple-700 flex items-center gap-1">
+                      <UserCheck className="h-3 w-3" /> Personal Funds:
+                    </span>
+                    <span className="text-purple-700">{formatMoney(ledgerSummary.fundsPersonalOutstanding)}</span>
+                  </div>
+                  {ledgerSummary.fundsUnallocatedOutstanding > 0 && (
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500 pt-0.5 border-t border-slate-100">
+                      <span>Unallocated:</span>
+                      <span>{formatMoney(ledgerSummary.fundsUnallocatedOutstanding)}</span>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )
+        })()}
 
         {/* Discrepancy Reconciliation Alert Banner */}
         {ledgerSummary.unallocatedPayments > 0 && (
@@ -976,6 +996,7 @@ export default function ResellerDetailPanel({
                       <TableHead className="w-8"></TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 min-w-[100px]">Date</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 min-w-[110px]">Type</TableHead>
+                      <TableHead className="text-xs font-bold uppercase text-slate-500 min-w-[115px]">Money Source</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 min-w-[200px]">Item / Description</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[100px]">Total Amount</TableHead>
                       <TableHead className="text-xs font-bold uppercase text-slate-500 text-right min-w-[90px]">Repaid / Paid</TableHead>
@@ -1025,6 +1046,19 @@ export default function ResellerDetailPanel({
                                 <option value="PRODUCT_CREDIT">Product Credit</option>
                                 <option value="CASH_LOAN">Cash Loan</option>
                                 <option value="OTHER_CREDIT">Other Credit</option>
+                              </select>
+                            </TableCell>
+
+                            {/* Money Source Select */}
+                            <TableCell className="p-2">
+                              <select
+                                value={editFormData.funding_source || ""}
+                                onChange={(e: any) => setEditFormData({ ...editFormData, funding_source: (e.target.value as CustomerCreditFundingSource) || "" })}
+                                className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs font-semibold text-slate-800 shadow-2xs focus:border-[#2D7FF9] focus:outline-hidden w-full"
+                              >
+                                <option value="7TIME_FUNDS">7TIME Funds</option>
+                                <option value="PERSONAL_FUNDS">Personal Funds</option>
+                                {!editFormData.funding_source && <option value="">Unallocated</option>}
                               </select>
                             </TableCell>
 
@@ -1190,6 +1224,17 @@ export default function ResellerDetailPanel({
                               </span>
                             </TableCell>
 
+                            <TableCell className="whitespace-nowrap">
+                              {(() => {
+                                const fsBadge = getFundingSourceBadgeClasses(credit.funding_source)
+                                return (
+                                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-md border ${fsBadge.bg} ${fsBadge.text} ${fsBadge.border}`}>
+                                    {getFundingSourceLabel(credit.funding_source)}
+                                  </span>
+                                )
+                              })()}
+                            </TableCell>
+
                             <TableCell>
                               <div className="space-y-0.5">
                                 <div className="text-sm font-semibold text-slate-900">
@@ -1278,7 +1323,7 @@ export default function ResellerDetailPanel({
                           {/* Expandable Repayments History Sub-Table */}
                           {isExpanded && allocs.length > 0 && (
                             <TableRow className="bg-slate-50/70 border-b border-slate-200">
-                              <TableCell colSpan={9} className="p-3 pl-12">
+                              <TableCell colSpan={10} className="p-3 pl-12">
                                 <div className="space-y-1.5">
                                   <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                                     <History className="h-3.5 w-3.5 text-blue-600" />

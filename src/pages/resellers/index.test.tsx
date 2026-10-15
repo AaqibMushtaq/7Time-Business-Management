@@ -59,6 +59,10 @@ describe("Local Customers (ResellersPage Component)", () => {
       total_received: 2000,
       product_credit_outstanding: 2500,
       cash_loan_outstanding: 1500,
+      funds_7time_outstanding: 2500,
+      funds_personal_outstanding: 1500,
+      funds_unallocated_outstanding: 0,
+      total_owed: 4000,
       outstanding: 7000,
       created_at: "2026-10-01"
     },
@@ -71,6 +75,10 @@ describe("Local Customers (ResellersPage Component)", () => {
       total_received: 4000,
       product_credit_outstanding: 0,
       cash_loan_outstanding: 0,
+      funds_7time_outstanding: 0,
+      funds_personal_outstanding: 0,
+      funds_unallocated_outstanding: 0,
+      total_owed: 0,
       outstanding: 0,
       created_at: "2026-10-05"
     }
@@ -204,10 +212,10 @@ describe("Local Customers (ResellersPage Component)", () => {
     expect(screen.getByText(/Manage customer accounts, track Product Credits, Cash Loans/i)).toBeDefined()
 
     // Summary Metric Cards with distinct badges
-    expect(screen.getByText("Total Customers")).toBeDefined()
-    expect(screen.getByText("Net Outstanding Receivables")).toBeDefined()
-    expect(screen.getByText("Product Credit Owed")).toBeDefined()
-    expect(screen.getByText("Cash Loans Remaining")).toBeDefined()
+    expect(screen.getByText("Total Local Customers")).toBeDefined()
+    expect(screen.getByText("Total Owed by Customers")).toBeDefined()
+    expect(screen.getByText("7TIME Funds Outstanding")).toBeDefined()
+    expect(screen.getByText("Personal Funds Outstanding")).toBeDefined()
 
     // Customers rendered in table after loading
     expect(await screen.findByText("Ishfaq ATM")).toBeDefined()

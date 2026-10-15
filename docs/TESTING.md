@@ -2,7 +2,7 @@
 
 **Document Status:** Verified against test runs and actual command executions  
 **Last Execution Date:** October 15, 2026  
-**Test Suite Status:** 22 Files Passed · 195 Tests Passed · 0 Failures  
+**Test Suite Status:** 22 Files Passed · 201 Tests Passed · 0 Failures  
 
 ---
 
@@ -27,8 +27,8 @@ Command executed: `npm run test` (`vitest run`)
 Output summary:
 ```text
 Test Files  22 passed (22)
-     Tests  195 passed (195)
-  Duration  51.63s
+     Tests  201 passed (201)
+  Duration  128.48s
 ```
 
 ### Detailed Breakdown by Test File
@@ -36,18 +36,18 @@ Test Files  22 passed (22)
 | # | Test File Path | Test Count | Domain / Focus Area |
 | :---: | :--- | :---: | :--- |
 | 1 | [`src/pages/general-deliveries/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/general-deliveries/index.test.tsx) | 10 | Daily operations, arithmetic expression evaluation, fuel expenses, and error states |
-| 2 | [`src/pages/resellers/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/resellers/index.test.tsx) | 9 | Customer directory, Edit Profile modal, inline ledger row editing, payment allocations |
+| 2 | [`src/pages/resellers/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/resellers/index.test.tsx) | 9 | Customer directory, 4 redesigned summary cards, Edit Profile modal, inline ledger row editing, payment allocations |
 | 3 | [`src/pages/assistant/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/assistant/index.test.tsx) | 11 | AI chat UI, suggested prompt chips, markdown bubbles, retry states, conversation resets |
 | 4 | [`src/pages/dashboard/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/dashboard/index.test.tsx) | 7 | Executive KPI cards, 4-area unified container, chart toggle, and debt summaries |
 | 5 | [`src/pages/wholesale/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/wholesale/index.test.tsx) | 5 | Wholesale sale creation, stock validation, notes, and actions |
 | 6 | [`src/pages/naeem/index.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/naeem/index.test.tsx) | 3 | NAEEM route list, daily entries, payment recording |
 | 7 | [`src/hooks/useRealtimeSync.test.tsx`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/hooks/useRealtimeSync.test.tsx) | 4 | WebSocket event handling, 450ms debouncing, query cache invalidation |
 | 8 | [`src/lib/dateUtils.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/dateUtils.test.ts) | 10 | Date boundary calculations, monthly filters, and Indian date formatting |
-| 9 | [`src/services/customerCredits.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/customerCredits.test.ts) | 16 | Product Credit, Cash Loans, Other Credit, FIFO auto-allocation, duplicate submission & over-allocation guards |
+| 9 | [`src/services/customerCredits.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/customerCredits.test.ts) | 21 | Product Credit, Cash Loans, Other Credit, 7TIME vs Personal funding sources, multi-transaction repayments, mathematical total debt reconciliation, FIFO auto-allocation, over-allocation guards |
 | 10 | [`src/services/dashboard.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dashboard.test.ts) | 9 | Concurrent query batching, cash flow aggregation, fail-safe database error reporting, dealer opening balance & advance isolation |
 | 11 | [`src/services/dealers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/dealers.test.ts) | 21 | Dealer opening balance regression tests (17 cases + cross-consistency + advance offsets + error throws) + dealer CRUD |
 | 12 | [`src/services/aiAssistant.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/aiAssistant.test.ts) | 15 | Edge function invocation, token passing, error code mappings (429, 404, 401, timeout) |
-| 13 | [`src/services/resellers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/resellers.test.ts) | 5 | Customer CRUD, balance queries, customer notes update persistence |
+| 13 | [`src/services/resellers.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/resellers.test.ts) | 6 | Customer CRUD, balance queries, funding source breakdown calculations, customer notes update persistence |
 | 14 | [`src/services/generalDeliveries.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/generalDeliveries.test.ts) | 7 | Daily records, nested delivery entries, cascade deletions, arithmetic expression sync |
 | 15 | [`src/services/wholesaleSales.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/services/wholesaleSales.test.ts) | 22 | Wholesale invoicing, profit recognition, stock deduction validation |
 | 16 | [`src/lib/naeemCalculations.test.ts`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/lib/naeemCalculations.test.ts) | 12 | Total Due, Outstanding, carry-forward balances, manual override precedence |

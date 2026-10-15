@@ -8,7 +8,9 @@ import {
   autoAllocateCustomerPayments,
   calculateCustomerLedgerSummary,
   getCreditTypeLabel,
-  getCreditTypeBadgeClasses
+  getCreditTypeBadgeClasses,
+  getFundingSourceLabel,
+  getFundingSourceBadgeClasses
 } from "./customerCredits"
 import { supabase } from "@/lib/supabase"
 
@@ -746,6 +748,272 @@ describe("Customer Credits Service", () => {
       expect(allocatedTotal).toBe(0)
       // Unallocated amount remains intact as advance
       expect(unallocatedPayment - allocatedTotal).toBe(500)
+    })
+  })
+
+  describe("Funding Source Ledger Accounting & Reconciliation", () => {
+    it("creates product credit with 7TIME Business Funds source", async () => {
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: "cred-7t-1" }, error: null })
+        })
+      })
+
+      const selectSingleMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-7t-1",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              funding_source: "7TIME_FUNDS",
+              product_name: "Premium Rice 25kg",
+              total_amount: 3200,
+              amount_paid: 0,
+              balance: 3200,
+              status: "PENDING"
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { insert: insertMock, select: selectSingleMock }
+        }
+        return {}
+      })
+
+      const result = await createCustomerCredit({
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        funding_source: "7TIME_FUNDS",
+        product_name: "Premium Rice 25kg",
+        total_amount: 3200
+      })
+
+      expect(insertMock).toHaveBeenCalledWith([expect.objectContaining({
+        funding_source: "7TIME_FUNDS",
+        product_name: "Premium Rice 25kg",
+        total_amount: 3200
+      })])
+      expect(result.funding_source).toBe("7TIME_FUNDS")
+    })
+
+    it("creates cash loan with Personal Funds source", async () => {
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: "loan-pers-1" }, error: null })
+        })
+      })
+
+      const selectSingleMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "loan-pers-1",
+              customer_id: "cust-1",
+              entry_type: "CASH_LOAN",
+              funding_source: "PERSONAL_FUNDS",
+              total_amount: 15000,
+              amount_paid: 0,
+              balance: 15000,
+              status: "PENDING"
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { insert: insertMock, select: selectSingleMock }
+        }
+        return {}
+      })
+
+      const result = await createCustomerCredit({
+        customer_id: "cust-1",
+        entry_type: "CASH_LOAN",
+        funding_source: "PERSONAL_FUNDS",
+        total_amount: 15000,
+        notes: "Emergency personal loan"
+      })
+
+      expect(insertMock).toHaveBeenCalledWith([expect.objectContaining({
+        entry_type: "CASH_LOAN",
+        funding_source: "PERSONAL_FUNDS",
+        total_amount: 15000
+      })])
+      expect(result.funding_source).toBe("PERSONAL_FUNDS")
+    })
+
+    it("updates existing transaction funding source preserving other fields", async () => {
+      const updateMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+
+      const selectMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-edit-1",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              funding_source: "PERSONAL_FUNDS",
+              total_amount: 4500,
+              balance: 4500
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return {
+            update: updateMock,
+            select: selectMock
+          }
+        }
+        return {}
+      })
+
+      const result = await updateCustomerCredit("cred-edit-1", {
+        funding_source: "PERSONAL_FUNDS",
+        total_amount: 4500
+      })
+
+      expect(result.funding_source).toBe("PERSONAL_FUNDS")
+      expect(result.total_amount).toBe(4500)
+    })
+
+    it("accurately calculates ledger summary across 7TIME, Personal, and Unallocated sources with full mathematical reconciliation", () => {
+      const credits: any[] = [
+        // 7TIME Product Credit: ₹5,000 total, ₹1,000 paid -> ₹4,000 outstanding
+        {
+          id: "c-7t-prod",
+          entry_type: "PRODUCT_CREDIT",
+          funding_source: "7TIME_FUNDS",
+          total_amount: 5000,
+          amount_paid: 1000,
+          balance: 4000,
+          status: "PARTIAL"
+        },
+        // 7TIME Cash Loan: ₹2,000 total, ₹500 paid -> ₹1,500 outstanding
+        {
+          id: "c-7t-loan",
+          entry_type: "CASH_LOAN",
+          funding_source: "7TIME_FUNDS",
+          total_amount: 2000,
+          amount_paid: 500,
+          balance: 1500,
+          status: "PARTIAL"
+        },
+        // Personal Product Credit: ₹3,000 total, ₹0 paid -> ₹3,000 outstanding
+        {
+          id: "c-pers-prod",
+          entry_type: "PRODUCT_CREDIT",
+          funding_source: "PERSONAL_FUNDS",
+          total_amount: 3000,
+          amount_paid: 0,
+          balance: 3000,
+          status: "PENDING"
+        },
+        // Personal Cash Loan: ₹4,000 total, ₹2,000 paid -> ₹2,000 outstanding
+        {
+          id: "c-pers-loan",
+          entry_type: "CASH_LOAN",
+          funding_source: "PERSONAL_FUNDS",
+          total_amount: 4000,
+          amount_paid: 2000,
+          balance: 2000,
+          status: "PARTIAL"
+        },
+        // Historical Unallocated Entry: ₹1,000 total, ₹200 paid -> ₹800 outstanding
+        {
+          id: "c-legacy-unalloc",
+          entry_type: "PRODUCT_CREDIT",
+          funding_source: null,
+          total_amount: 1000,
+          amount_paid: 200,
+          balance: 800,
+          status: "PARTIAL"
+        }
+      ]
+
+      // Payments recorded from customer: 1000 + 500 + 2000 + 200 = 3700
+      const payments: any[] = [
+        { id: "p1", amount: 3700 }
+      ]
+
+      const summary = calculateCustomerLedgerSummary(credits, [], payments, 0)
+
+      // 1. By Entry Type
+      // Product Credit Outstanding: 4000 (7T) + 3000 (Pers) + 800 (Unalloc) = 7800
+      expect(summary.productCreditTotal).toBe(5000 + 3000 + 1000)
+      expect(summary.productCreditPaid).toBe(1000 + 0 + 200)
+      expect(summary.productCreditOutstanding).toBe(7800)
+      expect(summary.productCreditCount).toBe(3)
+
+      // Cash Loan Outstanding: 1500 (7T) + 2000 (Pers) = 3500
+      expect(summary.cashLoanTotal).toBe(2000 + 4000)
+      expect(summary.cashLoanPaid).toBe(500 + 2000)
+      expect(summary.cashLoanOutstanding).toBe(3500)
+      expect(summary.cashLoanCount).toBe(2)
+
+      // 2. By Funding Source
+      // 7TIME Funds: Total = 7000, Paid = 1500, Outstanding = 5500
+      expect(summary.funds7TimeTotal).toBe(7000)
+      expect(summary.funds7TimePaid).toBe(1500)
+      expect(summary.funds7TimeOutstanding).toBe(5500)
+      expect(summary.funds7TimeCount).toBe(2)
+
+      // Personal Funds: Total = 7000, Paid = 2000, Outstanding = 5000
+      expect(summary.fundsPersonalTotal).toBe(7000)
+      expect(summary.fundsPersonalPaid).toBe(2000)
+      expect(summary.fundsPersonalOutstanding).toBe(5000)
+      expect(summary.fundsPersonalCount).toBe(2)
+
+      // Unallocated Legacy: Total = 1000, Paid = 200, Outstanding = 800
+      expect(summary.fundsUnallocatedTotal).toBe(1000)
+      expect(summary.fundsUnallocatedPaid).toBe(200)
+      expect(summary.fundsUnallocatedOutstanding).toBe(800)
+      expect(summary.fundsUnallocatedCount).toBe(1)
+
+      // 3. Mathematical Reconciliation
+      // Total Owed = Outstanding Product Credit + Outstanding Cash Loans
+      const totalOwedByType = summary.productCreditOutstanding + summary.cashLoanOutstanding + summary.otherCreditOutstanding
+      expect(totalOwedByType).toBe(7800 + 3500) // 11,300
+
+      // Total Owed = 7TIME Outstanding + Personal Outstanding + Unallocated Outstanding
+      const totalOwedBySource = summary.funds7TimeOutstanding + summary.fundsPersonalOutstanding + summary.fundsUnallocatedOutstanding
+      expect(totalOwedBySource).toBe(5500 + 5000 + 800) // 11,300
+
+      // Exact Reconciliation Guarantee
+      expect(totalOwedBySource).toBe(totalOwedByType)
+      expect(summary.netOutstanding).toBe(totalOwedByType)
+    })
+
+    it("provides correct badge styling and descriptive labels for funding sources", () => {
+      // 7TIME Business Funds
+      expect(getFundingSourceLabel("7TIME_FUNDS")).toBe("7TIME Funds")
+      const tBadge = getFundingSourceBadgeClasses("7TIME_FUNDS")
+      expect(tBadge.text).toContain("emerald")
+      expect(tBadge.bg).toContain("emerald")
+
+      // Personal Funds
+      expect(getFundingSourceLabel("PERSONAL_FUNDS")).toBe("Personal Funds")
+      const pBadge = getFundingSourceBadgeClasses("PERSONAL_FUNDS")
+      expect(pBadge.text).toContain("purple")
+      expect(pBadge.bg).toContain("purple")
+
+      // Unallocated Historical Records
+      expect(getFundingSourceLabel(null)).toBe("Unallocated")
+      expect(getFundingSourceLabel(undefined)).toBe("Unallocated")
+      const uBadge = getFundingSourceBadgeClasses(null)
+      expect(uBadge.text).toContain("slate")
     })
   })
 })

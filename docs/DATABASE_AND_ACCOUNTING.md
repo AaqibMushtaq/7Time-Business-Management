@@ -32,8 +32,9 @@ The database consists of 14 core business tables organized by domain:
    - **Triggers:** `trg_wholesale_sales_stock` (executes `update_stock_on_wholesale_sale()` to decrement `products.stock_quantity` on insert, adjust on update, and restore on delete).
 7. **`reseller_payments`**
    - **Columns:** `id` (UUID, PK), `customer_id` (UUID, FK → `reseller_customers.id` ON DELETE CASCADE), `amount` (NUMERIC(10, 2), NOT NULL), `payment_date` (DATE, NOT NULL), `payment_method` (TEXT, DEFAULT 'Cash'), `reference` (TEXT), `notes` (TEXT), `created_at` (TIMESTAMPTZ), `updated_at` (TIMESTAMPTZ).
-8. **`customer_credits`** (Created in migration `20261015000000`)
-   - **Columns:** `id` (UUID, PK), `customer_id` (UUID, FK → `reseller_customers.id` ON DELETE CASCADE), `entry_type` (TEXT CHECK IN `'PRODUCT_CREDIT'`, `'CASH_LOAN'`, `'OTHER_CREDIT'`), `entry_date` (DATE NOT NULL), `product_id` (UUID, nullable), `product_name` (TEXT, nullable), `category` (TEXT), `quantity` (NUMERIC(12, 2)), `unit` (TEXT), `rate_per_unit` (NUMERIC(12, 2)), `description` (TEXT), `total_amount` (NUMERIC(12, 2) NOT NULL > 0), `amount_paid` (NUMERIC(12, 2) DEFAULT 0), `balance` (NUMERIC(12, 2) DEFAULT 0), `status` (TEXT CHECK IN `'PENDING'`, `'PARTIAL'`, `'PAID'`), `notes` (TEXT), `created_at`, `updated_at`.
+8. **`customer_credits`** (Created in migration `20261015000000`, extended in `20261015030000`)
+   - **Columns:** `id` (UUID, PK), `customer_id` (UUID, FK → `reseller_customers.id` ON DELETE CASCADE), `entry_type` (TEXT CHECK IN `'PRODUCT_CREDIT'`, `'CASH_LOAN'`, `'OTHER_CREDIT'`), `funding_source` (TEXT CHECK IN `'7TIME_FUNDS'`, `'PERSONAL_FUNDS'`, nullable for unallocated legacy records), `entry_date` (DATE NOT NULL), `product_id` (UUID, nullable), `product_name` (TEXT, nullable), `category` (TEXT), `quantity` (NUMERIC(12, 2)), `unit` (TEXT), `rate_per_unit` (NUMERIC(12, 2)), `description` (TEXT), `total_amount` (NUMERIC(12, 2) NOT NULL > 0), `amount_paid` (NUMERIC(12, 2) DEFAULT 0), `balance` (NUMERIC(12, 2) DEFAULT 0), `status` (TEXT CHECK IN `'PENDING'`, `'PARTIAL'`, `'PAID'`), `notes` (TEXT), `created_at`, `updated_at`.
+   - **Indexes:** Primary key on `id`, index `idx_customer_credits_funding_source` on `customer_credits(funding_source)`.
    - **Triggers:** `trg_customer_credit_defaults` (automatically calculates `balance = total_amount - amount_paid` and status `'PENDING'/'PARTIAL'/'PAID'`).
 9. **`customer_payment_allocations`** (Created in migration `20261015000000`)
    - **Columns:** `id` (UUID, PK), `payment_id` (UUID, FK → `reseller_payments.id` ON DELETE CASCADE), `credit_id` (UUID, FK → `customer_credits.id` ON DELETE CASCADE), `amount` (NUMERIC(12, 2) NOT NULL > 0), `notes` (TEXT), `created_at` (TIMESTAMPTZ).
@@ -84,6 +85,16 @@ The database consists of 14 core business tables organized by domain:
   - Product Credit Outstanding: $\sum (\text{total\_amount} - \text{amount\_paid})$ for `entry_type = 'PRODUCT_CREDIT'`.
   - Cash Loan Outstanding: $\sum (\text{total\_amount} - \text{amount\_paid})$ for `entry_type = 'CASH_LOAN'`.
   - Other Credit Outstanding: $\sum (\text{total\_amount} - \text{amount\_paid})$ for `entry_type = 'OTHER_CREDIT'`.
+
+### Rule 3B: Local Customers Funding Source Accounting & Mathematical Reconciliation
+- **Module Purpose:** Local Customers is a personal customer ledger for recording credit goods and personal cash loans, tracking whether money was supplied from 7TIME business accounts or proprietor personal funds. It remains strictly segregated from wholesale revenue and dealer accounts.
+- **Formulas:**
+  $$\text{Total Owed} = \text{Product Credit Outstanding} + \text{Cash Loan Outstanding} + \text{Other Credit Outstanding}$$
+  $$\text{Total Owed} = \text{7TIME Funds Outstanding} + \text{Personal Funds Outstanding} + \text{Unallocated Outstanding}$$
+  $$\text{7TIME Outstanding} = \sum (\text{total\_amount} - \text{amount\_paid}) \quad \text{for } \text{funding\_source} = \text{'7TIME\_FUNDS'}$$
+  $$\text{Personal Outstanding} = \sum (\text{total\_amount} - \text{amount\_paid}) \quad \text{for } \text{funding\_source} = \text{'PERSONAL\_FUNDS'}$$
+  $$\text{Unallocated Outstanding} = \sum (\text{total\_amount} - \text{amount\_paid}) \quad \text{for } \text{funding\_source IS NULL}$$
+- **Reconciliation Guarantee:** Repayments reduce customer balance and line-item balances via `customer_payment_allocations` triggers. Summing outstanding balances partitioned by `funding_source` strictly reconciles with Total Owed without double-counting or loss. Historical records with `funding_source IS NULL` are explicitly identified as "Unallocated" rather than guessed.
 
 ### Rule 4: Payment Allocations & Unallocated Payments
 - When a customer makes a lump-sum payment recorded in `reseller_payments`, it may be allocated across multiple credit entries via `customer_payment_allocations`.

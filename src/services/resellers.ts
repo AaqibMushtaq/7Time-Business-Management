@@ -13,6 +13,10 @@ export interface ResellerCustomer {
   product_credit_outstanding?: number
   cash_loan_outstanding?: number
   other_credit_outstanding?: number
+  funds_7time_outstanding?: number
+  funds_personal_outstanding?: number
+  funds_unallocated_outstanding?: number
+  total_owed?: number
   outstanding?: number
 }
 
@@ -31,7 +35,7 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
     supabase.from("reseller_customers").select("*").order("name"),
     supabase.from("wholesale_sales").select("customer_id, total_sale, amount_received").limit(999999),
     supabase.from("reseller_payments").select("customer_id, amount").limit(999999),
-    supabase.from("customer_credits").select("customer_id, total_amount, amount_paid, balance, entry_type").limit(999999)
+    supabase.from("customer_credits").select("customer_id, total_amount, amount_paid, balance, entry_type, funding_source").limit(999999)
   ])
 
   if (resellersRes.error) throw new Error(resellersRes.error.message)
@@ -45,6 +49,9 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
   const productCreditTotals: Record<string, number> = {}
   const cashLoanTotals: Record<string, number> = {}
   const otherCreditTotals: Record<string, number> = {}
+  const funds7TimeTotals: Record<string, number> = {}
+  const fundsPersonalTotals: Record<string, number> = {}
+  const fundsUnallocatedTotals: Record<string, number> = {}
 
   salesRes.data?.forEach((s: any) => {
     const cid = s.customer_id
@@ -71,6 +78,14 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
     } else if (c.entry_type === "OTHER_CREDIT") {
       otherCreditTotals[cid] = (otherCreditTotals[cid] || 0) + entryBal
     }
+
+    if (c.funding_source === "7TIME_FUNDS") {
+      funds7TimeTotals[cid] = (funds7TimeTotals[cid] || 0) + entryBal
+    } else if (c.funding_source === "PERSONAL_FUNDS") {
+      fundsPersonalTotals[cid] = (fundsPersonalTotals[cid] || 0) + entryBal
+    } else {
+      fundsUnallocatedTotals[cid] = (fundsUnallocatedTotals[cid] || 0) + entryBal
+    }
   })
 
   return resellers.map((r: any) => {
@@ -79,6 +94,7 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
     const totalReceived = receivedTotals[r.id] || 0
     const openingBalance = Number(r.opening_balance || 0)
     const outstanding = (openingBalance + totalSales + totalCredits) - totalReceived
+    const totalOwed = (productCreditTotals[r.id] || 0) + (cashLoanTotals[r.id] || 0) + (otherCreditTotals[r.id] || 0)
     return {
       ...r,
       total_sales: totalSales,
@@ -86,6 +102,10 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
       product_credit_outstanding: productCreditTotals[r.id] || 0,
       cash_loan_outstanding: cashLoanTotals[r.id] || 0,
       other_credit_outstanding: otherCreditTotals[r.id] || 0,
+      funds_7time_outstanding: funds7TimeTotals[r.id] || 0,
+      funds_personal_outstanding: fundsPersonalTotals[r.id] || 0,
+      funds_unallocated_outstanding: fundsUnallocatedTotals[r.id] || 0,
+      total_owed: totalOwed,
       outstanding
     }
   })

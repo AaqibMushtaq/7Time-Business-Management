@@ -28,7 +28,9 @@ import {
   X, 
   AlertCircle,
   Package,
-  Coins
+  Coins,
+  Building2,
+  UserCheck
 } from "lucide-react"
 import ResellerDetailPanel from "@/components/resellers/ResellerDetailPanel"
 import RecordResellerPaymentModal from "@/components/resellers/RecordResellerPaymentModal"
@@ -180,7 +182,7 @@ export default function ResellersPage() {
 
     // Filter by type
     if (filterType === "HAS_OUTSTANDING") {
-      list = list.filter(r => Number(r.outstanding || 0) > 0)
+      list = list.filter(r => (Number(r.total_owed) || (Number(r.product_credit_outstanding || 0) + Number(r.cash_loan_outstanding || 0))) > 0)
     } else if (filterType === "HAS_PRODUCT_CREDIT") {
       list = list.filter(r => Number(r.product_credit_outstanding || 0) > 0)
     } else if (filterType === "HAS_CASH_LOAN") {
@@ -198,17 +200,40 @@ export default function ResellersPage() {
   }, [resellers, searchQuery, filterType])
 
   // Overall Financial Metric Aggregations
+  // Card 1: Total Local Customers
   const totalResellersCount = resellers.length
-  const totalOutstandingReceivable = useMemo(() => {
-    return resellers.reduce((sum, r) => sum + (Number(r.outstanding) > 0 ? Number(r.outstanding) : 0), 0)
-  }, [resellers])
 
+  // Outstanding amounts for Product Credit and Cash Loans
   const totalProductCreditDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.product_credit_outstanding || 0), 0)
   }, [resellers])
 
   const totalCashLoansDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.cash_loan_outstanding || 0), 0)
+  }, [resellers])
+
+  const totalOtherCreditDue = useMemo(() => {
+    return resellers.reduce((sum, r) => sum + Number(r.other_credit_outstanding || 0), 0)
+  }, [resellers])
+
+  // Card 2: Total Owed by Customers = Outstanding Product Credit + Outstanding Cash Loans (+ other credit)
+  const totalOwedByCustomers = useMemo(() => {
+    return totalProductCreditDue + totalCashLoansDue + totalOtherCreditDue
+  }, [totalProductCreditDue, totalCashLoansDue, totalOtherCreditDue])
+
+  // Card 3: 7TIME Funds Outstanding
+  const total7TimeFundsDue = useMemo(() => {
+    return resellers.reduce((sum, r) => sum + Number(r.funds_7time_outstanding || 0), 0)
+  }, [resellers])
+
+  // Card 4: Personal Funds Outstanding
+  const totalPersonalFundsDue = useMemo(() => {
+    return resellers.reduce((sum, r) => sum + Number(r.funds_personal_outstanding || 0), 0)
+  }, [resellers])
+
+  // Unallocated Historical Funds (where funding_source is not recorded)
+  const totalUnallocatedFundsDue = useMemo(() => {
+    return resellers.reduce((sum, r) => sum + Number(r.funds_unallocated_outstanding || 0), 0)
   }, [resellers])
 
   return (
@@ -414,11 +439,11 @@ export default function ResellersPage() {
 
       {/* Top Financial Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Customers Card */}
+        {/* Card 1: Total Local Customers */}
         <Card className="bg-white border-slate-200 shadow-xs">
           <CardHeader className="pb-1 pt-4 px-4">
             <CardTitle className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-              Total Customers
+              Total Local Customers
               <Users className="h-4 w-4 text-blue-500" />
             </CardTitle>
           </CardHeader>
@@ -428,60 +453,80 @@ export default function ResellersPage() {
           </CardContent>
         </Card>
 
-        {/* Total Outstanding Receivable Card */}
+        {/* Card 2: Total Owed by Customers */}
         <Card className="bg-white border-red-200 shadow-xs bg-red-50/10">
           <CardHeader className="pb-1 pt-4 px-4">
             <CardTitle className="text-xs font-semibold text-red-700 uppercase tracking-wider flex items-center justify-between">
-              Net Outstanding Receivables
+              Total Owed by Customers
               <Wallet className="h-4 w-4 text-red-500" />
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="text-2xl font-bold text-red-600">
-              {formatMoney(totalOutstandingReceivable)}
+              {formatMoney(totalOwedByCustomers)}
             </div>
-            <p className="text-xs text-red-600/80 font-medium mt-0.5 uppercase tracking-wide">
-              Total Owed to 7TIME
-            </p>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+              <span>Credit: {formatMoney(totalProductCreditDue)}</span>
+              <span>•</span>
+              <span>Loans: {formatMoney(totalCashLoansDue)}</span>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Product Credit Owed */}
+        {/* Card 3: 7TIME Funds Outstanding */}
         <Card className="bg-white border-emerald-200 shadow-xs bg-emerald-50/10">
           <CardHeader className="pb-1 pt-4 px-4">
             <CardTitle className="text-xs font-semibold text-emerald-700 uppercase tracking-wider flex items-center justify-between">
-              Product Credit Owed
-              <Package className="h-4 w-4 text-emerald-600" />
+              7TIME Funds Outstanding
+              <Building2 className="h-4 w-4 text-emerald-600" />
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
             <div className="text-2xl font-bold text-emerald-700">
-              {formatMoney(totalProductCreditDue)}
+              {formatMoney(total7TimeFundsDue)}
             </div>
             <p className="text-xs text-emerald-600/80 font-medium mt-0.5">
-              Goods taken on credit
+              Supplied from 7TIME business money
             </p>
           </CardContent>
         </Card>
 
-        {/* Cash Loans Owed */}
-        <Card className="bg-white border-amber-200 shadow-xs bg-amber-50/10">
+        {/* Card 4: Personal Funds Outstanding */}
+        <Card className="bg-white border-purple-200 shadow-xs bg-purple-50/10">
           <CardHeader className="pb-1 pt-4 px-4">
-            <CardTitle className="text-xs font-semibold text-amber-700 uppercase tracking-wider flex items-center justify-between">
-              Cash Loans Remaining
-              <Coins className="h-4 w-4 text-amber-600" />
+            <CardTitle className="text-xs font-semibold text-purple-700 uppercase tracking-wider flex items-center justify-between">
+              Personal Funds Outstanding
+              <UserCheck className="h-4 w-4 text-purple-600" />
             </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4">
-            <div className="text-2xl font-bold text-amber-700">
-              {formatMoney(totalCashLoansDue)}
+            <div className="text-2xl font-bold text-purple-700">
+              {formatMoney(totalPersonalFundsDue)}
             </div>
-            <p className="text-xs text-amber-600/80 font-medium mt-0.5">
-              Outstanding cash loans given
+            <p className="text-xs text-purple-600/80 font-medium mt-0.5">
+              {totalUnallocatedFundsDue > 0 
+                ? `Personal funds (+ ${formatMoney(totalUnallocatedFundsDue)} unallocated)` 
+                : "Supplied from personal money"}
             </p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Historical Unallocated Notice Banner (if any legacy entries exist without source) */}
+      {totalUnallocatedFundsDue > 0 && (
+        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-900 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Historical Unallocated Notice:</strong> {formatMoney(totalUnallocatedFundsDue)} of customer debt has no recorded funding source. 
+              Open customer ledgers to assign them to 7TIME or Personal funds.
+            </span>
+          </div>
+          <div className="text-[11px] font-semibold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded border border-amber-300/50 shrink-0">
+            Reconciles: {formatMoney(total7TimeFundsDue)} + {formatMoney(totalPersonalFundsDue)} + {formatMoney(totalUnallocatedFundsDue)} = {formatMoney(totalOwedByCustomers)}
+          </div>
+        </div>
+      )}
 
       {/* Directory Search & List Card */}
       <Card className="bg-white border-slate-200 shadow-xs">
@@ -489,7 +534,7 @@ export default function ResellersPage() {
           <div>
             <CardTitle className="text-lg font-bold text-slate-900">Local Customers Directory</CardTitle>
             <p className="text-xs text-slate-500">
-              Select any customer to open their ledger, view repayments, or add Product Credit and Cash Loans.
+              Select any customer to open their ledger, view repayments, or record Product Credit and Cash Loans.
             </p>
           </div>
 
@@ -546,23 +591,28 @@ export default function ResellersPage() {
             </div>
           ) : (
             <div className="overflow-x-auto w-full">
-              <Table className="min-w-[900px]">
+              <Table className="min-w-[960px]">
                 <TableHeader className="bg-slate-50/70">
                   <TableRow>
                     <TableHead className="font-semibold text-xs text-slate-600 uppercase">Customer Profile</TableHead>
                     <TableHead className="font-semibold text-xs text-slate-600 uppercase">Contact Info</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-emerald-700 uppercase">Product Credit</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-amber-700 uppercase">Cash Loans</TableHead>
-                    <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Total Outstanding</TableHead>
+                    <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Total Owed</TableHead>
+                    <TableHead className="text-center font-semibold text-xs text-slate-600 uppercase">Funding Source</TableHead>
                     <TableHead className="text-right font-semibold text-xs text-slate-600 uppercase">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredResellers.map((customer) => {
-                    const balance = Number(customer.outstanding || 0)
-                    const isDue = balance > 0
                     const prodCredit = Number(customer.product_credit_outstanding || 0)
                     const cashLoan = Number(customer.cash_loan_outstanding || 0)
+                    const otherCredit = Number(customer.other_credit_outstanding || 0)
+                    const totalCustomerOwed = Number(customer.total_owed !== undefined ? customer.total_owed : (prodCredit + cashLoan + otherCredit))
+                    const isDue = totalCustomerOwed > 0
+                    const f7Time = Number(customer.funds_7time_outstanding || 0)
+                    const fPersonal = Number(customer.funds_personal_outstanding || 0)
+                    const fUnallocated = Number(customer.funds_unallocated_outstanding || 0)
 
                     return (
                       <TableRow 
@@ -602,7 +652,7 @@ export default function ResellersPage() {
                               <span className="text-slate-400 italic">No phone</span>
                             )}
                             {customer.address && (
-                              <div className="flex items-center gap-1.5 text-slate-500 max-w-[200px] truncate" title={customer.address}>
+                              <div className="flex items-center gap-1.5 text-slate-500 max-w-[180px] truncate" title={customer.address}>
                                 <MapPin className="h-3 w-3 text-slate-400 shrink-0" />
                                 <span className="truncate">{customer.address}</span>
                               </div>
@@ -620,15 +670,39 @@ export default function ResellersPage() {
                           {cashLoan > 0 ? formatMoney(cashLoan) : "-"}
                         </TableCell>
 
-                        {/* Total Outstanding */}
+                        {/* Total Owed */}
                         <TableCell className="text-right">
                           <span className={`inline-flex items-center font-bold text-sm px-2.5 py-1 rounded-lg ${
                             isDue 
                               ? "bg-red-50 text-red-600 border border-red-200/60" 
                               : "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
                           }`}>
-                            {formatMoney(balance)}
+                            {formatMoney(totalCustomerOwed)}
                           </span>
+                        </TableCell>
+
+                        {/* Funding Source Breakdown */}
+                        <TableCell className="text-center">
+                          <div className="flex flex-wrap items-center justify-center gap-1 max-w-[180px] mx-auto">
+                            {f7Time > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                <Building2 className="h-2.5 w-2.5" /> 7T: {formatMoney(f7Time)}
+                              </span>
+                            )}
+                            {fPersonal > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">
+                                <UserCheck className="h-2.5 w-2.5" /> Pers: {formatMoney(fPersonal)}
+                              </span>
+                            )}
+                            {fUnallocated > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded" title="Historical unallocated">
+                                Unalloc: {formatMoney(fUnallocated)}
+                              </span>
+                            )}
+                            {!isDue && (
+                              <span className="text-[11px] text-slate-400 font-medium">Settled</span>
+                            )}
+                          </div>
                         </TableCell>
 
                         {/* Row Actions */}
