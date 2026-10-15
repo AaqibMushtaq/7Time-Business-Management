@@ -14,7 +14,7 @@
 - **Repository:** `AaqibMushtaq/7Time-Business-Management`
 - **Hosting:** GitHub Pages via GitHub Actions (`.github/workflows/deploy.yml`)
 - **Backend & Database:** Supabase (`haofuuvwciqsambgeqyn.supabase.co`) with PostgreSQL 15+, RLS, and Deno Edge Functions
-- **Current Version:** v1.3.0
+- **Current Version:** v1.3.1 (Deployed)
 
 ---
 
@@ -126,7 +126,7 @@ Every AI session must verify these three gates before finishing:
 
 ## 7. Current Project Status & Recent Milestones
 
-- **Latest Completed Milestone:** Phase 5 (Dealer Opening Balance Accounting) & Phase 6 (Reliability Cleanup of Idempotency State).
+- **Latest Completed Milestone:** Phase 5 (Dealer Opening Balance Accounting), Phase 6 (Reliability Cleanup of Idempotency State), Phase 7 (Quality & Security Verification), Phase 8 (Documentation Sync), and Phase 9 (Production Release v1.3.1 Deployed).
 - **Verified Dealer Accounting Status:** Dealer opening balances are fully integrated into `src/services/dealers.ts`, `src/services/dashboard.ts`, `DealerDetailPage.tsx`, `DealerDetailPanel.tsx`, and `dealers/index.tsx`. Total Payables formula verified:
   $$\text{Outstanding} = \text{Opening Balance} + \sum (\text{Purchases.total\_amount} - \text{Purchases.amount\_paid}) - \sum \text{Dealer\_Payments.amount}$$
   $$\text{Total Payable (Dashboard KPI)} = \sum_{\text{dealers}} \max(0, \text{Outstanding})$$
@@ -136,5 +136,6 @@ Every AI session must verify these three gates before finishing:
   - `oxlint`: 0 warnings, 0 errors across 123 files.
   - `tsc -b`: 0 type errors.
   - `vitest run`: 22 test files, 185 tests passing (0 failures).
-  - `npm run build`: Production bundle compiles cleanly.
-- **Next Recommended Action:** Phase 9 Release & Deployment sign-off (requires explicit user approval).
+  - `npm run build`: Production bundle compiles cleanly in 4.87s.
+- **Deployment Status:** Release v1.3.1 committed and pushed to `main` (`881b7be`). GitHub Actions pipeline (`deploy.yml`) active for automated continuous deployment to GitHub Pages.
+
