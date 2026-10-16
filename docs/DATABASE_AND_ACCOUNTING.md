@@ -110,10 +110,22 @@ The database consists of 14 core business tables organized by domain:
   $$\text{Outstanding} = \text{Total Due} - \sum \text{naeem\_payments.amount}$$
 - **Carry-Forward Behavior:** If no manual override exists for month $M$, its opening balance is dynamically carried forward as the closing balance of month $M-1$. A manual override in `naeem_monthly_balances` takes absolute precedence.
 
-### Rule 6: General Daily Delivery Net Profit
+### Rule 6: General Daily Delivery Net Contribution After Fuel
 - **Formula:**
-  $$\text{Net Total} = \sum \text{general\_delivery\_entries.amount} - \sum \text{general\_daily\_records.fuel\_expenses}$$
+  $$\text{Net Fleet Contribution} = \sum \text{general\_delivery\_entries.amount} - \sum \text{general\_daily\_records.fuel\_expenses}$$
+- **Accounting Principle:** Net fleet contribution represents operational delivery billings minus direct vehicle fuel disbursements. It must not be confused with company-wide net profit (which would require accounting for driver salaries, vehicle depreciation, maintenance, and overhead). Actual liquid cash collections from general delivery derive strictly from collected payments ($\sum \text{general\_delivery\_entries.received\_amount}$).
 - Supported by the arithmetic parser: expressions such as `10+350+10` persist alongside the evaluated sum ₹370.00.
+
+### Rule 7: Executive Cash Flow Accounting (Cash In & Cash Out)
+- **Cash In Formula (Actual Realized Liquid Inflows Only):**
+  $$\text{Cash In} = \sum \text{wholesale\_sales.amount\_received} + \sum \text{reseller\_payments.amount} + \sum \text{general\_delivery\_entries.received\_amount} + \sum \text{naeem\_payments.amount}$$
+- **Cash Out Formula (Actual Liquid Disbursements Only):**
+  $$\text{Cash Out} = \sum \text{purchases.amount\_paid} + \sum \text{dealer\_payments.amount} + \sum \text{general\_daily\_records.fuel\_expenses}$$
+- **Safeguards Against Double-Counting & Accrual Confusion:**
+  - Wholesale sales invoices (`total_sale`) and delivery billings (`amount`) represent accrual revenue, NOT cash in hand.
+  - Purchase orders (`total_amount`) represent gross liabilities, NOT cash disbursed.
+  - Payment allocations (`customer_payment_allocations`, `naeem_payment_allocations`) are internal links and never added to cash flow, completely preventing double-counting.
+  - Date filtering applies to period flow metrics (Purchases, Sales, Profit, Delivery, Cash In/Out); cumulative balance sheet accounts (Receivables, Payables) persist across all time.
 
 ---
 

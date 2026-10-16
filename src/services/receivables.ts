@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase"
 import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
 
-export type DebtorSource = "WHOLESALE_RESELLER" | "NAEEM" | "GENERAL_DELIVERY" | "OTHER"
+export type DebtorSource = "WHOLESALE_RESELLER" | "PERSONAL_LEDGER" | "NAEEM" | "GENERAL_DELIVERY" | "OTHER"
 
 export interface UnifiedDebtor {
   id: string
@@ -23,6 +23,7 @@ export interface UnifiedDebtor {
 export interface UnifiedReceivablesSummary {
   totalOutstanding: number
   wholesaleOutstanding: number
+  personalLedgerOutstanding?: number
   naeemOutstanding: number
   otherOutstanding: number
   debtorsCount: number
@@ -187,6 +188,7 @@ export async function getUnifiedReceivables(
   return {
     totalOutstanding,
     wholesaleOutstanding,
+    personalLedgerOutstanding: 0,
     naeemOutstanding: Math.max(0, naeemOutstanding),
     otherOutstanding,
     debtorsCount: debtorsList.length,

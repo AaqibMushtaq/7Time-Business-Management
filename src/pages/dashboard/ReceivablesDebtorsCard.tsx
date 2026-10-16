@@ -8,6 +8,7 @@ import type { UnifiedDebtor } from "@/services/receivables"
 interface ReceivablesSummaryData {
   totalOutstanding: number
   wholesaleOutstanding: number
+  personalLedgerOutstanding?: number
   naeemOutstanding: number
   otherOutstanding: number
   debtorsCount: number
@@ -28,6 +29,9 @@ export const ReceivablesDebtorsCard = memo(function ReceivablesDebtorsCard({
   onOpenPaymentModal,
 }: ReceivablesDebtorsCardProps) {
   const navigate = useNavigate()
+
+  const personalLedgerVal = receivablesSummary.personalLedgerOutstanding || 0
+  const wholesaleVal = Math.max(0, receivablesSummary.wholesaleOutstanding - personalLedgerVal)
 
   return (
     <Card className="border-[#E5E7EB] shadow-xs">
@@ -59,10 +63,14 @@ export const ReceivablesDebtorsCard = memo(function ReceivablesDebtorsCard({
         </div>
 
         {/* Source Breakdown Badges */}
-        <div className="grid grid-cols-3 gap-2 pt-1 border-t border-emerald-100/60 text-[11px]">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-emerald-100/60 text-[11px]">
           <div className="bg-white/80 rounded-md p-1.5 border border-emerald-100">
             <span className="text-slate-500 block text-[10px] leading-tight truncate">Wholesale/Resellers</span>
-            <span className="font-bold text-slate-800">{formatMoney(receivablesSummary.wholesaleOutstanding)}</span>
+            <span className="font-bold text-slate-800">{formatMoney(personalLedgerVal > 0 ? wholesaleVal : receivablesSummary.wholesaleOutstanding)}</span>
+          </div>
+          <div className="bg-white/80 rounded-md p-1.5 border border-emerald-100">
+            <span className="text-slate-500 block text-[10px] leading-tight truncate">Personal Ledger</span>
+            <span className="font-bold text-emerald-800">{formatMoney(personalLedgerVal)}</span>
           </div>
           <div className="bg-white/80 rounded-md p-1.5 border border-emerald-100">
             <span className="text-slate-500 block text-[10px] leading-tight truncate">NAEEM Dedicated</span>
@@ -94,9 +102,11 @@ export const ReceivablesDebtorsCard = memo(function ReceivablesDebtorsCard({
                       className={`text-[10px] px-1.5 py-0.2 rounded-full font-semibold ${
                         debtor.source === "NAEEM"
                           ? "bg-blue-100 text-blue-800"
+                          : debtor.source === "PERSONAL_LEDGER"
+                          ? "bg-emerald-100 text-emerald-800"
                           : debtor.source === "WHOLESALE_RESELLER"
                           ? "bg-purple-100 text-purple-800"
-                          : "bg-emerald-100 text-emerald-800"
+                          : "bg-sky-100 text-sky-800"
                       }`}
                     >
                       {debtor.sourceLabel}

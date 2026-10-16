@@ -126,7 +126,55 @@ Every AI session must verify these three gates before finishing:
 
 ## 7. Current Project Status & Recent Milestones
 
-- **Latest Completed Milestone: Final Personal Ledger Audit & Production Readiness Verification**:
+- **Latest Completed Milestone: Executive Dashboard Charts, Trends & Business Insights (Phase 4)**:
+  - **Responsive Monthly Financial Trends Chart (`MonthlyFinancialTrendsChart.tsx`)**:
+    - Chronological 6M & 12M trend lines covering 5 distinct series: Total Purchases, Wholesale Sales, Wholesale Gross Profit, Cash Received, and Cash Paid.
+    - Category series filtering: `All Series`, `Commercial (Sales vs Purchases)`, `Cash Flow (Received vs Paid)`, and `Profitability (Gross Profit vs COGS)`.
+    - Handles empty months and missing data gracefully with honest empty states, ₹ currency tooltips, and responsive layout.
+  - **Outstanding Balances Breakdown Card (`OutstandingBalancesBreakdownCard.tsx`)**:
+    - Macro cumulative balance sheet visualization strictly segregated by source: Wholesale Customer Receivables, Personal Ledger (with 7TIME Funds vs Personal Funds vs Unallocated attribution pills), and NAEEM Contract Receivables.
+    - Top supplier payables breakdown with percentage share of total liabilities and direct dealer ledger access.
+    - Net Working Position ($\text{Total Receivables} - \text{Total Payables}$) and strict non-netting enforcement badge.
+    - 100% reconciled against Executive KPI Card totals.
+  - **Business Performance Insights Card (`BusinessPerformanceInsightsCard.tsx`)**:
+    - Month-over-Month wholesale sales velocity and gross profit trajectory with comparison period labels and safe zero-denominator handling.
+    - Realized wholesale gross profit margin % with health status indicators.
+    - Cash collection efficiency ratio (cash collected vs sales).
+    - Supplier payables net activity (purchases vs disbursements in period and cumulative debt).
+    - General Delivery fleet activity strictly designated as *net contribution after fuel* (never net profit).
+    - Follow-up Priority Debtors ranked strictly by cumulative balance without speculative overdue claims.
+  - **Quality Gates Verified**:
+    - `oxlint`: 0 warnings, 0 errors across 129 files.
+    - `tsc -b`: 0 type errors.
+    - `vitest run`: 24 test suites, 220 tests passing (100% pass rate).
+    - `npm run build`: Production bundle compiled cleanly in 2.68s.
+
+- **Previous Milestone: Executive Financial Control Center & Phase 3 Release Review**:
+  - **8 Key Financial Control Center Metrics Reconciled**:
+    - **Total Purchases**: Gross purchases from suppliers in selected period (`purchases.total_amount`).
+    - **Wholesale Sales**: B2B wholesale revenue recognized upon dispatch (`wholesale_sales.total_sale`).
+    - **Wholesale Gross Profit**: Realized gross profit with profit margin percentage (`wholesale_sales.profit = total_sale - (buying_cost * quantity)`), with COGS tracking.
+    - **General Delivery**: Net fleet delivery contribution after fuel (`general_delivery_entries.amount - general_daily_records.fuel_expenses`). Explicitly distinguished from full net profit.
+    - **Cash In**: Actual liquid collections received (`sales.amount_received + reseller_payments + general_delivery_entries.received_amount + naeem_payments`). Excludes invoice accruals.
+    - **Cash Out**: Actual liquid cash disbursements (`purchases.amount_paid + dealer_payments + fuel_expenses`).
+    - **Total Receivables (Who owes us and how much)**: Full debtor visibility with segregated breakdowns for Wholesale Customers, Personal Ledger (Qard Hasan/Expense on Behalf), NAEEM Contract, and Other Receivables.
+    - **Total Payables (Whom we owe and how much)**: Cumulative supplier debt ($\sum \max(0, \text{Balance})$) with direct dealer ledger links.
+  - **Dedicated Operational Sections**:
+    - **Wholesale Distribution Performance Card**: Gross sales, Cost of Goods Sold (COGS), Gross Profit & Margin %, Point-of-sale cash vs trade credit, and dispatch volume.
+    - **Delivery & Fleet Operations Card**: Side-by-side general delivery fleet metrics (gross, fuel, net contribution after fuel, active days) and NAEEM dedicated route metrics (billed, collected, pending, trips), responsive across mobile and desktop.
+  - **Accounting Safeguards Enforced**:
+    - Decoupling of Accrual Invoicing from Cash In, and Purchase Orders from Cash Out.
+    - Single-source truth for Personal Ledger balances (`customer_credits`) segregated from wholesale trade accounts.
+    - FIFO auto-allocation on Personal Ledger settlements via `UnifiedReceivePaymentModal` triggers database-level balance recalculations.
+    - Non-netting principles preserved: positive receivables and payables never offset across entities.
+    - All-time balance persistence verified: period filtering updates flows without masking cumulative debts.
+  - **Quality Gates Verified**:
+    - `oxlint`: 0 warnings, 0 errors across 126 files.
+    - `tsc -b`: 0 type errors.
+    - `vitest run`: 24 test suites, 215 tests passing (100% pass rate).
+    - `npm run build`: Production bundle compiled cleanly in 2.37s.
+
+- **Previous Milestone: Final Personal Ledger Audit & Production Readiness Verification**:
   - **Comprehensive 11-Point Verification**:
     - **Separate Concepts & Workflows**: Personal Ledger completely segregated under `PERSONAL LEDGER` navigation category with `/local-customers` and `/personal-ledger` alias routes. Entities strictly designated as **People** and **Person Details**; Wholesale Customers & Sales (`/wholesale`) completely separated and preserved natively.
     - **Consistent Professional Terminology**: Confirmed across every screen, dialog, empty state, filter, notification, and report. Replaced legacy strings in error/validation messages (`Person not found`, `Failed to add person`, `Name is required`, `Failed to record personal ledger entry`, `Failed to void settlement`). Added native Personal Ledger CSV export to Reports (`src/pages/reports/index.tsx`).
@@ -139,7 +187,33 @@ Every AI session must verify these three gates before finishing:
   - **Quality Gates Verified**:
     - `oxlint`: 0 warnings, 0 errors across 126 files.
     - `tsc -b`: 0 type errors.
-    - `vitest run`: 24 test suites, 213 tests passing (100% pass rate).
+- **Latest Milestone: Critical Dynamic Data Only Audit & Production Verification**:
+  - **Full Codebase Audit for Fabricated Data**:
+    - Conducted comprehensive regex and ast audit across all production modules, services, hooks, utilities, charts, and pages.
+    - Confirmed **zero** hardcoded rupee amounts, fabricated customer/dealer/supplier records, static chart datasets, or fake receivables/payables exist in production client code.
+    - All synthetic data fixtures (e.g. "Al Infaq", "Kashmir Traders", ₹23,300) are strictly isolated to `*.test.ts` and `*.test.tsx` test files. Production bundle scan (`dist/assets/`) confirmed zero leakage of test entities or synthetic figures.
+  - **Database Verification & Empty-State Integrity**:
+    - Verified remote Supabase project (`haofuuvwciqsambgeqyn.supabase.co`) operational tables contain 0 operational records.
+    - Zero dummy seed transactions inserted into production database; production credentials safely preserved.
+    - Dashboard strictly displays genuine empty states ("All customer accounts are settled", "All supplier accounts are settled", "No Historical Financial Activity Recorded", "No active receivables") when tables contain zero records.
+  - **Error State Resilience**:
+    - Expanded `criticalQueries` error checking in `src/services/dashboard.ts` to cover all 16 parallel database queries (including customer credits, fleet records, and inventory).
+    - Guaranteed that database failures immediately throw and surface an explicit error banner with "Try Again" action rather than silently defaulting to fabricated numbers or misleading zeros.
+  - **Automated Verification**:
+    - Added dedicated automated tests in `src/pages/dashboard/index.test.tsx` and `src/services/dashboard.test.ts` asserting that empty database results render true zero/empty states with zero fabricated numbers, and database errors throw immediately.
+    - `oxlint`: 0 warnings, 0 errors across 129 files.
+    - `tsc -b`: 0 type errors.
+    - `vitest run`: 24 test suites, 224 tests passing (100% pass rate).
+    - `npm run build`: Production bundle compiled cleanly in 3.95s.
+  - **Governance**: Working tree unstaged; no git commits, pushes, or deployments performed; awaiting explicit user approval.
+
+- **Previous Milestone: Executive Dashboard Enhancements (Phases 1-5)**:
+  - **8 Consolidated KPI Cards & Balance Sheet Claims**:
+    - Total Purchases, Wholesale Sales, Wholesale Gross Profit, General Delivery, Cash In, Cash Out, Total Receivables, Total Payables.
+    - Reconciled non-netting rule: Customer advances and supplier prepayments never offset against independent debts.
+    - Historical trends & business insights dynamically computed from Supabase operational records.
+  - **Quality Gates**:
+    - `vitest run`: 24 test suites, 221 tests passing (100% pass rate).
     - `npm run build`: Production bundle built cleanly in 3.23s.
     - Release readiness: Fully ready for deployment upon owner review.
 

@@ -12,8 +12,8 @@ export const DashboardSkeleton = memo(function DashboardSkeleton() {
           <div className="h-3 w-24 bg-slate-200 rounded" />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-2.5 sm:gap-3">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <div
               key={i}
               className="bg-white rounded-xl border border-[#E5E7EB] p-3 shadow-xs min-h-[108px] flex flex-col justify-between"

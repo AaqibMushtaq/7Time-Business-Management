@@ -91,6 +91,108 @@ const mockStats = {
       },
     ],
   },
+  monthlyTrends: [
+    {
+      month: "2026-05",
+      monthLabel: "May 2026",
+      shortLabel: "May '26",
+      purchases: 20000,
+      sales: 30000,
+      profit: 8000,
+      cogs: 22000,
+      cashReceived: 28000,
+      cashPaid: 18000,
+      netCash: 10000,
+    },
+    {
+      month: "2026-10",
+      monthLabel: "October 2026",
+      shortLabel: "Oct '26",
+      purchases: 23300,
+      sales: 45000,
+      profit: 12000,
+      cogs: 33000,
+      cashReceived: 40000,
+      cashPaid: 23000,
+      netCash: 17000,
+    },
+  ],
+  insights: {
+    comparisonMonthLabel: "September 2026",
+    salesMoM: {
+      current: 45000,
+      previous: 30000,
+      changeAmount: 15000,
+      changePercentage: 50,
+      trend: "UP" as const,
+      label: "+50.0% vs prior month",
+    },
+    grossProfitMoM: {
+      current: 12000,
+      previous: 8000,
+      changeAmount: 4000,
+      changePercentage: 50,
+      trend: "UP" as const,
+      label: "+50.0% vs prior month",
+    },
+    wholesaleMargin: {
+      marginPercentage: 26.7,
+      status: "HEALTHY" as const,
+      label: "Healthy Margin",
+    },
+    cashCollectionRatio: {
+      ratioPercentage: 88.9,
+      totalCashCollected: 40000,
+      totalSales: 45000,
+      label: "Strong Inflow",
+    },
+    supplierActivity: {
+      purchases: 23300,
+      payments: 23000,
+      netObligationChange: 300,
+      cumulativePayable: 300,
+    },
+    fleetContribution: {
+      billed: 5180,
+      fuel: 1400,
+      netContribution: 3780,
+      activeDays: 14,
+    },
+    topExposureDebtors: [
+      {
+        id: "r1",
+        name: "Kashmir Traders",
+        amount: 5000,
+        sourceLabel: "Wholesale Reseller",
+        routePath: "/resellers/r1",
+      },
+    ],
+  },
+  balancesBreakdown: {
+    receivables: {
+      total: 7700,
+      wholesale: 5000,
+      personalLedger: 0,
+      personalLedger7Time: 0,
+      personalLedgerPersonal: 0,
+      personalLedgerUnallocated: 0,
+      naeem: 2700,
+      other: 0,
+    },
+    payables: {
+      total: 300,
+      dealersCount: 1,
+      topPayables: [
+        {
+          id: "d1",
+          name: "Al Infaq",
+          amount: 300,
+          percentageOfTotal: 100,
+        },
+      ],
+    },
+    netWorkingPosition: 7400,
+  },
 }
 
 describe("Executive DashboardPage Component", () => {
@@ -127,22 +229,28 @@ describe("Executive DashboardPage Component", () => {
     expect(screen.getByText("All Time")).toBeDefined()
   })
 
-  it("renders all 6 executive KPI cards with accurate formatted values", async () => {
+  it("renders all 8 executive KPI cards with accurate formatted values", async () => {
     renderComponent()
 
     await waitFor(() => {
       expect(screen.getByText("Total Purchases")).toBeDefined()
-      expect(screen.getByText("Sales / Delivery Revenue")).toBeDefined()
+      expect(screen.getByText("Wholesale Sales")).toBeDefined()
+      expect(screen.getByText("Wholesale Gross Profit")).toBeDefined()
+      expect(screen.getAllByText("General Delivery").length).toBeGreaterThanOrEqual(1)
       expect(screen.getByText("Cash In")).toBeDefined()
       expect(screen.getByText("Cash Out")).toBeDefined()
-      expect(screen.getByText("Receivables")).toBeDefined()
-      expect(screen.getByText("Payables")).toBeDefined()
+      expect(screen.getByText("Total Receivables")).toBeDefined()
+      expect(screen.getByText("Total Payables")).toBeDefined()
     })
 
     // Purchases: 23,300 -> ₹23,300.00
     expect(screen.getAllByText("₹23,300.00").length).toBeGreaterThanOrEqual(1)
-    // Revenue: 45,000 (wholesale) + 5,180 (gen delivery) + 7,700 (naeem) = 57,880 -> ₹57,880.00
-    expect(screen.getAllByText("₹57,880.00").length).toBeGreaterThanOrEqual(1)
+    // Wholesale Sales: 45,000 -> ₹45,000.00
+    expect(screen.getAllByText("₹45,000.00").length).toBeGreaterThanOrEqual(1)
+    // Wholesale Gross Profit: 12,000 -> ₹12,000.00
+    expect(screen.getAllByText("₹12,000.00").length).toBeGreaterThanOrEqual(1)
+    // General Delivery Net: 3,780 -> ₹3,780.00
+    expect(screen.getAllByText("₹3,780.00").length).toBeGreaterThanOrEqual(1)
     // Payables: 300 -> ₹300.00
     expect(screen.getAllByText("₹300.00").length).toBeGreaterThanOrEqual(1)
     // Receivables: 5,000 (reseller) + 2,700 (naeem) = 7,700 -> ₹7,700.00
@@ -162,8 +270,21 @@ describe("Executive DashboardPage Component", () => {
     // Check 4-area breakdown cards
     expect(screen.getByText("Dealer Operations")).toBeDefined()
     expect(screen.getByText("Wholesale & Resellers")).toBeDefined()
-    expect(screen.getByText("General Delivery")).toBeDefined()
+    expect(screen.getAllByText("General Delivery").length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText("NAEEM Dedicated").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("renders dedicated Wholesale and Delivery performance sections with operational breakdowns", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText("Wholesale Distribution Performance")).toBeDefined()
+      expect(screen.getByText("Cost of Goods Sold")).toBeDefined()
+      expect(screen.getByText("Cash Collected at Dispatch")).toBeDefined()
+      expect(screen.getByText("Uncollected Trade Credit")).toBeDefined()
+      expect(screen.getByText("Delivery & Fleet Operations")).toBeDefined()
+      expect(screen.getByText("Contribution after fuel:")).toBeDefined()
+    })
   })
 
   it("renders compact Outstanding Receivables and Payments to Make sections with unified balances and debtors", async () => {
@@ -238,5 +359,193 @@ describe("Executive DashboardPage Component", () => {
       expect(screen.getByText("Supabase network failure")).toBeDefined()
       expect(screen.getByText("Try Again")).toBeDefined()
     })
+  })
+
+  it("renders Business Performance Insights with MoM changes, gross margin %, and follow-up debtors", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText("Business Performance Insights")).toBeDefined()
+      expect(screen.getByText("VERIFIED METRICS")).toBeDefined()
+      expect(screen.getByText("Wholesale Sales MoM")).toBeDefined()
+      expect(screen.getByText("Wholesale Gross Profit MoM")).toBeDefined()
+      expect(screen.getByText("Cash Collected vs Wholesale Sales")).toBeDefined()
+      expect(screen.getByText("Supplier Payables Activity")).toBeDefined()
+      expect(screen.getByText("General Delivery Fleet Activity")).toBeDefined()
+      expect(screen.getByText("Follow-up Priority (Largest Balances)")).toBeDefined()
+    })
+
+    // Check MoM % badges and margin text
+    expect(screen.getAllByText("+50.0%").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText("26.7% margin")).toBeDefined()
+    expect(screen.getByText("88.9%")).toBeDefined()
+    expect(screen.getByText("Strong Inflow")).toBeDefined()
+    expect(screen.getByText("Net Contribution After Fuel:")).toBeDefined()
+  })
+
+  it("renders Outstanding Balances & Exposure Breakdown card with non-netting enforcement and reconciled balance claims", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText("Outstanding Balances & Exposure Breakdown")).toBeDefined()
+      expect(screen.getByText("Strict Non-Netting Enforced")).toBeDefined()
+      expect(screen.getByText("Total Receivables (They Owe Us)")).toBeDefined()
+      expect(screen.getByText("Total Payables (We Owe Suppliers)")).toBeDefined()
+      expect(screen.getByText("Net Outstanding Position")).toBeDefined()
+    })
+
+    // Receivables breakdown labels
+    expect(screen.getByText("Wholesale Trade Receivables")).toBeDefined()
+    expect(screen.getByText("NAEEM Dedicated Route Contract")).toBeDefined()
+    // Net working capital: ₹7,700 - ₹300 = ₹7,400 -> ₹7,400.00
+    expect(screen.getAllByText("₹7,400.00").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("strictly enforces dynamic data only: displays genuine zero/empty states with zero fabricated numbers or fallback balances when database has zero records", async () => {
+    const zeroStats = {
+      inventory: {
+        totalValue: 0,
+        totalItems: 0,
+        potentialRevenue: 0,
+        potentialProfit: 0,
+        outOfStock: 0,
+        lowStock: 0,
+      },
+      purchases: {
+        total: 0,
+        paymentsMade: 0,
+        amountPaidAtPurchase: 0,
+        totalPayable: 0,
+      },
+      sales: {
+        total: 0,
+        received: 0,
+        resellerPayments: 0,
+        totalReceivable: 0,
+        profit: 0,
+        transactions: 0,
+        chartData: [],
+      },
+      dealers: [],
+      resellers: [],
+      generalDelivery: {
+        activeDays: 0,
+        total: 0,
+        fuel: 0,
+        net: 0,
+      },
+      naeem: {
+        trips: 0,
+        total: 0,
+        received: 0,
+        pending: 0,
+      },
+      cashFlow: {
+        net: 0,
+        totalInflows: 0,
+        totalOutflows: 0,
+        chartData: [],
+      },
+      recentActivity: [],
+      receivables: {
+        totalOutstanding: 0,
+        wholesaleOutstanding: 0,
+        naeemOutstanding: 0,
+        otherOutstanding: 0,
+        debtorsCount: 0,
+        debtors: [],
+      },
+      monthlyTrends: [],
+      insights: {
+        comparisonMonthLabel: "Prior Month",
+        salesMoM: {
+          current: 0,
+          previous: 0,
+          changeAmount: 0,
+          changePercentage: null,
+          trend: "FLAT" as const,
+          label: "Baseline",
+        },
+        grossProfitMoM: {
+          current: 0,
+          previous: 0,
+          changeAmount: 0,
+          changePercentage: null,
+          trend: "FLAT" as const,
+          label: "Baseline",
+        },
+        wholesaleMargin: {
+          marginPercentage: 0,
+          status: "NO_SALES" as const,
+          label: "No Sales",
+        },
+        cashCollectionRatio: {
+          ratioPercentage: null,
+          totalCashCollected: 0,
+          totalSales: 0,
+          label: "No Sales",
+        },
+        supplierActivity: {
+          purchases: 0,
+          payments: 0,
+          netObligationChange: 0,
+          cumulativePayable: 0,
+        },
+        fleetContribution: {
+          billed: 0,
+          fuel: 0,
+          netContribution: 0,
+          activeDays: 0,
+        },
+        topExposureDebtors: [],
+      },
+      balancesBreakdown: {
+        receivables: {
+          total: 0,
+          wholesale: 0,
+          personalLedger: 0,
+          personalLedger7Time: 0,
+          personalLedgerPersonal: 0,
+          personalLedgerUnallocated: 0,
+          naeem: 0,
+          other: 0,
+        },
+        payables: {
+          total: 0,
+          dealersCount: 0,
+          topPayables: [],
+        },
+        netWorkingPosition: 0,
+      },
+    }
+    ;(getDashboardStats as any).mockResolvedValue(zeroStats)
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByText("Total Purchases")).toBeDefined()
+    })
+
+    // 1. KPI cards show genuine ₹0.00
+    const zeroDisplays = screen.getAllByText("₹0.00")
+    expect(zeroDisplays.length).toBeGreaterThanOrEqual(6)
+
+    // 2. Confirmed zero fabricated rupee amounts appear anywhere in the document
+    expect(screen.queryByText("₹23,300.00")).toBeNull()
+    expect(screen.queryByText("₹45,000.00")).toBeNull()
+    expect(screen.queryByText("₹10,000.00")).toBeNull()
+    expect(screen.queryByText("₹8,000.00")).toBeNull()
+    expect(screen.queryByText("₹12,000.00")).toBeNull()
+
+    // 3. Confirmed no fabricated customer or dealer entities appear
+    expect(screen.queryByText("Al Infaq")).toBeNull()
+    expect(screen.queryByText("Kashmir Traders")).toBeNull()
+
+    // 4. Honest empty states are properly displayed
+    expect(screen.getByText("All customer accounts are settled.")).toBeDefined()
+    expect(screen.getByText("All supplier accounts are settled.")).toBeDefined()
+    expect(screen.getByText("No Historical Financial Activity Recorded")).toBeDefined()
+    expect(screen.getByText("No active receivables")).toBeDefined()
+    expect(screen.getByText("All supplier accounts settled")).toBeDefined()
   })
 })

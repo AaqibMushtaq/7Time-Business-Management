@@ -1,7 +1,9 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { supabase } from "@/lib/supabase"
 import { type UnifiedDebtor } from "@/services/receivables"
 import { createResellerPayment } from "@/services/resellerPayments"
+import { recordMultiEntryPayment } from "@/services/customerCredits"
 import { recordnaeemPayment, getnaeemRecords } from "@/services/naeemDeliveries"
 import { upsertDeliveryEntry } from "@/services/generalDeliveries"
 import { processRecords } from "@/lib/naeemCalculations"
@@ -18,7 +20,8 @@ import {
   CheckCircle2, 
   Building2, 
   Truck, 
-  Store 
+  Store,
+  Users
 } from "lucide-react"
 
 interface UnifiedReceivePaymentModalProps {
@@ -71,11 +74,49 @@ function UnifiedReceivePaymentContent({
     setFormError(null)
   }
 
-  // Reseller payment mutation
+  // Reseller / Personal Ledger payment mutation
   const resellerPaymentMutation = useMutation({
     mutationFn: async () => {
       if (!activeDebtor) throw new Error("No debtor selected.")
       const parsedAmount = parseFloat(amount)
+
+      if (activeDebtor.source === "PERSONAL_LEDGER") {
+        // Fetch pending credit entries for this person to allocate FIFO
+        const { data: pendingCredits } = await supabase
+          .from("customer_credits")
+          .select("id, total_amount, amount_paid, balance, entry_date")
+          .eq("customer_id", activeDebtor.id)
+          .order("entry_date", { ascending: true })
+
+        let remaining = parsedAmount
+        const allocations: { creditId: string; amount: number; notes?: string }[] = []
+        if (pendingCredits && pendingCredits.length > 0) {
+          for (const c of pendingCredits) {
+            if (remaining <= 0) break
+            const bal = Number(c.balance !== undefined && c.balance !== null ? c.balance : Math.max(0, Number(c.total_amount || 0) - Number(c.amount_paid || 0)))
+            if (bal > 0) {
+              const alloc = Math.min(bal, remaining)
+              allocations.push({
+                creditId: c.id,
+                amount: alloc,
+                notes: "Settlement via Executive Dashboard"
+              })
+              remaining -= alloc
+            }
+          }
+        }
+
+        return recordMultiEntryPayment({
+          customerId: activeDebtor.id,
+          totalAmount: parsedAmount,
+          paymentDate,
+          paymentMethod: paymentMethod || "Cash",
+          reference: reference.trim() || undefined,
+          notes: notes.trim() || undefined,
+          allocations
+        })
+      }
+
       return createResellerPayment({
         customer_id: activeDebtor.id,
         payment_date: paymentDate,
@@ -89,10 +130,14 @@ function UnifiedReceivePaymentContent({
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       queryClient.invalidateQueries({ queryKey: ["resellers"] })
       queryClient.invalidateQueries({ queryKey: ["resellerPayments"] })
+      queryClient.invalidateQueries({ queryKey: ["customerCredits"] })
+      queryClient.invalidateQueries({ queryKey: ["customerCreditAllocations"] })
+      queryClient.invalidateQueries({ queryKey: ["customerCreditsSummary"] })
       if (activeDebtor?.id) {
         queryClient.invalidateQueries({ queryKey: ["reseller", activeDebtor.id] })
         queryClient.invalidateQueries({ queryKey: ["resellerPaymentsHistory", activeDebtor.id] })
         queryClient.invalidateQueries({ queryKey: ["resellerSales", activeDebtor.id] })
+        queryClient.invalidateQueries({ queryKey: ["customerCredits", activeDebtor.id] })
       }
       setFormSuccess(`Successfully recorded payment of ${formatMoney(parseFloat(amount))} for ${activeDebtor?.name}.`)
       setTimeout(() => {
@@ -234,7 +279,7 @@ function UnifiedReceivePaymentContent({
     }
 
     // Execute based on source
-    if (activeDebtor.source === "WHOLESALE_RESELLER") {
+    if (activeDebtor.source === "WHOLESALE_RESELLER" || activeDebtor.source === "PERSONAL_LEDGER") {
       resellerPaymentMutation.mutate()
     } else if (activeDebtor.source === "NAEEM") {
       naeemPaymentMutation.mutate()
@@ -249,6 +294,8 @@ function UnifiedReceivePaymentContent({
         return <Truck className="w-3.5 h-3.5 text-blue-600" />
       case "WHOLESALE_RESELLER":
         return <Store className="w-3.5 h-3.5 text-purple-600" />
+      case "PERSONAL_LEDGER":
+        return <Users className="w-3.5 h-3.5 text-emerald-600" />
       default:
         return <Building2 className="w-3.5 h-3.5 text-emerald-600" />
     }
