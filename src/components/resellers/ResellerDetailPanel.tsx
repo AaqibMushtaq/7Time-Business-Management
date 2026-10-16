@@ -244,7 +244,7 @@ export default function ResellerDetailPanel({
       setPaymentToVoid(null)
     },
     onError: (err: any) => {
-      alert("Failed to void payment: " + err.message)
+      alert("Failed to void settlement: " + err.message)
     }
   })
 
@@ -348,7 +348,7 @@ export default function ResellerDetailPanel({
     return (
       <div className="flex flex-col items-center justify-center p-16 h-full min-h-[300px]">
         <Loader2 className="h-10 w-10 animate-spin text-[#2D7FF9] mb-3" />
-        <p className="text-sm font-semibold text-slate-500">Loading customer account & ledger...</p>
+        <p className="text-sm font-semibold text-slate-500">Loading personal account & ledger...</p>
       </div>
     )
   }
@@ -357,9 +357,9 @@ export default function ResellerDetailPanel({
     return (
       <div className="p-8 text-center">
         <AlertCircle className="h-10 w-10 text-red-500 mx-auto mb-2" />
-        <h3 className="text-lg font-bold text-slate-800">Customer not found</h3>
+        <h3 className="text-lg font-bold text-slate-800">Person not found</h3>
         <p className="text-sm text-slate-500 mt-1">
-          {resellerError instanceof Error ? resellerError.message : "The requested customer could not be loaded."}
+          {resellerError instanceof Error ? resellerError.message : "The requested person could not be loaded."}
         </p>
         <Button onClick={onClose} variant="outline" className="mt-4">
           Close

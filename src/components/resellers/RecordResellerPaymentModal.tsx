@@ -146,7 +146,7 @@ export default function RecordResellerPaymentModal({
       setReference("")
     },
     onError: (err: any) => {
-      setFormError(err.message || "Failed to record customer payment")
+      setFormError(err.message || "Failed to record settlement")
     }
   })
 
@@ -157,22 +157,22 @@ export default function RecordResellerPaymentModal({
     setFormError(null)
 
     if (!customerId) {
-      setFormError("Please select a customer.")
+      setFormError("Please select a person.")
       return
     }
 
     if (!paymentDate) {
-      setFormError("Please select a valid payment date.")
+      setFormError("Please select a valid settlement date.")
       return
     }
 
     if (isNaN(parsedTotalPayment) || parsedTotalPayment <= 0) {
-      setFormError("Please enter a valid payment amount greater than zero.")
+      setFormError("Please enter a valid settlement amount greater than zero.")
       return
     }
 
     if (isOverAllocated) {
-      setFormError(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed payment amount (${formatMoney(parsedTotalPayment)}).`)
+      setFormError(`Total allocated (${formatMoney(totalAllocated)}) cannot exceed settlement amount (${formatMoney(parsedTotalPayment)}).`)
       return
     }
 

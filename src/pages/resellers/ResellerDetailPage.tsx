@@ -6,7 +6,7 @@ export default function ResellerDetailPage() {
   const navigate = useNavigate()
 
   if (!id) {
-    return <div className="p-8 text-center text-slate-500">Invalid customer ID</div>
+    return <div className="p-8 text-center text-slate-500">Invalid person ID</div>
   }
 
   return (

@@ -143,7 +143,7 @@ export default function CreateCustomerCreditModal({
       resetForm()
     },
     onError: (err: any) => {
-      setFormError(err.message || "Failed to record customer entry.")
+      setFormError(err.message || "Failed to record personal ledger entry.")
     }
   })
 
@@ -172,7 +172,7 @@ export default function CreateCustomerCreditModal({
     setFormError(null)
 
     if (!customerId) {
-      setFormError("Please select a customer profile.")
+      setFormError("Please select a person.")
       return
     }
 

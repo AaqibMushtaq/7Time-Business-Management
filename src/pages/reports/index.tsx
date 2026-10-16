@@ -40,7 +40,7 @@ export default function ReportsPage() {
       else if (type === "WHOLESALE_SALES") {
         const { data: res } = await supabase.from("wholesale_sales").select("*, customer:reseller_customers(name)").limit(999999)
         data = res || []
-        csvContent = ["ID,Date,Reseller,Product,Quantity,Buying Cost,Wholesale Price,Total Sale,Received,Balance,Profit,Status,Payment Method"]
+        csvContent = ["ID,Date,Wholesale Customer,Product,Quantity,Buying Cost,Wholesale Price,Total Sale,Received,Balance,Profit,Status,Payment Method"]
           .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.sale_date)},${escapeCSV(r.customer?.name)},${escapeCSV(r.product_id)},${escapeCSV(r.quantity)},${escapeCSV(r.buying_cost)},${escapeCSV(r.wholesale_price)},${escapeCSV(r.total_sale)},${escapeCSV(r.amount_received)},${escapeCSV(r.balance)},${escapeCSV(r.profit)},${escapeCSV(r.payment_status)},${escapeCSV(r.payment_method)}`))
           .join("\n")
       }
@@ -61,8 +61,15 @@ export default function ReportsPage() {
       else if (type === "RESELLER_PAYMENTS") {
         const { data: res } = await supabase.from("reseller_payments").select("*").limit(999999)
         data = res || []
-        csvContent = ["ID,Date,Customer ID,Amount,Method,Reference,Notes"]
+        csvContent = ["ID,Date,Person/Customer ID,Amount,Method,Reference,Notes"]
           .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.payment_date)},${escapeCSV(r.customer_id)},${escapeCSV(r.amount)},${escapeCSV(r.payment_method)},${escapeCSV(r.reference)},${escapeCSV(r.notes)}`))
+          .join("\n")
+      }
+      else if (type === "PERSONAL_LEDGER") {
+        const { data: res } = await supabase.from("customer_credits").select("*, customer:reseller_customers(name)").limit(999999)
+        data = res || []
+        csvContent = ["ID,Date,Person,Entry Type,Funding Source,Item/Description,Quantity,Unit,Rate,Total Amount,Amount Paid,Balance,Status,Notes"]
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.entry_date)},${escapeCSV(r.customer?.name)},${escapeCSV(r.entry_type === 'PRODUCT_CREDIT' ? 'Expense on Behalf' : r.entry_type === 'CASH_LOAN' ? 'Qard Hasan' : 'Other Personal')},${escapeCSV(r.funding_source || 'Unallocated')},${escapeCSV(r.product_name || r.description)},${escapeCSV(r.quantity)},${escapeCSV(r.unit)},${escapeCSV(r.rate_per_unit)},${escapeCSV(r.total_amount)},${escapeCSV(r.amount_paid)},${escapeCSV(r.balance)},${escapeCSV(r.status)},${escapeCSV(r.notes)}`))
           .join("\n")
       }
       else if (type === "GENERAL_DELIVERY") {
@@ -95,10 +102,11 @@ export default function ReportsPage() {
   }
 
   const reports = [
+    { id: "PERSONAL_LEDGER", title: "Personal Ledger Entries Report", desc: "Export all expenses on behalf, Qard Hasan, and personal ledger transactions.", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50" },
     { id: "WHOLESALE_SALES", title: "Wholesale Sales Report", desc: "Export all historical wholesale transactions and profit calculations.", icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50" },
     { id: "PURCHASES", title: "Purchase Report", desc: "Export all historical product purchases from dealers.", icon: Package, color: "text-red-600", bg: "bg-red-50" },
     { id: "INVENTORY", title: "Inventory Report", desc: "Export current stock levels, buying costs, and potential revenue.", icon: Database, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { id: "RESELLER_PAYMENTS", title: "Reseller Payment Report", desc: "Export all payments received from wholesale resellers.", icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
+    { id: "RESELLER_PAYMENTS", title: "Settlements Received Report", desc: "Export all settlements and payments received on customer & personal accounts.", icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
     { id: "DEALER_PAYMENTS", title: "Dealer Payment Report", desc: "Export all payments made to suppliers and dealers.", icon: Users, color: "text-orange-600", bg: "bg-orange-50" },
     { id: "GENERAL_DELIVERY", title: "General Delivery Report", desc: "Export the daily general delivery & fuel expense ledger.", icon: Truck, color: "text-indigo-600", bg: "bg-indigo-50" },
     { id: "naeem_UNCLE", title: "naeem Uncle Report", desc: "Export naeem Uncle delivery trips and records.", icon: Truck, color: "text-slate-600", bg: "bg-slate-50" },

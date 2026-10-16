@@ -79,6 +79,8 @@ function App() {
                   <Route path="dealer-payments" element={<DealerPaymentsPage />} />
                   <Route path="local-customers" element={<ResellersPage />} />
                   <Route path="local-customers/:id" element={<ResellerDetailPage />} />
+                  <Route path="personal-ledger" element={<Navigate to="/local-customers" replace />} />
+                  <Route path="personal-ledger/:id" element={<ResellerDetailPage />} />
                   <Route path="resellers" element={<ResellersPage />} />
                   <Route path="resellers/:id" element={<ResellerDetailPage />} />
                   <Route path="customers" element={<Navigate to="/local-customers" replace />} />

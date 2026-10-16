@@ -70,16 +70,16 @@ The application is organized into six functional operational domains:
   - Potential revenue calculation (`SUM(wholesale_price * stock_quantity)`).
   - Low stock alerts and stock transaction histories.
 
-### Module 4: Wholesale Sales & Local Customer Ledgers (`/wholesale`, `/resellers`)
+### Module 4: Wholesale Sales & Personal Ledger (`/wholesale`, `/local-customers`)
 - **Location:** [`src/pages/wholesale/`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/wholesale/), [`src/pages/resellers/`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/resellers/)
 - **Responsibilities:**
-  - Commercial wholesale invoicing with automatic stock decrement triggers (`trg_wholesale_sales_stock`).
-  - Comprehensive Local Customer Profiles (`reseller_customers`) with editable contact details, address, opening balance, and customer notes.
-  - Multi-type credit ledger tracking:
-    - **Product Credit:** Goods issued on credit (`quantity * rate`).
-    - **Cash Loans:** Direct financial advances given without requiring product entries.
-    - **Other Credit:** Miscellaneous services or adjustments.
-  - Multi-entry payment allocations (`customer_payment_allocations`), FIFO auto-allocation, and safe payment voiding.
+  - **Wholesale Sales (`/wholesale`):** Commercial wholesale invoicing with automatic stock decrement triggers (`trg_wholesale_sales_stock`) and B2B wholesale profit tracking.
+  - **Personal Ledger (`/local-customers`, alias `/personal-ledger`):** Dedicated personal ledger tracking purchases made on behalf of people, money lent or owed, expenses paid personally or by 7TIME, and settlements received or paid:
+    - **Expense on Behalf:** Goods or expenses paid on behalf of a person (`quantity * rate` or custom amount).
+    - **Qard Hasan (قرض حسن):** Direct interest-free financial assistance provided without interest, markup, or penalties.
+    - **Other Personal Transactions:** Miscellaneous services or adjustments.
+  - Multi-entry settlement allocations (`customer_payment_allocations`), FIFO auto-allocation, and safe settlement voiding.
+  - Origin funding source attribution (**7TIME Business Funds** vs **Personal Funds**).
 
 ### Module 5: Delivery Operations (`/general-deliveries`, `/naeem`)
 - **Location:** [`src/pages/general-deliveries/`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/general-deliveries/), [`src/pages/naeem/`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/src/pages/naeem/)

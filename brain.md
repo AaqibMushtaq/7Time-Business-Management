@@ -126,7 +126,24 @@ Every AI session must verify these three gates before finishing:
 
 ## 7. Current Project Status & Recent Milestones
 
-- **Latest Completed Milestone: Personal Ledger — Final Naming & Terminology Correction (Separation of Personal Dealings from Wholesale Customers & Islamic Finance Terminology)**:
+- **Latest Completed Milestone: Final Personal Ledger Audit & Production Readiness Verification**:
+  - **Comprehensive 11-Point Verification**:
+    - **Separate Concepts & Workflows**: Personal Ledger completely segregated under `PERSONAL LEDGER` navigation category with `/local-customers` and `/personal-ledger` alias routes. Entities strictly designated as **People** and **Person Details**; Wholesale Customers & Sales (`/wholesale`) completely separated and preserved natively.
+    - **Consistent Professional Terminology**: Confirmed across every screen, dialog, empty state, filter, notification, and report. Replaced legacy strings in error/validation messages (`Person not found`, `Failed to add person`, `Name is required`, `Failed to record personal ledger entry`, `Failed to void settlement`). Added native Personal Ledger CSV export to Reports (`src/pages/reports/index.tsx`).
+    - **Islamic Finance Compliance**: Absolutely zero interest, riba, time penalties, or borrower/lender terminology. All direct financial assistance accurately designated as **Qard Hasan (قرض حسن)** (Interest-Free Assistance) repayable at principal value only. Purchases on behalf designated as **Expense on Behalf**.
+    - **Directional Separation**: Receivables (They Owe Me: $\sum \max(0, \text{Debt})$) and Payables (I Owe Them: $\sum \text{Advances}$) strictly decoupled and independently calculated without deceptive netting.
+    - **Capital Origin Attribution**: Explicit segregation of **7TIME Business Funds** vs **Personal Funds** vs Unallocated legacy records with dynamic reconciliation banner and inline origin re-assignment.
+    - **Zero Double-Counting**: Explicit and FIFO allocations (`customer_payment_allocations`) maintain mathematical reconciliation with total payments. Down payments and point-of-sale wholesale cash tracked separately from post-sale settlements.
+    - **Dynamic Supabase Live Data**: All metrics, cards, tables, and balances dynamically derive from real Supabase queries via TanStack Query without mock fallbacks.
+    - **Security & RLS Integrity**: Confirmed PostgreSQL Row Level Security actively revokes anonymous access to `customer_credits` and `customer_payment_allocations`, enforcing authenticated-only access.
+  - **Quality Gates Verified**:
+    - `oxlint`: 0 warnings, 0 errors across 126 files.
+    - `tsc -b`: 0 type errors.
+    - `vitest run`: 24 test suites, 213 tests passing (100% pass rate).
+    - `npm run build`: Production bundle built cleanly in 3.23s.
+    - Release readiness: Fully ready for deployment upon owner review.
+
+- **Previous Milestone: Personal Ledger — Final Naming & Terminology Correction**:
   - **Module Separation & Terminology**:
     - Sidebar menu item and section strictly titled **Personal Ledger** under navigation category `PERSONAL LEDGER`.
     - Directory and records labeled as **People** and **Person Details** (never "wholesale customers" or "resellers").

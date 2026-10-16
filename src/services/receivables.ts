@@ -118,10 +118,10 @@ export async function getUnifiedReceivables(
         id: r.id,
         name: r.name,
         source: "WHOLESALE_RESELLER",
-        sourceLabel: "Wholesale Reseller",
+        sourceLabel: "Personal Ledger / Wholesale",
         outstanding,
         lastPaymentDate: latestPaymentDateByCustomer[r.id] || null,
-        routePath: `/resellers/${r.id}`,
+        routePath: `/local-customers/${r.id}`,
         metadata: { customerId: r.id }
       })
     }

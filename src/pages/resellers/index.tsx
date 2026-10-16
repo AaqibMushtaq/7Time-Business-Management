@@ -78,7 +78,7 @@ export default function ResellersPage() {
       closeCustomerModal()
     },
     onError: (err: any) => {
-      setCustomerFormError(err.message || "Failed to add customer profile")
+      setCustomerFormError(err.message || "Failed to add person")
     }
   })
 
@@ -90,7 +90,7 @@ export default function ResellersPage() {
       closeCustomerModal()
     },
     onError: (err: any) => {
-      setCustomerFormError(err.message || "Failed to update customer profile")
+      setCustomerFormError(err.message || "Failed to update person details")
     }
   })
 
@@ -138,7 +138,7 @@ export default function ResellersPage() {
     e.preventDefault()
     setCustomerFormError(null)
     if (!customerFormData.name.trim()) {
-      setCustomerFormError("Customer name is required.")
+      setCustomerFormError("Name is required.")
       return
     }
 
