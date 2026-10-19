@@ -28,50 +28,49 @@
   --radius-sm: calc(var(--radius) - 4px);
 }
 
-:root {
-  --background: 210 40% 98%; /* #F8FAFC */
-  --foreground: 211 67% 17%; /* #0E2A47 */
-  --card: 0 0% 100%;
-  --card-foreground: 211 67% 17%;
-  --popover: 0 0% 100%;
-  --popover-foreground: 211 67% 17%;
-  /* 7TIME Brand Colors */
-  --primary: 216 93% 58%; /* #2D7FF9 */
+:root, .dark {
+  /* 7TIME Brand Color Tokens - Professional Warm Cream & White Light Theme */
+  --background: 48 27% 96%; /* #F8F7F2 Warm Cream */
+  --foreground: 218 54% 20%; /* #172B4D Charcoal Navy */
+  --card: 0 0% 100%; /* #FFFFFF Pure White */
+  --card-foreground: 218 54% 20%; /* #172B4D */
+  --popover: 0 0% 100%; /* #FFFFFF */
+  --popover-foreground: 218 54% 20%; /* #172B4D */
+  --primary: 221 83% 53%; /* #2563EB Primary Blue */
   --primary-foreground: 0 0% 100%;
-  --secondary: 247 67% 53%; /* #4A39D6 */
-  --secondary-foreground: 0 0% 100%;
-  --muted: 210 40% 96%; /* #F1F5F9 */
-  --muted-foreground: 215 16% 47%; /* #64748B */
-  --accent: 194 89% 58%; /* #33C5F3 */
-  --accent-foreground: 211 67% 17%;
-  --destructive: 0 84% 60%; /* #EF4444 */
+  --secondary: 214 31% 96%; /* #F1F4F8 Subtle Alternate Surface */
+  --secondary-foreground: 218 54% 20%; /* #172B4D */
+  --muted: 214 31% 96%; /* #F1F4F8 */
+  --muted-foreground: 214 15% 47%; /* #66758A Muted Slate */
+  --accent: 214 31% 96%; /* #F1F4F8 */
+  --accent-foreground: 221 83% 53%; /* #2563EB */
+  --destructive: 4 77% 40%; /* #B42318 Danger Text */
   --destructive-foreground: 0 0% 100%;
-  --border: 220 13% 91%; /* #E5E7EB */
-  --input: 220 13% 91%;
-  --ring: 216 93% 58%;
-  --radius: 0.5rem;
-}
+  --border: 213 25% 88%; /* #D9E0E8 Subtle Neutral Border */
+  --input: 213 25% 88%; /* #D9E0E8 */
+  --ring: 221 83% 53%; /* #2563EB */
+  --radius: 0.75rem;
 
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-  --card: 222.2 84% 4.9%;
-  --card-foreground: 210 40% 98%;
-  --popover: 222.2 84% 4.9%;
-  --popover-foreground: 210 40% 98%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 217.2 32.6% 17.5%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 217.2 32.6% 17.5%;
-  --muted-foreground: 215 20.2% 65.1%;
-  --accent: 262.1 83.3% 57.8%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 210 40% 98%;
-  --border: 217.2 32.6% 17.5%;
-  --input: 217.2 32.6% 17.5%;
-  --ring: 224.3 76.3% 48%;
+  /* Authoritative 7TIME Design Tokens */
+  --color-7time-bg: #F8F7F2;
+  --color-7time-surface: #FFFFFF;
+  --color-7time-surface-alt: #F1F4F8;
+  --color-7time-text-primary: #172B4D;
+  --color-7time-text-secondary: #52627A;
+  --color-7time-text-muted: #66758A;
+  --color-7time-border: #D9E0E8;
+  --color-7time-blue: #2563EB;
+  --color-7time-blue-hover: #1D4ED8;
+  --color-7time-success-text: #087443;
+  --color-7time-success-surface: #EAF7EF;
+  --color-7time-warning-text: #92400E;
+  --color-7time-warning-surface: #FFF4D6;
+  --color-7time-danger-text: #B42318;
+  --color-7time-danger-surface: #FDECEC;
+
+  /* Sidebar Tokens - Clean Light Theme */
+  --color-7time-sidebar-bg: #FFFFFF;
+  --color-7time-sidebar-border: #D9E0E8;
 }
 
 @layer base {
@@ -88,4 +87,50 @@
       min-height: 44px !important;
     }
   }
+}
+
+/* 7TIME Master Dashboard CSS Grid Architecture */
+.dashboard-core-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: stretch;
+  width: 100%;
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .dashboard-core-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .dashboard-core-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+.dashboard-secondary-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  align-items: stretch;
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .dashboard-secondary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+.dashboard-domain-card {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }

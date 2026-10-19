@@ -65,7 +65,7 @@ describe("NaeemUnclePage", () => {
 
   it("renders loading state initially or renders the page title", async () => {
     renderComponent();
-    expect(screen.getByText("Naeem Uncle")).toBeDefined();
+    expect(screen.getByText(/NAEEM/i)).toBeDefined();
   });
 
   it("renders error state when fetch fails", async () => {

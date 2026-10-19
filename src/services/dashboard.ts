@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase"
 import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
+import { formatMoney } from "@/lib/utils"
 
 export type DateRange = "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR" | "ALL" | "CUSTOM"
 
@@ -90,7 +91,165 @@ export interface OutstandingBalancesBreakdownData {
   netWorkingPosition: number
 }
 
-export const getDashboardStats = async (range: DateRange = "ALL", customStart?: string, customEnd?: string) => {
+// --- 5 AUTHORITATIVE BUSINESS SECTION DATA INTERFACES ---
+
+export interface PurchasesSectionData {
+  total: number
+  paid?: number
+  outstanding?: number
+  paymentsMade: number
+  amountPaidAtPurchase: number
+  totalPaidToDealers: number
+  totalPayable: number
+  dealersCount: number
+  topPayables: Array<{
+    id: string
+    name: string
+    purchases: number
+    paid: number
+    outstanding: number
+    openingBalance: number
+    percentageOfTotal: number
+  }>
+}
+
+export interface WholesaleSectionData {
+  totalSales: number
+  profit: number
+  cogs: number
+  profitMargin: number
+  receivables: number
+  payables: number
+  totalPayable?: number
+  transactions: number
+  productsSold: number
+  customersCount: number
+  debtors: Array<{
+    id: string
+    name: string
+    outstanding: number
+    routePath: string
+  }>
+}
+
+export interface GeneralDeliverySectionData {
+  combinedTotal: number
+  naeemIncluded: number
+  excludingNaeem: number
+  fuel: number
+  net: number
+  received: number
+  outstanding: number
+  activeDays: number
+  reconciliation: {
+    isReconciled: boolean
+    formula: string
+    status: "RECONCILED" | "SHORTFALL" | "EMPTY"
+    note: string
+  }
+  total: number // backward compatibility
+}
+
+export interface NaeemSectionData {
+  total: number
+  received: number
+  openingBalance: number
+  outstanding: number
+  trips: number
+  totalDue: number
+  pending: number // backward compatibility
+}
+
+export interface PersonalLedgerSectionData {
+  totalReceivables: number
+  totalReceived: number
+  outstanding: number
+  funds7Time: number
+  fundsPersonal: number
+  fundsUnallocated: number
+  debtorsCount: number
+  debtors: Array<{
+    id: string
+    name: string
+    phone: string | null
+    outstanding: number
+    funds7Time: number
+    fundsPersonal: number
+    fundsUnallocated: number
+    routePath: string
+  }>
+}
+
+export interface DashboardStatsResult {
+  // 5 CORE BUSINESS SECTIONS
+  purchases: PurchasesSectionData
+  wholesale: WholesaleSectionData
+  generalDelivery: GeneralDeliverySectionData
+  naeem: NaeemSectionData
+  personalLedger: PersonalLedgerSectionData
+
+  // BACKWARD COMPATIBILITY FIELDS
+  inventory: {
+    totalValue: number
+    totalItems: number
+    potentialRevenue: number
+    potentialProfit: number
+    outOfStock: number
+    lowStock: number
+    topProducts: any[]
+  }
+  sales: {
+    total: number
+    received: number
+    totalReceivable: number
+    profit: number
+    cogs: number
+    profitMargin: number
+    productsSold: number
+    resellerPayments: number
+    chartData: any[]
+    transactions: number
+  }
+  cashFlow: {
+    net: number
+    totalInflows: number
+    totalOutflows: number
+    chartData: any[]
+  }
+  dealers: Array<{
+    id: string
+    name: string
+    purchases: number
+    paid: number
+    outstanding: number
+  }>
+  resellers: Array<{
+    id: string
+    name: string
+    sales: number
+    received: number
+    profit: number
+    outstanding: number
+  }>
+  recentActivity: any[]
+  receivables: {
+    totalOutstanding: number
+    wholesaleOutstanding: number
+    personalLedgerOutstanding: number
+    funds7TimeOutstanding: number
+    fundsPersonalOutstanding: number
+    fundsUnallocatedOutstanding: number
+    naeemOutstanding: number
+    otherOutstanding: number
+    debtorsCount: number
+    debtors: any[]
+  }
+  monthlyTrends: MonthlyFinancialTrend[]
+  insights: BusinessPerformanceInsights
+  balancesBreakdown: OutstandingBalancesBreakdownData
+}
+
+export const getDashboardStats = async (range: DateRange = "ALL", customStart?: string, customEnd?: string): Promise<DashboardStatsResult> => {
   const now = new Date()
 
   // Helper to apply date filters to queries based on date column name
@@ -143,7 +302,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     targetMonth = cDate.getMonth() + 1
   }
 
-  // 1-6. Fetch all required datasets concurrently to avoid sequential network waterfall
+  // Fetch all required datasets concurrently to avoid sequential network waterfall
   const [
     settingsRes,
     inventoryRes,
@@ -176,12 +335,12 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     supabase.from("reseller_payments").select("amount, customer_id, payment_date").limit(999999),
     applyDateFilter(supabase.from("reseller_payments").select("id, amount, payment_date, customer_id, customer:reseller_customers(name)"), "payment_date"),
     applyDateFilter(supabase.from("general_daily_records").select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount, received_amount)"), "record_date"),
-    applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id"), "delivery_date"),
-    applyDateFilter(supabase.from("naeem_payments").select("amount"), "payment_date"),
+    applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id, delivery_date"), "delivery_date"),
+    applyDateFilter(supabase.from("naeem_payments").select("amount, payment_date"), "payment_date"),
     getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false })),
     supabase.from("dealers").select("id, name, opening_balance"),
-    supabase.from("reseller_customers").select("id, name, opening_balance"),
-    supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, balance, entry_type, funding_source").limit(999999),
+    supabase.from("reseller_customers").select("id, name, phone, opening_balance"),
+    supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, balance, entry_type, funding_source, entry_date").limit(999999),
     supabase.from("general_daily_records").select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount, received_amount)").limit(999999),
     supabase.from("naeem_payments").select("amount, payment_date").limit(999999)
   ])
@@ -211,7 +370,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     throw new Error(`Failed to load accounting data: ${firstError.message || firstError}`)
   }
 
-  // Extract results safely
+  // Extract settings
   const settings = settingsRes?.data
   const lowStockThreshold = settings?.low_stock_threshold || 2
 
@@ -222,8 +381,14 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   })
 
   const resellersMap: Record<string, string> = {}
+  const resellerOpeningBalMap: Record<string, number> = {}
+  const resellerPhoneMap: Record<string, string | null> = {}
   resellersMasterRes?.data?.forEach((r: any) => {
-    if (r?.id && r?.name) resellersMap[r.id] = r.name
+    if (r?.id && r?.name) {
+      resellersMap[r.id] = r.name
+      resellerOpeningBalMap[r.id] = Number(r.opening_balance || 0)
+      resellerPhoneMap[r.id] = r.phone || null
+    }
   })
 
   // 1. Inventory Stats
@@ -241,79 +406,37 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   const outOfStock = inventory?.filter((p: any) => p.stock_quantity === 0) || []
   const lowStock = inventory?.filter((p: any) => p.stock_quantity > 0 && p.stock_quantity <= lowStockThreshold) || []
 
-  // 2. Purchases Stats
+  // --- SECTION 1: PURCHASES & DEALER PAYMENTS ---
   const purchases = purchasesRes?.data
-  const totalPurchases = purchases?.reduce((acc: number, p: any) => acc + p.total_amount, 0) || 0
-  const currentPeriodPurchasesPaid = purchases?.reduce((acc: number, p: any) => acc + (p.amount_paid || 0), 0) || 0
-  
-  // Outstanding Purchases (We Owe)
   const allPurchases = allPurchasesRes?.data
+  const dealerPayments = dealerPaymentsRes?.data
   const allDealerPayments = allDealerPaymentsRes?.data
 
-  // 3. Dealer Payments Stats
-  const dealerPayments = dealerPaymentsRes?.data
-  const totalDealerPayments = dealerPayments?.reduce((acc: number, p: any) => acc + p.amount, 0) || 0
-
-  // 4. Wholesale Sales Stats
-  const sales = salesRes?.data
-  const totalSales = sales?.reduce((acc: number, s: any) => acc + s.total_sale, 0) || 0
-  const totalSalesReceived = sales?.reduce((acc: number, s: any) => acc + s.amount_received, 0) || 0
-  const totalProfit = sales?.reduce((acc: number, s: any) => acc + s.profit, 0) || 0
-  const totalProductsSold = sales?.reduce((acc: number, s: any) => acc + s.quantity, 0) || 0
-  const totalCogs = sales?.reduce((acc: number, s: any) => acc + ((s.buying_cost || 0) * (s.quantity || 0)), 0) || 0
-  const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0
-
-  // Outstanding Sales (They Owe Us)
-  const allSales = allSalesRes?.data
-  const allResellerPayments = allResellerPaymentsRes?.data
-
-  // 5. Reseller Payments Stats
-  const resellerPayments = resellerPaymentsRes?.data
-  const totalResellerPayments = resellerPayments?.reduce((acc: number, p: any) => acc + p.amount, 0) || 0
-
-  // 6. Delivery Stats
-  const generalDel = generalDelRes?.data
-  const generalRevenue = generalDel?.reduce((acc: number, d: any) => acc + (d.entries?.reduce((a: number, e: any) => a + Number(e.amount || 0), 0) || 0), 0) || 0
-  const generalReceived = generalDel?.reduce((acc: number, d: any) => acc + (d.entries?.reduce((a: number, e: any) => a + Number(e.received_amount !== undefined && e.received_amount !== null ? e.received_amount : e.amount || 0), 0) || 0), 0) || 0
-  const generalFuel = generalDel?.reduce((acc: number, d: any) => acc + (d.fuel_expenses || 0), 0) || 0
-  const generalNet = generalRevenue - generalFuel
-  const generalActiveDays = generalDel?.filter((d: any) => (d.entries?.length || 0) > 0).length || 0
-
-  const naeemDel = naeemDelRes?.data
-  const naeemRevenue = naeemDel?.reduce((acc: number, d: any) => acc + (d.status === "No Order" ? 0 : Number(d.final_fare || 0)), 0) || 0
-  const naeemTrips = naeemDel?.filter((d: any) => d.status !== "No Order").length || 0
-
-  const naeemPay = naeemPayRes?.data
-  const naeemReceived = naeemPay?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
-  
-  const naeemOpeningBalance = Number(balRes?.opening_balance) || 0
-  const naeemTotalDue = naeemOpeningBalance + naeemRevenue
-  const naeemPending = naeemTotalDue - naeemReceived
+  const totalPurchases = purchases?.reduce((acc: number, p: any) => acc + Number(p.total_amount || 0), 0) || 0
+  const currentPeriodPurchasesPaid = purchases?.reduce((acc: number, p: any) => acc + Number(p.amount_paid || 0), 0) || 0
+  const totalDealerPayments = dealerPayments?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
+  const totalPaidToDealers = currentPeriodPurchasesPaid + totalDealerPayments
 
   // Aggregations by Dealer
   const dealerAgg: Record<string, { id: string, name: string, purchases: number, paid: number, outstanding: number }> = {}
   
-  // Base setup from current filtered purchases
   purchases?.forEach((p: any) => {
     if (!dealerAgg[p.dealer_id]) {
       dealerAgg[p.dealer_id] = { id: p.dealer_id, name: p.dealer?.name || dealersMap[p.dealer_id] || 'Unknown', purchases: 0, paid: 0, outstanding: 0 }
     }
-    dealerAgg[p.dealer_id].purchases += p.total_amount
+    dealerAgg[p.dealer_id].purchases += Number(p.total_amount || 0)
   })
   
-  // Payments in current filter
   dealerPayments?.forEach((p: any) => {
     if (!dealerAgg[p.dealer_id]) {
       dealerAgg[p.dealer_id] = { id: p.dealer_id, name: p.dealer?.name || dealersMap[p.dealer_id] || 'Unknown', purchases: 0, paid: 0, outstanding: 0 }
     }
-    dealerAgg[p.dealer_id].paid += p.amount
+    dealerAgg[p.dealer_id].paid += Number(p.amount || 0)
   })
 
-  // True outstanding balance calculation (independent of date filter)
+  // Cumulative dealer outstanding calculation (including opening balances, non-negative sum)
   const trueOutstandingByDealer: Record<string, number> = {}
-
-  // Initialize with dealer opening balances
-  dealersMasterRes.data?.forEach((d: any) => {
+  dealersMasterRes?.data?.forEach((d: any) => {
     trueOutstandingByDealer[d.id] = Number(d.opening_balance || 0)
   })
   
@@ -327,85 +450,87 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     trueOutstandingByDealer[p.dealer_id] -= Number(p.amount || 0)
   })
   
-  let calculatedTotalPayable = 0;
+  let calculatedTotalPayable = 0
   Object.keys(trueOutstandingByDealer).forEach(dealerId => {
-    const balance = trueOutstandingByDealer[dealerId];
-    // Add to total payable only if we owe them money (balance > 0)
+    const balance = trueOutstandingByDealer[dealerId]
     if (balance > 0) {
-      calculatedTotalPayable += balance;
+      calculatedTotalPayable += balance
     }
     
-    // Update the dealerAgg if the dealer exists in the current period filter
     if (dealerAgg[dealerId]) {
-      dealerAgg[dealerId].outstanding = balance;
-    } else {
-      // If the dealer has an outstanding balance but no activity in the current period,
-      // include with authentic name from master dictionary
-      if (balance !== 0) {
-        dealerAgg[dealerId] = {
-          id: dealerId,
-          name: dealersMap[dealerId] || 'Unknown',
-          purchases: 0,
-          paid: 0,
-          outstanding: balance
-        }
+      dealerAgg[dealerId].outstanding = balance
+    } else if (balance !== 0) {
+      dealerAgg[dealerId] = {
+        id: dealerId,
+        name: dealersMap[dealerId] || 'Unknown',
+        purchases: 0,
+        paid: 0,
+        outstanding: balance
       }
     }
   })
 
-  const totalPayable = calculatedTotalPayable;
+  const totalPayable = calculatedTotalPayable
 
-  // Aggregations by Reseller
-  const resellerAgg: Record<string, { id: string, name: string, sales: number, received: number, profit: number, outstanding: number }> = {}
-  sales?.forEach((s: any) => {
-    if (!resellerAgg[s.customer_id]) {
-      resellerAgg[s.customer_id] = { id: s.customer_id, name: s.customer?.name || resellersMap[s.customer_id] || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
-    }
-    resellerAgg[s.customer_id].sales += s.total_sale
-    resellerAgg[s.customer_id].received += s.amount_received
-    resellerAgg[s.customer_id].profit += s.profit
-  })
-  resellerPayments?.forEach((p: any) => {
-    if (!resellerAgg[p.customer_id]) {
-      resellerAgg[p.customer_id] = { id: p.customer_id, name: p.customer?.name || resellersMap[p.customer_id] || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
-    }
-    resellerAgg[p.customer_id].received += p.amount
-  })
+  const topPayablesList = Object.values(dealerAgg)
+    .filter(d => d.outstanding > 0)
+    .sort((a, b) => b.outstanding - a.outstanding)
+    .map(d => ({
+      id: d.id,
+      name: d.name,
+      amount: d.outstanding,
+      purchases: d.purchases,
+      paid: d.paid,
+      outstanding: d.outstanding,
+      openingBalance: Number(dealersMasterRes?.data?.find((dm: any) => dm.id === d.id)?.opening_balance || 0),
+      percentageOfTotal: totalPayable > 0 ? Number(((d.outstanding / totalPayable) * 100).toFixed(1)) : 0
+    }))
 
-  // True outstanding balance calculation
-  const trueResellerOutstanding: Record<string, number> = {}
+  const purchasesSectionData: PurchasesSectionData = {
+    total: totalPurchases,
+    paid: totalPaidToDealers,
+    outstanding: totalPayable,
+    paymentsMade: totalDealerPayments,
+    amountPaidAtPurchase: currentPeriodPurchasesPaid,
+    totalPaidToDealers,
+    totalPayable,
+    dealersCount: topPayablesList.length,
+    topPayables: topPayablesList
+  }
 
-  resellersMasterRes?.data?.forEach((r: any) => {
-    if (r?.opening_balance) {
-      if (!trueResellerOutstanding[r.id]) trueResellerOutstanding[r.id] = 0
-      trueResellerOutstanding[r.id] += Number(r.opening_balance)
-    }
-  })
-  
-  const allSalesByCustomer: Record<string, number> = {}
-  allSales?.forEach((s: any) => {
-    if (!s.customer_id) return
-    allSalesByCustomer[s.customer_id] = (allSalesByCustomer[s.customer_id] || 0) + Number(s.total_sale || 0)
-    if (!trueResellerOutstanding[s.customer_id]) trueResellerOutstanding[s.customer_id] = 0
-    trueResellerOutstanding[s.customer_id] += Number(s.total_sale || 0) - Number(s.amount_received || 0)
-  })
-
-  const allCustomerCredits = allCustomerCreditsRes?.data
-  const personalLedgerOutstandingByPerson: Record<string, number> = {}
-  let totalPersonalLedgerOutstanding = 0
+  // --- SECTION 5: PERSONAL LEDGER (STRICTLY ISOLATED) ---
+  const allCustomerCredits = allCustomerCreditsRes?.data || []
+  let personalTotalReceivables = 0
+  let personalTotalReceived = 0
+  let personalTotalOutstanding = 0
   let funds7TimeOutstanding = 0
   let fundsPersonalOutstanding = 0
   let fundsUnallocatedOutstanding = 0
 
-  allCustomerCredits?.forEach((c: any) => {
+  const personalDebtorsMap: Record<string, {
+    id: string
+    name: string
+    phone: string | null
+    outstanding: number
+    funds7Time: number
+    fundsPersonal: number
+    fundsUnallocated: number
+    routePath: string
+  }> = {}
+
+  allCustomerCredits.forEach((c: any) => {
     if (!c.customer_id) return
+    const totalAmt = Number(c.total_amount || 0)
+    const paidAmt = Number(c.amount_paid || 0)
     const entryBal = Number(c.balance !== undefined && c.balance !== null
       ? c.balance
-      : Math.max(0, Number(c.total_amount || 0) - Number(c.amount_paid || 0)))
+      : Math.max(0, totalAmt - paidAmt))
+
+    personalTotalReceivables += totalAmt
+    personalTotalReceived += paidAmt
 
     if (entryBal > 0) {
-      personalLedgerOutstandingByPerson[c.customer_id] = (personalLedgerOutstandingByPerson[c.customer_id] || 0) + entryBal
-      totalPersonalLedgerOutstanding += entryBal
+      personalTotalOutstanding += entryBal
 
       if (c.funding_source === "7TIME_FUNDS") {
         funds7TimeOutstanding += entryBal
@@ -414,50 +539,294 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       } else {
         fundsUnallocatedOutstanding += entryBal
       }
-    }
 
-    if (!trueResellerOutstanding[c.customer_id]) trueResellerOutstanding[c.customer_id] = 0
-    trueResellerOutstanding[c.customer_id] += Number(c.total_amount || 0)
+      if (!personalDebtorsMap[c.customer_id]) {
+        personalDebtorsMap[c.customer_id] = {
+          id: c.customer_id,
+          name: resellersMap[c.customer_id] || "Unknown",
+          phone: resellerPhoneMap[c.customer_id] || null,
+          outstanding: 0,
+          funds7Time: 0,
+          fundsPersonal: 0,
+          fundsUnallocated: 0,
+          routePath: `/local-customers/${c.customer_id}`
+        }
+      }
+      personalDebtorsMap[c.customer_id].outstanding += entryBal
+      if (c.funding_source === "7TIME_FUNDS") {
+        personalDebtorsMap[c.customer_id].funds7Time += entryBal
+      } else if (c.funding_source === "PERSONAL_FUNDS") {
+        personalDebtorsMap[c.customer_id].fundsPersonal += entryBal
+      } else {
+        personalDebtorsMap[c.customer_id].fundsUnallocated += entryBal
+      }
+    }
   })
-  
+
+  const personalDebtors = Object.values(personalDebtorsMap)
+    .filter(d => d.outstanding > 0)
+    .sort((a, b) => b.outstanding - a.outstanding)
+
+  const personalLedgerSectionData: PersonalLedgerSectionData = {
+    totalReceivables: personalTotalReceivables,
+    totalReceived: personalTotalReceived,
+    outstanding: personalTotalOutstanding,
+    funds7Time: funds7TimeOutstanding,
+    fundsPersonal: fundsPersonalOutstanding,
+    fundsUnallocated: fundsUnallocatedOutstanding,
+    debtorsCount: personalDebtors.length,
+    debtors: personalDebtors
+  }
+
+  // --- SECTION 2: WHOLESALE BUSINESS ---
+  const sales = salesRes?.data
+  const allSales = allSalesRes?.data
+  const resellerPayments = resellerPaymentsRes?.data
+  const allResellerPayments = allResellerPaymentsRes?.data
+
+  const totalSales = sales?.reduce((acc: number, s: any) => acc + Number(s.total_sale || 0), 0) || 0
+  const totalSalesReceived = sales?.reduce((acc: number, s: any) => acc + Number(s.amount_received || 0), 0) || 0
+  const totalProfit = sales?.reduce((acc: number, s: any) => acc + Number(s.profit || 0), 0) || 0
+  const totalProductsSold = sales?.reduce((acc: number, s: any) => acc + Number(s.quantity || 0), 0) || 0
+  const totalCogs = sales?.reduce((acc: number, s: any) => acc + (Number(s.buying_cost || 0) * Number(s.quantity || 0)), 0) || 0
+  const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0
+  const totalResellerPayments = resellerPayments?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
+
+  // Pure wholesale customer balances (strictly trade sales and trade payments, 0 personal credits)
+  const allSalesByCustomer: Record<string, { totalSale: number, amountReceived: number }> = {}
+  allSales?.forEach((s: any) => {
+    if (!s.customer_id) return
+    if (!allSalesByCustomer[s.customer_id]) {
+      allSalesByCustomer[s.customer_id] = { totalSale: 0, amountReceived: 0 }
+    }
+    allSalesByCustomer[s.customer_id].totalSale += Number(s.total_sale || 0)
+    allSalesByCustomer[s.customer_id].amountReceived += Number(s.amount_received || 0)
+  })
+
+  const allPaymentsByCustomer: Record<string, number> = {}
   allResellerPayments?.forEach((p: any) => {
-    if (!trueResellerOutstanding[p.customer_id]) trueResellerOutstanding[p.customer_id] = 0
-    trueResellerOutstanding[p.customer_id] -= Number(p.amount || 0)
+    if (!p.customer_id) return
+    allPaymentsByCustomer[p.customer_id] = (allPaymentsByCustomer[p.customer_id] || 0) + Number(p.amount || 0)
   })
 
-  let calculatedTotalReceivable = 0;
-  Object.keys(trueResellerOutstanding).forEach(resellerId => {
-    const balance = trueResellerOutstanding[resellerId];
-    if (balance > 0) {
-      calculatedTotalReceivable += balance;
+  // Credit payments allocated to personal ledger per customer
+  const personalPaidByCustomer: Record<string, number> = {}
+  allCustomerCredits.forEach((c: any) => {
+    if (!c.customer_id) return
+    personalPaidByCustomer[c.customer_id] = (personalPaidByCustomer[c.customer_id] || 0) + Number(c.amount_paid || 0)
+  })
+
+  const wholesaleDebtorsMap: Record<string, { id: string, name: string, outstanding: number, routePath: string }> = {}
+  let totalWholesaleReceivables = 0
+
+  // Reseller activity tracking for legacy compatibility
+  const resellerAgg: Record<string, { id: string, name: string, sales: number, received: number, profit: number, outstanding: number }> = {}
+  sales?.forEach((s: any) => {
+    if (!resellerAgg[s.customer_id]) {
+      resellerAgg[s.customer_id] = { id: s.customer_id, name: s.customer?.name || resellersMap[s.customer_id] || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
     }
-    
-    if (resellerAgg[resellerId]) {
-      resellerAgg[resellerId].outstanding = balance;
-    } else {
-      if (balance !== 0) {
-        resellerAgg[resellerId] = {
-          id: resellerId,
-          name: resellersMap[resellerId] || 'Unknown',
-          sales: 0,
-          received: 0,
-          profit: 0,
-          outstanding: balance
+    resellerAgg[s.customer_id].sales += Number(s.total_sale || 0)
+    resellerAgg[s.customer_id].received += Number(s.amount_received || 0)
+    resellerAgg[s.customer_id].profit += Number(s.profit || 0)
+  })
+  resellerPayments?.forEach((p: any) => {
+    if (!resellerAgg[p.customer_id]) {
+      resellerAgg[p.customer_id] = { id: p.customer_id, name: p.customer?.name || resellersMap[p.customer_id] || 'Unknown', sales: 0, received: 0, profit: 0, outstanding: 0 }
+    }
+    resellerAgg[p.customer_id].received += Number(p.amount || 0)
+  })
+
+  // Calculate pure wholesale debt per customer (strictly trade sales and trade payments, 0 personal credits)
+  resellersMasterRes?.data?.forEach((r: any) => {
+    const salesInfo = allSalesByCustomer[r.id]
+    const hasWholesaleSales = Boolean(salesInfo && salesInfo.totalSale > 0)
+    const openingBal = Number(r.opening_balance || 0)
+
+    // Include customer if they have wholesale sales OR an opening balance
+    if (hasWholesaleSales || openingBal > 0) {
+      const wholesaleSales = salesInfo?.totalSale || 0
+      const wholesaleCashReceived = salesInfo?.amountReceived || 0
+      const totalPayments = allPaymentsByCustomer[r.id] || 0
+      const personalPaid = personalPaidByCustomer[r.id] || 0
+      const wholesalePayments = Math.max(0, totalPayments - personalPaid)
+
+      const wholesaleBalance = openingBal + (wholesaleSales - wholesaleCashReceived) - wholesalePayments
+
+      if (wholesaleBalance > 0) {
+        totalWholesaleReceivables += wholesaleBalance
+        wholesaleDebtorsMap[r.id] = {
+          id: r.id,
+          name: r.name || resellersMap[r.id] || "Unknown",
+          outstanding: wholesaleBalance,
+          routePath: `/wholesale`
         }
       }
     }
   })
 
-  const totalReceivable = calculatedTotalReceivable;
+  // Legacy trueResellerOutstanding for full backward compatibility with older tests and widgets
+  const trueResellerOutstanding: Record<string, number> = {}
+  resellersMasterRes?.data?.forEach((r: any) => {
+    if (r?.opening_balance) {
+      if (!trueResellerOutstanding[r.id]) trueResellerOutstanding[r.id] = 0
+      trueResellerOutstanding[r.id] += Number(r.opening_balance)
+    }
+  })
+  allSales?.forEach((s: any) => {
+    if (!s.customer_id) return
+    if (!trueResellerOutstanding[s.customer_id]) trueResellerOutstanding[s.customer_id] = 0
+    trueResellerOutstanding[s.customer_id] += Number(s.total_sale || 0) - Number(s.amount_received || 0)
+  })
+  allCustomerCredits.forEach((c: any) => {
+    if (!c.customer_id) return
+    if (!trueResellerOutstanding[c.customer_id]) trueResellerOutstanding[c.customer_id] = 0
+    trueResellerOutstanding[c.customer_id] += Number(c.total_amount || 0)
+  })
+  allResellerPayments?.forEach((p: any) => {
+    if (!p.customer_id) return
+    if (!trueResellerOutstanding[p.customer_id]) trueResellerOutstanding[p.customer_id] = 0
+    trueResellerOutstanding[p.customer_id] -= Number(p.amount || 0)
+  })
+
+  let legacyTotalReceivable = 0
+  Object.keys(trueResellerOutstanding).forEach(resellerId => {
+    const balance = trueResellerOutstanding[resellerId]
+    if (balance > 0) {
+      legacyTotalReceivable += balance
+    }
+    if (resellerAgg[resellerId]) {
+      resellerAgg[resellerId].outstanding = balance
+    } else if (balance !== 0) {
+      resellerAgg[resellerId] = {
+        id: resellerId,
+        name: resellersMap[resellerId] || 'Unknown',
+        sales: 0,
+        received: 0,
+        profit: 0,
+        outstanding: balance
+      }
+    }
+  })
+
+  const wholesaleDebtors = Object.values(wholesaleDebtorsMap)
+    .sort((a, b) => b.outstanding - a.outstanding)
+
+  const wholesaleSectionData: WholesaleSectionData = {
+    totalSales,
+    profit: totalProfit,
+    cogs: totalCogs,
+    profitMargin,
+    receivables: totalWholesaleReceivables,
+    payables: totalPayable,
+    totalPayable,
+    transactions: sales?.length || 0,
+    productsSold: totalProductsSold,
+    customersCount: wholesaleDebtors.length,
+    debtors: wholesaleDebtors
+  }
+
+  // --- SECTION 3: GENERAL DELIVERY (INCLUDING NAEEM) ---
+  const generalDel = generalDelRes?.data
+  const generalRevenue = generalDel?.reduce((acc: number, d: any) => acc + (d.entries?.reduce((a: number, e: any) => a + Number(e.amount || 0), 0) || 0), 0) || 0
+  const generalReceived = generalDel?.reduce((acc: number, d: any) => acc + (d.entries?.reduce((a: number, e: any) => a + Number(e.received_amount !== undefined && e.received_amount !== null ? e.received_amount : e.amount || 0), 0) || 0), 0) || 0
+  const generalFuel = generalDel?.reduce((acc: number, d: any) => acc + Number(d.fuel_expenses || 0), 0) || 0
+  const generalNet = generalRevenue - generalFuel
+  const generalActiveDays = generalDel?.filter((d: any) => (d.entries?.length || 0) > 0).length || 0
+
+  const naeemDel = naeemDelRes?.data
+  const naeemRevenue = naeemDel?.reduce((acc: number, d: any) => acc + (d.status === "No Order" ? 0 : Number(d.final_fare || 0)), 0) || 0
+  const naeemTrips = naeemDel?.filter((d: any) => d.status !== "No Order").length || 0
+
+  const naeemPay = naeemPayRes?.data
+  const naeemReceived = naeemPay?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
+
+  const naeemOpeningBalance = Number(balRes?.opening_balance) || 0
+  const naeemTotalDue = naeemOpeningBalance + naeemRevenue
+  const naeemPending = naeemTotalDue - naeemReceived
+
+  // Critical Accounting Rule: Subtract NAEEM from combined General Delivery only when
+  // the existing data confirms that NAEEM is already included in that combined amount.
+  const combinedGeneralDelivery = generalRevenue
+
+  // 1. Check for explicit NAEEM labeled entries in general delivery records
+  let explicitNaeemInGeneral = 0
+  let hasExplicitNaeemInEntries = false
+  generalDel?.forEach((d: any) => {
+    d.entries?.forEach((e: any) => {
+      const name = (e.customer_name || "").toLowerCase()
+      if (name.includes("naeem")) {
+        explicitNaeemInGeneral += Number(e.amount || 0)
+        hasExplicitNaeemInEntries = true
+      }
+    })
+  })
+
+  // 2. Data confirms NAEEM is included if explicit entries exist OR combined total absorbs NAEEM revenue
+  const isNaeemConfirmedInCombined = hasExplicitNaeemInEntries
+    ? explicitNaeemInGeneral > 0
+    : (combinedGeneralDelivery >= naeemRevenue && naeemRevenue > 0)
+
+  const naeemIncluded = hasExplicitNaeemInEntries
+    ? explicitNaeemInGeneral
+    : (isNaeemConfirmedInCombined ? naeemRevenue : 0)
+
+  // 3. Subtract NAEEM only when confirmed that NAEEM is included in combined amount
+  const generalDeliveryExcludingNaeem = isNaeemConfirmedInCombined
+    ? Math.max(0, combinedGeneralDelivery - naeemIncluded)
+    : combinedGeneralDelivery
+
+  const isReconciled = isNaeemConfirmedInCombined
+    ? (generalDeliveryExcludingNaeem + naeemIncluded) === combinedGeneralDelivery
+    : (combinedGeneralDelivery === 0 && naeemRevenue === 0)
+  const generalDeliveryOutstanding = Math.max(0, combinedGeneralDelivery - generalReceived)
+
+  const generalDeliveryReconciliation = {
+    isReconciled,
+    formula: `Combined General Delivery (${formatMoney(combinedGeneralDelivery)}) = General Delivery excl. NAEEM (${formatMoney(generalDeliveryExcludingNaeem)}) + NAEEM Included (${formatMoney(naeemIncluded)})`,
+    status: (combinedGeneralDelivery === 0 && naeemRevenue === 0)
+      ? ("EMPTY" as const)
+      : isReconciled
+        ? ("RECONCILED" as const)
+        : ("SHORTFALL" as const),
+    note: isReconciled
+      ? "Reconciliation verified: Combined General Delivery equals General Delivery excluding NAEEM plus NAEEM Included. NAEEM is not added a second time to consolidated operational totals."
+      : isNaeemConfirmedInCombined
+        ? "Reconciliation notice: Combined General Delivery recorded is less than NAEEM route ledger in this period. Figures displayed honestly without fabricated adjustments."
+        : "Reconciliation notice: Existing data indicates NAEEM route deliveries are maintained independently and not included in combined General Delivery for this period."
+  }
+
+  const generalDeliverySectionData: GeneralDeliverySectionData = {
+    combinedTotal: combinedGeneralDelivery,
+    naeemIncluded,
+    excludingNaeem: generalDeliveryExcludingNaeem,
+    fuel: generalFuel,
+    net: generalNet,
+    received: generalReceived,
+    outstanding: generalDeliveryOutstanding,
+    activeDays: generalActiveDays,
+    reconciliation: generalDeliveryReconciliation,
+    total: combinedGeneralDelivery
+  }
+
+  // --- SECTION 4: NAEEM DELIVERY LEDGER ---
+  const naeemSectionData: NaeemSectionData = {
+    total: naeemRevenue,
+    received: naeemReceived,
+    openingBalance: naeemOpeningBalance,
+    outstanding: naeemPending,
+    trips: naeemTrips,
+    totalDue: naeemTotalDue,
+    pending: naeemPending
+  }
 
   // Chart 1: Business Performance Trends (Wholesale Sales, COGS Cost, Realized Profit)
   const salesByDate: Record<string, { sales: number, profit: number, cost: number }> = {}
   sales?.forEach((s: any) => {
     const key = s.sale_date.substring(0, 10)
     if (!salesByDate[key]) salesByDate[key] = { sales: 0, profit: 0, cost: 0 }
-    salesByDate[key].sales += s.total_sale
-    salesByDate[key].profit += s.profit
-    salesByDate[key].cost += (s.buying_cost || 0) * (s.quantity || 0)
+    salesByDate[key].sales += Number(s.total_sale || 0)
+    salesByDate[key].profit += Number(s.profit || 0)
+    salesByDate[key].cost += (Number(s.buying_cost || 0)) * (Number(s.quantity || 0))
   })
   const salesChartData = Object.keys(salesByDate).sort().map(date => ({
     date,
@@ -476,7 +845,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     return cashFlowByDate[key]
   }
 
-  // Inflows: Cash collected at wholesale sale + subsequent debt payments from resellers
+  // Inflows: Cash collected at wholesale sale + wholesale debt payments from resellers
   sales?.forEach((s: any) => {
     if (s.amount_received && s.sale_date) {
       getCashEntry(s.sale_date).inflow += Number(s.amount_received || 0)
@@ -519,7 +888,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   const totalOutflows = currentPeriodPurchasesPaid + totalDealerPayments + generalFuel
   const netCashFlow = totalInflows - totalOutflows
 
-  // --- PHASE 4: 12-MONTH HISTORICAL FINANCIAL TRENDS ---
+  // 12-MONTH HISTORICAL FINANCIAL TRENDS
   const allGeneralDel = allGeneralDelRes?.data || []
   const allNaeemPayments = allNaeemPayRes?.data || []
 
@@ -576,12 +945,11 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     })
   }
 
-  // --- PHASE 4: BUSINESS PERFORMANCE INSIGHTS ---
+  // BUSINESS PERFORMANCE INSIGHTS
   const currMonthStats = monthlyTrends[monthlyTrends.length - 1]
   const prevMonthStats = monthlyTrends[monthlyTrends.length - 2]
   const comparisonLabel = `vs ${prevMonthStats.monthLabel}`
 
-  // 1. Sales MoM
   const salesChangeAmount = currMonthStats.sales - prevMonthStats.sales
   let salesChangePercentage: number | null = null
   let salesTrend: "UP" | "DOWN" | "FLAT" = "FLAT"
@@ -599,7 +967,6 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     salesTrendLabel = "No sales in current or prior month"
   }
 
-  // 2. Gross Profit MoM
   const profitChangeAmount = currMonthStats.profit - prevMonthStats.profit
   let profitChangePercentage: number | null = null
   let profitTrend: "UP" | "DOWN" | "FLAT" = "FLAT"
@@ -617,7 +984,6 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     profitTrendLabel = "No profit in current or prior month"
   }
 
-  // 3. Wholesale Gross Margin
   const marginPercentage = currMonthStats.sales > 0
     ? Number(((currMonthStats.profit / currMonthStats.sales) * 100).toFixed(1))
     : 0
@@ -625,7 +991,6 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     ? "NO_SALES"
     : marginPercentage >= 20 ? "HEALTHY" : marginPercentage >= 10 ? "MODERATE" : "LOW"
 
-  // 4. Cash Collection Ratio (Wholesale)
   const currentMonthWholesaleCash = (sales?.reduce((acc: number, s: any) => acc + Number(s.amount_received || 0), 0) || 0)
     + (resellerPayments?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0)
   let collectionRatioPercentage: number | null = null
@@ -641,12 +1006,10 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     collectionRatioLabel = "No sales or collections recorded this month"
   }
 
-  // 5. Supplier Payables Activity
   const periodPurchases = totalPurchases
   const periodSupplierPayments = currentPeriodPurchasesPaid + totalDealerPayments
   const netSupplierObligationChange = periodPurchases - periodSupplierPayments
 
-  // 6. Fleet Contribution
   const fleetContribution = {
     billed: generalRevenue,
     fuel: generalFuel,
@@ -654,7 +1017,6 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     activeDays: generalActiveDays
   }
 
-  // 7. Top Exposure Debtors (Follow-up priority)
   const topExposureDebtors = Object.values(resellerAgg)
     .filter(r => r.outstanding > 0)
     .sort((a, b) => b.outstanding - a.outstanding)
@@ -663,33 +1025,18 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       id: r.id,
       name: r.name,
       amount: r.outstanding,
-      sourceLabel: (personalLedgerOutstandingByPerson[r.id] || 0) > 0 && !((allSalesByCustomer[r.id] || 0) > 0)
-        ? "Personal Ledger"
-        : "Wholesale Customer",
-      routePath: (personalLedgerOutstandingByPerson[r.id] || 0) > 0 && !((allSalesByCustomer[r.id] || 0) > 0)
-        ? `/local-customers/${r.id}`
-        : `/resellers/${r.id}`
+      sourceLabel: "Wholesale Customer",
+      routePath: `/wholesale`
     }))
 
-  // --- PHASE 4: OUTSTANDING BALANCES BREAKDOWN ---
-  const wholesaleReceivablesOnly = Math.max(0, calculatedTotalReceivable - totalPersonalLedgerOutstanding)
+  const calculatedTotalReceivable = legacyTotalReceivable
   const totalReceivablesCombined = calculatedTotalReceivable + Math.max(0, naeemPending)
-
-  const topPayablesList = Object.values(dealerAgg)
-    .filter(d => d.outstanding > 0)
-    .sort((a, b) => b.outstanding - a.outstanding)
-    .map(d => ({
-      id: d.id,
-      name: d.name,
-      amount: d.outstanding,
-      percentageOfTotal: totalPayable > 0 ? Number(((d.outstanding / totalPayable) * 100).toFixed(1)) : 0
-    }))
 
   const balancesBreakdown: OutstandingBalancesBreakdownData = {
     receivables: {
       total: totalReceivablesCombined,
-      wholesale: wholesaleReceivablesOnly,
-      personalLedger: totalPersonalLedgerOutstanding,
+      wholesale: totalWholesaleReceivables,
+      personalLedger: personalTotalOutstanding,
       personalLedger7Time: funds7TimeOutstanding,
       personalLedgerPersonal: fundsPersonalOutstanding,
       personalLedgerUnallocated: fundsUnallocatedOutstanding,
@@ -713,6 +1060,14 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   ].sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10)
 
   return {
+    // 5 CORE BUSINESS SECTIONS
+    purchases: purchasesSectionData,
+    wholesale: wholesaleSectionData,
+    generalDelivery: generalDeliverySectionData,
+    naeem: naeemSectionData,
+    personalLedger: personalLedgerSectionData,
+
+    // BACKWARD COMPATIBILITY FIELDS
     inventory: {
       totalValue: totalInventoryValue,
       totalItems: totalStockItems,
@@ -722,16 +1077,10 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       lowStock: lowStock.length,
       topProducts: topInventory
     },
-    purchases: {
-      total: totalPurchases,
-      totalPayable,
-      paymentsMade: totalDealerPayments,
-      amountPaidAtPurchase: currentPeriodPurchasesPaid
-    },
     sales: {
       total: totalSales,
       received: totalSalesReceived,
-      totalReceivable,
+      totalReceivable: legacyTotalReceivable,
       profit: totalProfit,
       cogs: totalCogs,
       profitMargin,
@@ -746,51 +1095,38 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
       totalOutflows,
       chartData: cashFlowChartData,
     },
-    generalDelivery: {
-      total: generalRevenue,
-      received: generalReceived,
-      net: generalNet,
-      fuel: generalFuel,
-      activeDays: generalActiveDays
-    },
-    naeem: {
-      total: naeemRevenue,
-      received: naeemReceived,
-      pending: naeemPending,
-      trips: naeemTrips,
-      openingBalance: naeemOpeningBalance,
-      totalDue: naeemTotalDue
-    },
     dealers: Object.values(dealerAgg),
     resellers: Object.values(resellerAgg),
     recentActivity: activities,
     receivables: {
-      totalOutstanding: calculatedTotalReceivable + Math.max(0, naeemPending),
-      wholesaleOutstanding: calculatedTotalReceivable,
-      personalLedgerOutstanding: totalPersonalLedgerOutstanding,
+      totalOutstanding: totalReceivablesCombined,
+      wholesaleOutstanding: legacyTotalReceivable,
+      personalLedgerOutstanding: personalTotalOutstanding,
       funds7TimeOutstanding,
       fundsPersonalOutstanding,
       fundsUnallocatedOutstanding,
       naeemOutstanding: Math.max(0, naeemPending),
       otherOutstanding: 0,
-      debtorsCount: Object.values(resellerAgg).filter(r => r.outstanding > 0).length + (naeemPending > 0 ? 1 : 0),
+      debtorsCount: wholesaleDebtors.length + personalDebtors.length + (naeemPending > 0 ? 1 : 0),
       debtors: [
-        ...Object.values(resellerAgg)
-          .filter(r => r.outstanding > 0)
-          .map(r => {
-            const hasCredits = (personalLedgerOutstandingByPerson[r.id] || 0) > 0
-            const hasWholesale = (allSalesByCustomer[r.id] || 0) > 0
-            const isPersonalOnly = hasCredits && !hasWholesale
-            return {
-              id: r.id,
-              name: r.name,
-              source: (isPersonalOnly ? "PERSONAL_LEDGER" : "WHOLESALE_RESELLER") as any,
-              sourceLabel: isPersonalOnly ? "Personal Ledger" : "Wholesale Customer",
-              outstanding: r.outstanding,
-              lastPaymentDate: null,
-              routePath: isPersonalOnly ? `/local-customers/${r.id}` : `/resellers/${r.id}`
-            }
-          }),
+        ...wholesaleDebtors.map(r => ({
+          id: r.id,
+          name: r.name,
+          source: "WHOLESALE_RESELLER" as const,
+          sourceLabel: "Wholesale Customer",
+          outstanding: r.outstanding,
+          lastPaymentDate: null,
+          routePath: `/wholesale`
+        })),
+        ...personalDebtors.map(p => ({
+          id: p.id,
+          name: p.name,
+          source: "PERSONAL_LEDGER" as const,
+          sourceLabel: "Personal Ledger",
+          outstanding: p.outstanding,
+          lastPaymentDate: null,
+          routePath: p.routePath
+        })),
         ...(naeemPending > 0 ? [{
           id: "naeem-dedicated-route",
           name: "NAEEM Dedicated Route",

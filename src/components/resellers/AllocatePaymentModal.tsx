@@ -4,6 +4,8 @@ import { reallocateExistingPayment, type CustomerCredit } from "@/services/custo
 import type { ResellerPayment } from "@/services/resellerPayments"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { CurrencyDisplay } from "@/components/shared"
 import { formatMoney, formatDate } from "@/lib/utils"
 import { X, Loader2, AlertCircle, Layers, CheckCircle2, Wand2 } from "lucide-react"
 
@@ -128,27 +130,24 @@ export default function AllocatePaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
       <div 
-        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
+        className="relative w-full max-w-2xl bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#D9E0E8] overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="allocate-payment-title"
       >
         {/* Header */}
-        <div 
-          className="px-6 py-4.5 text-white flex items-center justify-between"
-          style={{ background: "linear-gradient(135deg, #2D7FF9 0%, #4A39D6 100%)" }}
-        >
+        <div className="px-6 py-4.5 bg-[#F8F7F2] border-b border-[#D9E0E8] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shadow-inner">
+            <div className="h-9 w-9 rounded-xl bg-[#EBF2FE] border border-[#BFDBFE] flex items-center justify-center text-[#2563EB]">
               <Layers className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="allocate-payment-title" className="text-lg font-bold leading-tight">
+              <h2 id="allocate-payment-title" className="text-lg font-bold text-[#172B4D] leading-tight">
                 Allocate Settlement to Personal Ledger Entries
               </h2>
-              <p className="text-xs text-blue-100 font-medium">
+              <p className="text-xs text-[#52627A] font-medium">
                 Settlement of {formatMoney(payment.amount)} on {formatDate(payment.payment_date)}
               </p>
             </div>
@@ -156,7 +155,7 @@ export default function AllocatePaymentModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1.5 text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            className="rounded-lg p-1.5 text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8] transition-colors cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -166,30 +165,30 @@ export default function AllocatePaymentModal({
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {formError && (
-            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-start gap-2.5">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-[#FDECEC] border border-[#FCA5A5] text-[#B42318] rounded-xl text-sm flex items-start gap-2.5">
+              <AlertCircle className="h-5 w-5 text-[#B42318] shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-xs">Allocation Error</p>
-                <p className="text-xs text-red-600 mt-0.5">{formError}</p>
+                <p className="text-xs text-[#B42318] mt-0.5">{formError}</p>
               </div>
             </div>
           )}
 
           {/* Payment summary box */}
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div className="p-4 bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
             <div>
-              <span className="text-slate-500 font-medium">Total Settlement:</span>
-              <span className="ml-1.5 text-base font-bold text-slate-900">{formatMoney(paymentAmount)}</span>
+              <span className="text-[#52627A] font-medium">Total Settlement:</span>
+              <span className="ml-1.5 text-base font-bold text-[#172B4D]">{formatMoney(paymentAmount)}</span>
             </div>
             <div>
-              <span className="text-slate-500 font-medium">Allocated:</span>
-              <span className={`ml-1.5 font-bold ${isOverAllocated ? "text-red-600" : "text-emerald-600"}`}>
+              <span className="text-[#52627A] font-medium">Allocated:</span>
+              <span className={`ml-1.5 font-bold ${isOverAllocated ? "text-[#B42318]" : "text-[#087443]"}`}>
                 {formatMoney(totalAllocated)}
               </span>
             </div>
             <div>
-              <span className="text-slate-500 font-medium">Unallocated Advance:</span>
-              <span className="ml-1.5 font-bold text-blue-600">{formatMoney(unallocatedAmount)}</span>
+              <span className="text-[#52627A] font-medium">Unallocated Advance:</span>
+              <span className="ml-1.5 font-bold text-[#2563EB]">{formatMoney(unallocatedAmount)}</span>
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -197,7 +196,7 @@ export default function AllocatePaymentModal({
                 variant="outline"
                 size="sm"
                 onClick={handleAutoDistribute}
-                className="h-7 text-xs font-semibold text-blue-600 border-blue-200 hover:bg-blue-50"
+                className="h-7 text-xs font-semibold text-[#2563EB] border-[#BFDBFE] hover:bg-[#EBF2FE]"
               >
                 <Wand2 className="h-3 w-3 mr-1" /> Auto-Distribute
               </Button>
@@ -206,7 +205,7 @@ export default function AllocatePaymentModal({
                 variant="ghost"
                 size="sm"
                 onClick={handleClear}
-                className="h-7 text-xs text-slate-500 hover:text-slate-700"
+                className="h-7 text-xs text-[#52627A] hover:text-[#172B4D]"
               >
                 Clear
               </Button>
@@ -215,22 +214,22 @@ export default function AllocatePaymentModal({
 
           {/* Relevant Credits Table */}
           {relevantCredits.length === 0 ? (
-            <div className="p-8 text-center bg-white border border-slate-200 rounded-xl text-slate-500 text-sm">
+            <div className="p-8 text-center bg-[#FFFFFF] border border-[#D9E0E8] rounded-xl text-[#52627A] text-sm">
               No outstanding ledger entries found to allocate to.
             </div>
           ) : (
-            <div className="space-y-2 border border-slate-200 rounded-xl overflow-hidden bg-white">
-              <table className="w-full text-xs">
-                <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="py-2 px-3 text-left">Date</th>
-                    <th className="py-2 px-3 text-left">Entry / Description</th>
-                    <th className="py-2 px-3 text-right">Total Amount</th>
-                    <th className="py-2 px-3 text-right">Remaining Due</th>
-                    <th className="py-2 px-3 text-right w-36">Allocate (Rs)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
+            <div className="border border-[#D9E0E8] rounded-xl overflow-hidden bg-[#FFFFFF]">
+              <Table className="w-full text-xs border-collapse">
+                <TableHeader>
+                  <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+                    <TableHead className="py-2.5 px-3 text-left font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Date</TableHead>
+                    <TableHead className="py-2.5 px-3 text-left font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Entry / Description</TableHead>
+                    <TableHead className="py-2.5 px-3 text-right font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Total Amount</TableHead>
+                    <TableHead className="py-2.5 px-3 text-right font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Remaining Due</TableHead>
+                    <TableHead className="py-2.5 px-3 text-right font-semibold text-xs text-[#52627A] uppercase tracking-wider w-36">Allocate (₹)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="divide-y divide-[#D9E0E8]">
                   {relevantCredits.map(credit => {
                     const existingFromThis = payment.allocations?.find(a => a.credit_id === credit.id)?.amount || 0
                     const maxPossible = Number(credit.balance || 0) + Number(existingFromThis)
@@ -238,29 +237,29 @@ export default function AllocatePaymentModal({
                     const numVal = parseFloat(val) || 0
 
                     return (
-                      <tr key={credit.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                      <TableRow key={credit.id} className="hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors">
+                        <TableCell className="py-2.5 px-3 text-[#52627A] font-mono whitespace-nowrap">
                           {formatDate(credit.entry_date)}
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <div className="font-semibold text-slate-900">
+                        </TableCell>
+                        <TableCell className="py-2.5 px-3">
+                          <div className="font-semibold text-[#172B4D]">
                             {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Expense on Behalf")}
                             {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
                             {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
                           </div>
                           {credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
-                            <div className="text-[10px] text-slate-400">
-                              {credit.quantity} {credit.unit || "pcs"} @ Rs {credit.rate_per_unit}
+                            <div className="text-[10px] text-[#66758A]">
+                              {credit.quantity} {credit.unit || "pcs"} @ ₹{credit.rate_per_unit}
                             </div>
                           )}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-medium text-slate-700">
-                          {formatMoney(credit.total_amount)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-bold text-red-600">
-                          {formatMoney(maxPossible)}
-                        </td>
-                        <td className="py-2 px-3 text-right">
+                        </TableCell>
+                        <TableCell className="py-2.5 px-3 text-right font-medium text-[#172B4D]">
+                          <CurrencyDisplay amount={credit.total_amount} />
+                        </TableCell>
+                        <TableCell className="py-2.5 px-3 text-right font-bold text-[#B42318]">
+                          <CurrencyDisplay amount={maxPossible} variant="negative" />
+                        </TableCell>
+                        <TableCell className="py-2 px-3 text-right">
                           <div className="flex items-center gap-1 justify-end">
                             <Input
                               type="number"
@@ -281,8 +280,8 @@ export default function AllocatePaymentModal({
                                   return next
                                 })
                               }}
-                              className={`h-8 w-24 text-right text-xs font-bold border-slate-200 focus-visible:ring-[#2D7FF9] ${
-                                numVal > maxPossible + 0.01 ? "border-red-400 text-red-600 bg-red-50" : ""
+                              className={`h-8 w-24 text-right text-xs font-bold font-mono border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus-visible:ring-[#2563EB] ${
+                                numVal > maxPossible + 0.01 ? "border-[#FCA5A5] text-[#B42318] bg-[#FDECEC]" : ""
                               }`}
                             />
                             <button
@@ -296,30 +295,30 @@ export default function AllocatePaymentModal({
                                   }))
                                 }
                               }}
-                              className="text-[10px] font-bold text-blue-600 hover:text-blue-700 p-1 rounded"
+                              className="text-[10px] font-bold text-[#2563EB] hover:text-[#1D4ED8] p-1 rounded cursor-pointer"
                               title="Allocate maximum possible"
                             >
                               Max
                             </button>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 
           {/* Footer actions */}
-          <div className="pt-3 flex items-center justify-between border-t border-slate-100">
-            <span className="text-xs text-slate-500">
+          <div className="pt-3 flex items-center justify-between border-t border-[#D9E0E8]">
+            <span className="text-xs text-[#52627A]">
               {unallocatedAmount > 0 ? (
-                <span className="text-blue-600 font-medium">
+                <span className="text-[#2563EB] font-medium">
                   {formatMoney(unallocatedAmount)} will remain as unallocated advance.
                 </span>
               ) : (
-                <span className="text-emerald-600 font-medium flex items-center gap-1">
+                <span className="text-[#087443] font-medium flex items-center gap-1">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Fully allocated across entries.
                 </span>
               )}
@@ -330,14 +329,14 @@ export default function AllocatePaymentModal({
                 variant="outline"
                 onClick={onClose}
                 disabled={mutation.isPending}
-                className="text-slate-600 text-xs sm:text-sm"
+                className="border-[#D9E0E8] text-[#52627A] hover:bg-[#F1F4F8] hover:text-[#172B4D] text-xs sm:text-sm cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={mutation.isPending || isOverAllocated}
-                className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold text-xs sm:text-sm"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs sm:text-sm cursor-pointer"
               >
                 {mutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
                 Save Allocations

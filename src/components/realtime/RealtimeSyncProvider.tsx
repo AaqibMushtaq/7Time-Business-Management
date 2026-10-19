@@ -42,7 +42,13 @@ export function RealtimeSyncProvider({ children }: { children: React.ReactNode }
     queryClient.invalidateQueries({ queryKey: ["purchases"] })
     queryClient.invalidateQueries({ queryKey: ["dealerPayments"] })
     queryClient.invalidateQueries({ queryKey: ["wholesaleSales"] })
+    queryClient.invalidateQueries({ queryKey: ["resellerSales"] })
     queryClient.invalidateQueries({ queryKey: ["resellers"] })
+    queryClient.invalidateQueries({ queryKey: ["reseller"] })
+    queryClient.invalidateQueries({ queryKey: ["customerCredits"] })
+    queryClient.invalidateQueries({ queryKey: ["resellerPaymentsHistory"] })
+    queryClient.invalidateQueries({ queryKey: ["resellerPayments"] })
+    queryClient.invalidateQueries({ queryKey: ["receivables"] })
     queryClient.invalidateQueries({ queryKey: ["generalDailyRecords"] })
     queryClient.invalidateQueries({ queryKey: ["naeemRecords"] })
     queryClient.invalidateQueries({ queryKey: ["naeemPayments"] })
@@ -73,13 +79,19 @@ export function RealtimeSyncProvider({ children }: { children: React.ReactNode }
         scheduleInvalidation(["products", "inventory_page", "dashboardStats"])
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "wholesale_sales" }, () => {
-        scheduleInvalidation(["wholesaleSales", "resellers", "products", "inventory_page", "dashboardStats"])
+        scheduleInvalidation(["wholesaleSales", "resellerSales", "resellers", "reseller", "products", "inventory_page", "dashboardStats"])
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "reseller_customers" }, () => {
-        scheduleInvalidation(["resellers", "dashboardStats"])
+        scheduleInvalidation(["resellers", "reseller", "dashboardStats"])
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "reseller_payments" }, () => {
-        scheduleInvalidation(["resellers", "wholesaleSales", "dashboardStats"])
+        scheduleInvalidation(["resellers", "reseller", "wholesaleSales", "resellerSales", "resellerPayments", "dashboardStats", "customerCredits", "resellerPaymentsHistory", "receivables"])
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "customer_credits" }, () => {
+        scheduleInvalidation(["customerCredits", "resellers", "reseller", "dashboardStats", "receivables"])
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "customer_payment_allocations" }, () => {
+        scheduleInvalidation(["customerCredits", "resellerPaymentsHistory", "resellers", "reseller", "dashboardStats"])
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "general_daily_records" }, () => {
         scheduleInvalidation(["generalDailyRecords", "dashboardStats"])

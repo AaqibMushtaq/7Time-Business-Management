@@ -249,8 +249,7 @@ describe("WholesaleSalesPage Component", () => {
     expect(updateWholesaleSale).not.toHaveBeenCalled()
   })
 
-  it("handles delete transaction with window confirmation", async () => {
-    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true)
+  it("handles delete transaction with confirmation modal", async () => {
     ;(deleteWholesaleSale as any).mockResolvedValue(undefined)
 
     renderComponent()
@@ -260,11 +259,12 @@ describe("WholesaleSalesPage Component", () => {
     const deleteBtn = screen.getByRole("button", { name: /Delete transaction for Alpha Reseller/i })
     fireEvent.click(deleteBtn)
 
-    expect(confirmSpy).toHaveBeenCalled()
+    // ConfirmDialog appears
+    const confirmBtn = screen.getByRole("button", { name: /^Delete Sale$/i })
+    fireEvent.click(confirmBtn)
+
     await waitFor(() => {
       expect(deleteWholesaleSale).toHaveBeenCalledWith("sale-1", expect.anything())
     })
-
-    confirmSpy.mockRestore()
   })
 })

@@ -1,92 +1,142 @@
+import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Loader2, ShieldAlert } from "lucide-react"
+import {
+  PageContainer,
+  PageHeader,
+  DataTable,
+  type DataTableColumn,
+} from "@/components/shared"
+
+interface AuditLogEntry {
+  id: string
+  created_at: string
+  module_name: string
+  action: string
+  record_details: Record<string, any> | null
+}
 
 export default function AuditLogPage() {
   const { data: logs, isLoading } = useQuery({
     queryKey: ["audit_logs"],
-    queryFn: async () => {
+    queryFn: async (): Promise<AuditLogEntry[]> => {
       const { data, error } = await supabase
         .from("audit_logs")
         .select("*")
         .order("created_at", { ascending: false })
         .limit(50)
       if (error) throw error
-      return data
-    }
+      return (data as AuditLogEntry[]) || []
+    },
   })
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">System Audit Log</h1>
-        <p className="text-muted-foreground">Track important business record changes and security events.</p>
-      </div>
+  const auditColumns: DataTableColumn<AuditLogEntry>[] = useMemo(
+    () => [
+      {
+        id: "timestamp",
+        header: "Timestamp",
+        accessorKey: "created_at",
+        sortable: true,
+        cell: ({ row }) => (
+          <span className="whitespace-nowrap text-[#64748B] font-mono text-xs">
+            {new Date(row.created_at).toLocaleString()}
+          </span>
+        ),
+      },
+      {
+        id: "module",
+        header: "Module",
+        accessorKey: "module_name",
+        sortable: true,
+        cell: ({ row }) => {
+          const mod = row.module_name || (row as any).entity_type || "System"
+          return (
+            <span className="font-semibold text-[#0F172A]">
+              {mod}
+            </span>
+          )
+        },
+      },
+      {
+        id: "action",
+        header: "Action",
+        accessorKey: "action",
+        sortable: true,
+        cell: ({ row }) => {
+          const action = row.action
+          const isCreated = action === "Created" || action === "INSERT"
+          const isUpdated = action === "Updated" || action === "UPDATE"
+          const isDeleted = action === "Deleted" || action === "DELETE"
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><ShieldAlert className="h-5 w-5" /> Recent Activity Log</CardTitle>
-          <CardDescription>Showing the 50 most recent auditable system events.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+          const badgeClass =
+            isCreated
+              ? "bg-[#EAF7EF] text-[#087443] border-[#087443]/20"
+              : isUpdated
+              ? "bg-[#EEF4FF] text-[#2563EB] border-[#BFDBFE]/60"
+              : isDeleted
+              ? "bg-[#FDECEC] text-[#DC2626] border-[#F87171]/40"
+              : "bg-[#F1F4F8] text-[#64748B] border-[#D9E0E8]"
+
+          const actionLabel = isCreated ? "Created" : isUpdated ? "Updated" : isDeleted ? "Deleted" : action
+
+          return (
+            <span
+              className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase border ${badgeClass}`}
+            >
+              {actionLabel}
+            </span>
+          )
+        },
+      },
+      {
+        id: "details",
+        header: "Details",
+        cell: ({ row }) => {
+          const det = row.record_details || (row as any).details
+          return det ? (
+            <pre className="text-xs bg-[#F8FAFC] border border-[#E2E8F0] p-2 rounded-xl overflow-x-auto text-[#0F172A] font-mono max-w-xl max-h-40">
+              {JSON.stringify(det, null, 2)}
+            </pre>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead className="bg-slate-50 text-slate-500 uppercase font-semibold text-xs border-b">
-                  <tr>
-                    <th className="px-4 py-3">Timestamp</th>
-                    <th className="px-4 py-3">Module</th>
-                    <th className="px-4 py-3">Action</th>
-                    <th className="px-4 py-3">Details</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {logs?.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-slate-400">
-                        No audit logs found. System auditing was recently enabled.
-                      </td>
-                    </tr>
-                  ) : (
-                    logs?.map(log => (
-                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 whitespace-nowrap text-slate-600 font-medium">
-                          {new Date(log.created_at).toLocaleString()}
-                        </td>
-                        <td className="px-4 py-3 font-medium">{log.module_name}</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded-md text-[10px] font-bold tracking-wider uppercase ${
-                            log.action === 'Created' ? 'bg-green-100 text-green-800' :
-                            log.action === 'Updated' ? 'bg-blue-100 text-blue-800' :
-                            log.action === 'Deleted' ? 'bg-red-100 text-red-800' :
-                            'bg-slate-100 text-slate-800'
-                          }`}>
-                            {log.action}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-slate-600">
-                          {log.record_details ? (
-                            <pre className="text-xs bg-slate-100 p-2 rounded-md overflow-x-auto">
-                              {JSON.stringify(log.record_details, null, 2)}
-                            </pre>
-                          ) : (
-                            <span className="text-slate-400 italic">No details available</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+            <span className="text-[#64748B] italic text-xs">No details available</span>
+          )
+        },
+      },
+    ],
+    []
+  )
+
+  return (
+    <PageContainer>
+      <PageHeader
+        title="System Audit Log"
+        badge={{ label: "SECURITY & COMPLIANCE", variant: "brand" }}
+        description="Track important business record changes, operational audit trails, and security events."
+      />
+
+      <DataTable<AuditLogEntry>
+        title="Recent Activity Log"
+        subtitle="Showing the 50 most recent auditable system events."
+        columns={auditColumns}
+        data={logs || []}
+        loading={isLoading}
+        searchable
+        searchPlaceholder="Search audit logs by module, action..."
+        searchFn={(item, query) => {
+          const q = query.toLowerCase()
+          return (
+            item.module_name.toLowerCase().includes(q) ||
+            item.action.toLowerCase().includes(q) ||
+            (item.record_details ? JSON.stringify(item.record_details).toLowerCase().includes(q) : false)
+          )
+        }}
+        pagination
+        pageSize={15}
+        minWidth={700}
+        getRowId={(l) => l.id}
+        emptyTitle="No audit logs found"
+        emptyMessage="System auditing was recently enabled or no events have been logged yet."
+      />
+    </PageContainer>
   )
 }

@@ -1,14 +1,30 @@
+import { useState } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { getDealers } from "@/services/dealers"
+import { EditProductModal } from "./EditProductModal"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
-import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, ArrowLeft, TrendingUp, Package, History } from "lucide-react"
+import { formatDate } from "@/lib/utils"
+import {
+  PageContainer,
+  SectionCard,
+  MetricCard,
+  CurrencyDisplay,
+  ResponsiveTable,
+  EmptyState,
+} from "@/components/shared"
+import { Loader2, ArrowLeft, TrendingUp, Package, History, DollarSign, Pencil } from "lucide-react"
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const [isEditOpen, setIsEditOpen] = useState(false)
+
+  const { data: dealers } = useQuery({
+    queryKey: ["dealers"],
+    queryFn: getDealers,
+  })
 
   const { data: product, isLoading: isLoadingProduct } = useQuery({
     queryKey: ["product", id],
@@ -38,10 +54,31 @@ export default function ProductDetailPage() {
   })
 
   if (isLoadingProduct) {
-    return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+    return (
+      <div className="flex justify-center p-16">
+        <Loader2 className="h-8 w-8 animate-spin text-[#207FF9]" />
+      </div>
+    )
   }
 
-  if (!product) return <div>Product not found.</div>
+  if (!product) {
+    return (
+      <PageContainer>
+        <EmptyState
+          icon={Package}
+          title="Product not found"
+          description="The product you are looking for does not exist or has been deleted."
+          action={
+            <Link to="/products">
+              <Button variant="outline" className="border-[#DCE5F0] text-[#102B46]">
+                <ArrowLeft className="h-4 w-4 mr-2" /> Back to Products
+              </Button>
+            </Link>
+          }
+        />
+      </PageContainer>
+    )
+  }
 
   const wholesaleProfitPerUnit = product.wholesale_price - product.buying_cost
   const retailProfitPerUnit = product.retail_price - product.buying_cost
@@ -50,127 +87,260 @@ export default function ProductDetailPage() {
   const potentialWholesaleProfit = product.stock_quantity * wholesaleProfitPerUnit
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Link to="/products">
-          <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
-        </Link>
+    <PageContainer>
+      {/* Top Header with Back Button and Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link to="/products">
+            <Button
+              variant="outline"
+              size="icon"
+              className="border-[#D9E0E8] text-[#172B4D] hover:bg-[#F8F7F2] rounded-xl h-10 w-10 transition-colors shadow-xs"
+              aria-label="Back to Products"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#172B4D]">
+                {product.name}
+              </h1>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EAF2FD] text-[#2563EB] border border-[#2563EB]/20 uppercase tracking-wider">
+                PRODUCT DETAIL
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[#52627A] mt-0.5">
+              Supplied by {product.dealer?.name || "Direct Supplier"}
+            </p>
+          </div>
+        </div>
+
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">{product.name}</h1>
-          <p className="text-muted-foreground">Supplied by {product.dealer?.name}</p>
+          <Button
+            onClick={() => setIsEditOpen(true)}
+            className="bg-[#207FF9] hover:bg-[#1A66C7] text-white shadow-xs font-semibold gap-2 rounded-xl"
+          >
+            <Pencil className="h-4 w-4" />
+            Edit Product
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="bg-slate-50">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Current Stock</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold text-slate-900">{product.stock_quantity} <span className="text-lg text-slate-500 font-normal">{product.unit}</span></div></CardContent>
-        </Card>
-        
-        <Card className="bg-slate-50">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Stock Value (Cost)</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold text-slate-900">{formatMoney(stockValue)}</div></CardContent>
-        </Card>
+      {/* 4 Standardized Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <MetricCard
+          title="Current Stock"
+          value={
+            <span className="font-mono">
+              {product.stock_quantity}{" "}
+              <span className="text-sm text-[#52627A] font-normal">{product.unit}</span>
+            </span>
+          }
+          icon={Package}
+          variant="default"
+        />
 
-        <Card className="bg-slate-50">
-          <CardHeader className="pb-2"><CardTitle className="text-sm">Potential Wholesale Revenue</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold text-slate-900">{formatMoney(potentialWholesaleRevenue)}</div></CardContent>
-        </Card>
+        <MetricCard
+          title="Stock Value (Cost)"
+          value={<CurrencyDisplay amount={stockValue} />}
+          icon={DollarSign}
+          variant="default"
+        />
 
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader className="pb-2"><CardTitle className="text-sm text-blue-800">Potential Wholesale Profit</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold text-blue-700">{formatMoney(potentialWholesaleProfit)}</div></CardContent>
-        </Card>
+        <MetricCard
+          title="Pot. Wholesale Revenue"
+          value={<CurrencyDisplay amount={potentialWholesaleRevenue} variant="brand" />}
+          icon={TrendingUp}
+          variant="blue"
+        />
+
+        <MetricCard
+          title="Pot. Wholesale Profit"
+          value={<CurrencyDisplay amount={potentialWholesaleProfit} variant="positive" />}
+          icon={TrendingUp}
+          variant="green"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pricing Info */}
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" /> Pricing Details</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-slate-600">Buying Cost</span>
-              <span className="font-semibold">{formatMoney(product.buying_cost)}</span>
+        {/* Pricing Info Card */}
+        <SectionCard
+          title="Pricing Details"
+          icon={TrendingUp}
+          description="Unit costs, wholesale margins, and suggested retail pricing."
+        >
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
+              <span className="text-xs sm:text-sm text-[#52627A]">Buying Cost</span>
+              <CurrencyDisplay amount={product.buying_cost} bold />
             </div>
-            <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-slate-600">Wholesale Price</span>
-              <span className="font-semibold text-blue-600">{formatMoney(product.wholesale_price)}</span>
+            <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
+              <span className="text-xs sm:text-sm text-[#52627A]">Wholesale Price</span>
+              <span className="bg-[#EAF2FD] px-2 py-0.5 rounded-lg border border-[#2563EB]/20">
+                <CurrencyDisplay amount={product.wholesale_price} variant="brand" bold />
+              </span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-slate-600">Retail Price</span>
-              <span className="font-semibold">{formatMoney(product.retail_price)}</span>
+            <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
+              <span className="text-xs sm:text-sm text-[#52627A]">Retail Price</span>
+              <CurrencyDisplay amount={product.retail_price} bold />
             </div>
-            <div className="flex justify-between items-center py-2 border-b">
-              <span className="text-slate-600">Wholesale Profit/Unit</span>
-              <span className="font-bold text-green-600">{formatMoney(wholesaleProfitPerUnit)}</span>
+            <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
+              <span className="text-xs sm:text-sm text-[#52627A]">Wholesale Profit / Unit</span>
+              <span className="bg-[#EAF7EF] px-2 py-0.5 rounded-lg border border-[#087443]/20">
+                <CurrencyDisplay
+                  amount={wholesaleProfitPerUnit}
+                  variant={wholesaleProfitPerUnit >= 0 ? "positive" : "negative"}
+                  bold
+                />
+              </span>
             </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-slate-600">Retail Profit/Unit</span>
-              <span className="font-bold text-green-600">{formatMoney(retailProfitPerUnit)}</span>
+            <div className="flex justify-between items-center py-2.5">
+              <span className="text-xs sm:text-sm text-[#52627A]">Retail Profit / Unit</span>
+              <span className="bg-[#EAF7EF] px-2 py-0.5 rounded-lg border border-[#087443]/20">
+                <CurrencyDisplay
+                  amount={retailProfitPerUnit}
+                  variant={retailProfitPerUnit >= 0 ? "positive" : "negative"}
+                  bold
+                />
+              </span>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </SectionCard>
 
-        {/* Purchase History */}
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><History className="h-5 w-5" /> Stock Additions (Purchases)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Qty Added</TableHead>
-                  <TableHead className="text-right">Rate</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {purchases?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center">No purchases recorded.</TableCell></TableRow>}
-                {purchases?.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{formatDate(p.purchase_date)}</TableCell>
-                    <TableCell className="text-right text-green-600 font-bold">+{p.quantity_bought} {product.unit}</TableCell>
-                    <TableCell className="text-right">{formatMoney(p.buying_rate)}</TableCell>
+        {/* Purchase History Table Card */}
+        <SectionCard
+          title="Stock Additions (Purchases)"
+          icon={History}
+          description="Recent inventory restocks and dealer purchases."
+          noPadding
+        >
+          {purchases?.length === 0 ? (
+            <div className="p-6">
+              <EmptyState
+                icon={History}
+                title="No purchases recorded"
+                description="No purchase restocks have been logged for this product."
+              />
+            </div>
+          ) : (
+            <ResponsiveTable minWidth={400}>
+              <Table className="border-collapse">
+                <TableHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                  <TableRow className="border-b border-[#E2E8F0] hover:bg-transparent">
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold text-[#64748B] py-3 px-4">
+                      Date
+                    </TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
+                      Qty Added
+                    </TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#64748B] py-3 px-4">
+                      Rate
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-</div>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {purchases?.map((p: any) => (
+                    <TableRow
+                      key={p.id}
+                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] transition-colors"
+                    >
+                      <TableCell className="text-[#0F172A] font-medium py-2.5 px-4 font-mono text-xs">
+                        {formatDate(p.purchase_date)}
+                      </TableCell>
+                      <TableCell className="text-right text-[#087443] font-bold py-2.5 px-4 font-mono">
+                        +{p.quantity_bought} {product.unit}
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <CurrencyDisplay amount={p.buying_rate} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ResponsiveTable>
+          )}
+        </SectionCard>
 
-        {/* Sales History */}
-        <Card className="lg:col-span-2">
-          <CardHeader><CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Stock Reductions (Wholesale Sales)</CardTitle></CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Qty Sold</TableHead>
-                  <TableHead className="text-right">Rate</TableHead>
-                  <TableHead className="text-right">Profit</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sales?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center">No sales recorded.</TableCell></TableRow>}
-                {sales?.map((s: any) => (
-                  <TableRow key={s.id}>
-                    <TableCell>{formatDate(s.sale_date)}</TableCell>
-                    <TableCell>{s.customer?.name}</TableCell>
-                    <TableCell className="text-right text-orange-600 font-bold">-{s.quantity} {product.unit}</TableCell>
-                    <TableCell className="text-right">{formatMoney(s.wholesale_price)}</TableCell>
-                    <TableCell className="text-right text-green-600 font-semibold">{formatMoney(s.profit)}</TableCell>
+        {/* Sales History Table Card */}
+        <SectionCard
+          title="Stock Reductions (Wholesale Sales)"
+          icon={Package}
+          description="Recent wholesale orders reducing this product inventory."
+          className="lg:col-span-2"
+          noPadding
+        >
+          {sales?.length === 0 ? (
+            <div className="p-6">
+              <EmptyState
+                icon={Package}
+                title="No sales recorded"
+                description="No wholesale orders have been fulfilled with this product yet."
+              />
+            </div>
+          ) : (
+            <ResponsiveTable minWidth={600}>
+              <Table className="border-collapse">
+                <TableHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                  <TableRow className="border-b border-[#E2E8F0] hover:bg-transparent">
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold text-[#64748B] py-3 px-4">
+                      Date
+                    </TableHead>
+                    <TableHead className="text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
+                      Customer
+                    </TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
+                      Qty Sold
+                    </TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
+                      Rate
+                    </TableHead>
+                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
+                      Profit
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-</div>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {sales?.map((s: any) => (
+                    <TableRow
+                      key={s.id}
+                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] transition-colors"
+                    >
+                      <TableCell className="text-[#0F172A] font-medium py-2.5 px-4 font-mono text-xs">
+                        {formatDate(s.sale_date)}
+                      </TableCell>
+                      <TableCell className="font-semibold text-[#0F172A] py-2.5 px-4">
+                        {s.customer?.name}
+                      </TableCell>
+                      <TableCell className="text-right text-[#92400E] font-bold py-2.5 px-4 font-mono">
+                        -{s.quantity} {product.unit}
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <CurrencyDisplay amount={s.wholesale_price} variant="brand" />
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <CurrencyDisplay
+                          amount={s.profit}
+                          variant={s.profit >= 0 ? "positive" : "negative"}
+                          bold
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ResponsiveTable>
+          )}
+        </SectionCard>
       </div>
-    </div>
+
+      {/* Edit Product Modal */}
+      <EditProductModal
+        isOpen={isEditOpen}
+        onClose={() => setIsEditOpen(false)}
+        product={product}
+        dealers={dealers || []}
+      />
+    </PageContainer>
   )
 }

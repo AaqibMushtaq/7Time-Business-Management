@@ -102,48 +102,48 @@ export default function ReportsPage() {
   }
 
   const reports = [
-    { id: "PERSONAL_LEDGER", title: "Personal Ledger Entries Report", desc: "Export all expenses on behalf, Qard Hasan, and personal ledger transactions.", icon: Users, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { id: "WHOLESALE_SALES", title: "Wholesale Sales Report", desc: "Export all historical wholesale transactions and profit calculations.", icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50" },
-    { id: "PURCHASES", title: "Purchase Report", desc: "Export all historical product purchases from dealers.", icon: Package, color: "text-red-600", bg: "bg-red-50" },
-    { id: "INVENTORY", title: "Inventory Report", desc: "Export current stock levels, buying costs, and potential revenue.", icon: Database, color: "text-emerald-600", bg: "bg-emerald-50" },
-    { id: "RESELLER_PAYMENTS", title: "Settlements Received Report", desc: "Export all settlements and payments received on customer & personal accounts.", icon: Users, color: "text-purple-600", bg: "bg-purple-50" },
-    { id: "DEALER_PAYMENTS", title: "Dealer Payment Report", desc: "Export all payments made to suppliers and dealers.", icon: Users, color: "text-orange-600", bg: "bg-orange-50" },
-    { id: "GENERAL_DELIVERY", title: "General Delivery Report", desc: "Export the daily general delivery & fuel expense ledger.", icon: Truck, color: "text-indigo-600", bg: "bg-indigo-50" },
-    { id: "naeem_UNCLE", title: "naeem Uncle Report", desc: "Export naeem Uncle delivery trips and records.", icon: Truck, color: "text-slate-600", bg: "bg-slate-50" },
+    { id: "PERSONAL_LEDGER", title: "Personal Ledger Entries Report", desc: "Export all expenses on behalf, Qard Hasan, and personal ledger transactions.", icon: Users, color: "text-[#2563EB]", bg: "bg-[#EAF2FD]" },
+    { id: "WHOLESALE_SALES", title: "Wholesale Sales Report", desc: "Export all historical wholesale transactions and profit calculations.", icon: ShoppingCart, color: "text-[#2563EB]", bg: "bg-[#EAF2FD]" },
+    { id: "PURCHASES", title: "Purchase Report", desc: "Export all historical product purchases from dealers.", icon: Package, color: "text-[#52627A]", bg: "bg-[#F1F4F8]" },
+    { id: "INVENTORY", title: "Inventory Report", desc: "Export current stock levels, buying costs, and potential revenue.", icon: Database, color: "text-[#087443]", bg: "bg-[#EAF7EF]" },
+    { id: "RESELLER_PAYMENTS", title: "Settlements Received Report", desc: "Export all settlements and payments received on customer & personal accounts.", icon: Users, color: "text-[#2563EB]", bg: "bg-[#EAF2FD]" },
+    { id: "DEALER_PAYMENTS", title: "Dealer Payment Report", desc: "Export all payments made to suppliers and dealers.", icon: Users, color: "text-[#92400E]", bg: "bg-[#FFF4D6]" },
+    { id: "GENERAL_DELIVERY", title: "General Delivery Report", desc: "Export the daily general delivery & fuel expense ledger.", icon: Truck, color: "text-[#52627A]", bg: "bg-[#F1F4F8]" },
+    { id: "naeem_UNCLE", title: "Naeem Uncle Report", desc: "Export Naeem Uncle delivery trips and records.", icon: Truck, color: "text-[#52627A]", bg: "bg-[#F1F4F8]" },
   ]
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Business Reports & Export</h1>
-        <p className="text-muted-foreground">Export your business data to CSV for external analysis or backup.</p>
+      <div className="pb-4 border-b border-[#D9E0E8]">
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#172B4D]">Business Reports & Export</h1>
+        <p className="text-sm text-[#52627A] mt-1">Export your business data to CSV for external analysis, accounting, or backup.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {reports.map(report => (
-          <Card key={report.id} className="hover:shadow-md transition-shadow">
+          <Card key={report.id} className="rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-xs hover:shadow-md hover:border-[#2563EB]/40 transition-all">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${report.bg}`}>
+                <div className={`p-2.5 rounded-xl ${report.bg}`}>
                   <report.icon className={`h-6 w-6 ${report.color}`} />
                 </div>
                 <div>
-                  <CardTitle className="text-base">{report.title}</CardTitle>
+                  <CardTitle className="text-base font-bold text-[#172B4D]">{report.title}</CardTitle>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <CardDescription className="mb-6 h-10">{report.desc}</CardDescription>
+              <CardDescription className="mb-6 h-10 text-xs text-[#52627A] leading-relaxed">{report.desc}</CardDescription>
               <Button 
                 variant="outline" 
-                className="w-full"
+                className="w-full border-[#D9E0E8] bg-white hover:bg-[#F8F7F2] hover:text-[#2563EB] font-semibold text-[#172B4D] rounded-xl transition-colors cursor-pointer shadow-xs"
                 onClick={() => handleExport(report.id)}
                 disabled={loading === report.id}
               >
                 {loading === report.id ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin text-[#2563EB]" />
                 ) : (
-                  <Download className="h-4 w-4 mr-2" />
+                  <Download className="h-4 w-4 mr-2 text-[#2563EB]" />
                 )}
                 Export to CSV
               </Button>

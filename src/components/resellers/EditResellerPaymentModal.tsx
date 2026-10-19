@@ -5,6 +5,8 @@ import type { CustomerCredit } from "@/services/customerCredits"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { CurrencyDisplay } from "@/components/shared"
 import { formatMoney, formatDate } from "@/lib/utils"
 import { X, Loader2, AlertCircle, Wallet, Layers, Wand2 } from "lucide-react"
 
@@ -148,27 +150,24 @@ export default function EditResellerPaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
       <div 
-        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
+        className="relative w-full max-w-2xl bg-[#FFFFFF] rounded-2xl shadow-2xl border border-[#D9E0E8] overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-payment-title"
       >
         {/* Header */}
-        <div 
-          className="px-6 py-4.5 text-white flex items-center justify-between"
-          style={{ background: "linear-gradient(135deg, #2D7FF9 0%, #4A39D6 100%)" }}
-        >
+        <div className="px-6 py-4.5 bg-[#F8F7F2] border-b border-[#D9E0E8] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shadow-inner">
+            <div className="h-9 w-9 rounded-xl bg-[#EBF2FE] border border-[#BFDBFE] flex items-center justify-center text-[#2563EB]">
               <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="edit-payment-title" className="text-lg font-bold leading-tight">
+              <h2 id="edit-payment-title" className="text-lg font-bold text-[#172B4D] leading-tight">
                 Edit & Correct Settlement Record
               </h2>
-              <p className="text-xs text-blue-100 font-medium">
+              <p className="text-xs text-[#52627A] font-medium">
                 Modify settlement details and adjust ledger allocations safely
               </p>
             </div>
@@ -176,7 +175,7 @@ export default function EditResellerPaymentModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1.5 text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            className="rounded-lg p-1.5 text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8] transition-colors cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -186,11 +185,11 @@ export default function EditResellerPaymentModal({
         {/* Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {formError && (
-            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-start gap-2.5">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-[#FDECEC] border border-[#FCA5A5] text-[#B42318] rounded-xl text-sm flex items-start gap-2.5">
+              <AlertCircle className="h-5 w-5 text-[#B42318] shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-xs">Correction Error</p>
-                <p className="text-xs text-red-600 mt-0.5">{formError}</p>
+                <p className="text-xs text-[#B42318] mt-0.5">{formError}</p>
               </div>
             </div>
           )}
@@ -198,8 +197,8 @@ export default function EditResellerPaymentModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Settlement Date */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Settlement Date <span className="text-red-500">*</span>
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                Settlement Date <span className="text-[#B42318]">*</span>
               </Label>
               <Input
                 type="date"
@@ -207,14 +206,14 @@ export default function EditResellerPaymentModal({
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
                 disabled={mutation.isPending}
-                className="border-slate-200 focus-visible:ring-[#2D7FF9]"
+                className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus-visible:ring-[#2563EB]"
               />
             </div>
 
             {/* Amount */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Amount Received (Rs) <span className="text-red-500">*</span>
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                Amount Received (Rs) <span className="text-[#B42318]">*</span>
               </Label>
               <Input
                 type="number"
@@ -224,7 +223,7 @@ export default function EditResellerPaymentModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={mutation.isPending}
-                className="border-slate-200 focus-visible:ring-[#2D7FF9] font-bold text-lg text-slate-900"
+                className="border-[#D9E0E8] bg-[#FFFFFF] focus-visible:ring-[#2563EB] font-bold text-lg text-[#172B4D]"
               />
             </div>
           </div>
@@ -232,11 +231,11 @@ export default function EditResellerPaymentModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Method */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
                 Settlement Method
               </Label>
               <select
-                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
+                className="flex h-10 w-full rounded-lg border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] shadow-xs focus:border-[#2563EB] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 disabled={mutation.isPending}
@@ -251,7 +250,7 @@ export default function EditResellerPaymentModal({
 
             {/* Reference */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
                 Reference / Notes
               </Label>
               <Input
@@ -259,14 +258,14 @@ export default function EditResellerPaymentModal({
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 disabled={mutation.isPending}
-                className="border-slate-200 focus-visible:ring-[#2D7FF9]"
+                className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus-visible:ring-[#2563EB]"
               />
             </div>
           </div>
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
               Notes
             </Label>
             <Input
@@ -274,17 +273,17 @@ export default function EditResellerPaymentModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               disabled={mutation.isPending}
-              className="border-slate-200 focus-visible:ring-[#2D7FF9]"
+              className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus-visible:ring-[#2563EB]"
             />
           </div>
 
           {/* Allocations Management */}
           {relevantCredits.length > 0 && (
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="p-4 bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  <Layers className="h-4 w-4 text-[#2563EB]" />
+                  <span className="text-xs font-bold text-[#172B4D] uppercase tracking-wider">
                     Allocations ({formatMoney(totalAllocated)} / {formatMoney(parsedAmount)})
                   </span>
                 </div>
@@ -294,44 +293,44 @@ export default function EditResellerPaymentModal({
                   size="sm"
                   onClick={handleAutoDistribute}
                   disabled={parsedAmount <= 0}
-                  className="h-7 text-xs font-semibold text-blue-600 border-blue-200 hover:bg-blue-50"
+                  className="h-7 text-xs font-semibold text-[#2563EB] border-[#BFDBFE] hover:bg-[#EBF2FE]"
                 >
                   <Wand2 className="h-3 w-3 mr-1" /> Auto-Distribute
                 </Button>
               </div>
 
-              <div className="border border-slate-200 rounded-lg overflow-hidden bg-white max-h-48 overflow-y-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-slate-100 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2 px-3 text-left">Date</th>
-                      <th className="py-2 px-3 text-left">Entry / Description</th>
-                      <th className="py-2 px-3 text-right">Total</th>
-                      <th className="py-2 px-3 text-right">Remaining Due</th>
-                      <th className="py-2 px-3 text-right w-28">Allocated</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
+              <div className="border border-[#D9E0E8] rounded-lg overflow-hidden bg-[#FFFFFF] max-h-48 overflow-y-auto">
+                <Table className="w-full text-xs border-collapse">
+                  <TableHeader>
+                    <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+                      <TableHead className="py-2.5 px-3 text-left font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Date</TableHead>
+                      <TableHead className="py-2.5 px-3 text-left font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Entry / Description</TableHead>
+                      <TableHead className="py-2.5 px-3 text-right font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Total</TableHead>
+                      <TableHead className="py-2.5 px-3 text-right font-semibold text-xs text-[#172B4D] uppercase tracking-wider">Remaining Due</TableHead>
+                      <TableHead className="py-2.5 px-3 text-right font-semibold text-[#52627A] uppercase tracking-wider w-28">Allocated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-[#D9E0E8]">
                     {relevantCredits.map(credit => {
                       const existingFromThis = payment.allocations?.find(a => a.credit_id === credit.id)?.amount || 0
                       const maxPossible = Number(credit.balance || 0) + Number(existingFromThis)
                       const val = allocations[credit.id] || ""
 
                       return (
-                        <tr key={credit.id}>
-                          <td className="py-2 px-3 text-slate-600 whitespace-nowrap">
+                        <TableRow key={credit.id} className="hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors">
+                          <TableCell className="py-2 px-3 text-[#52627A] font-mono whitespace-nowrap">
                             {formatDate(credit.entry_date)}
-                          </td>
-                          <td className="py-2 px-3 font-semibold text-slate-900">
+                          </TableCell>
+                          <TableCell className="py-2 px-3 font-semibold text-[#172B4D]">
                             {credit.product_name || credit.description || (credit.entry_type === "CASH_LOAN" ? "Qard Hasan" : credit.entry_type === "PRODUCT_CREDIT" ? "Expense on Behalf" : credit.entry_type)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-medium text-slate-600">
-                            {formatMoney(credit.total_amount)}
-                          </td>
-                          <td className="py-2 px-3 text-right font-bold text-red-600">
-                            {formatMoney(maxPossible)}
-                          </td>
-                          <td className="py-2 px-3 text-right">
+                          </TableCell>
+                          <TableCell className="py-2 px-3 text-right font-medium text-[#172B4D]">
+                            <CurrencyDisplay amount={credit.total_amount} />
+                          </TableCell>
+                          <TableCell className="py-2 px-3 text-right font-bold text-[#B42318]">
+                            <CurrencyDisplay amount={maxPossible} variant="negative" />
+                          </TableCell>
+                          <TableCell className="py-2 px-3 text-right">
                             <Input
                               type="number"
                               step="0.01"
@@ -351,18 +350,18 @@ export default function EditResellerPaymentModal({
                                   return next
                                 })
                               }}
-                              className="h-7 w-24 text-right text-xs font-bold border-slate-200 focus-visible:ring-[#2D7FF9]"
+                              className="h-7 w-24 text-right text-xs font-bold font-mono border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus-visible:ring-[#2563EB]"
                             />
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       )
                     })}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
 
               {unallocatedAmount > 0 && (
-                <p className="text-[11px] text-blue-600 font-medium">
+                <p className="text-[11px] text-[#2563EB] font-medium">
                   {formatMoney(unallocatedAmount)} will remain as unallocated advance balance.
                 </p>
               )}
@@ -370,20 +369,20 @@ export default function EditResellerPaymentModal({
           )}
 
           {/* Footer actions */}
-          <div className="pt-3 flex justify-end gap-2.5 border-t border-slate-100">
+          <div className="pt-3 flex justify-end gap-2.5 border-t border-[#D9E0E8]">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={mutation.isPending}
-              className="text-slate-600 text-xs sm:text-sm"
+              className="border-[#D9E0E8] text-[#52627A] hover:bg-[#F1F4F8] hover:text-[#172B4D] text-xs sm:text-sm cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={mutation.isPending || isOverAllocated}
-              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold text-xs sm:text-sm"
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs sm:text-sm cursor-pointer"
             >
               {mutation.isPending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
               Save Corrections

@@ -99,7 +99,7 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
     const openingBalance = Number(r.opening_balance || 0)
     const outstanding = (openingBalance + totalSales + totalCredits) - totalReceived
     const totalOwed = (productCreditTotals[r.id] || 0) + (cashLoanTotals[r.id] || 0) + (otherCreditTotals[r.id] || 0)
-    const amountTheyOweMe = Math.max(0, totalOwed > 0 ? totalOwed : Math.max(0, outstanding))
+    const amountTheyOweMe = Math.max(0, outstanding)
     const amountIOweThem = outstanding < 0 ? Math.abs(outstanding) : 0
     return {
       ...r,

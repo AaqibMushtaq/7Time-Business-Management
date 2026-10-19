@@ -42,15 +42,12 @@ export function DailyEditModal({
   if (!editingDate) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8">
-        <div 
-          className="p-5 text-white flex justify-between items-center"
-          style={{ background: "linear-gradient(135deg, #0E2A47 0%, #1E3A8A 100%)" }}
-        >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-xl border border-[#D9E0E8] max-w-md w-full overflow-hidden animate-in fade-in zoom-in-95 duration-150 my-8">
+        <div className="p-5 bg-[#F8F7F2] border-b border-[#D9E0E8] flex justify-between items-center">
           <div>
-            <h3 className="font-extrabold text-lg leading-tight">Edit Daily Operations</h3>
-            <p className="text-xs text-blue-200 mt-0.5 font-medium">
+            <h3 className="font-extrabold text-lg text-[#172B4D] leading-tight">Edit Daily Operations</h3>
+            <p className="text-xs text-[#52627A] mt-0.5 font-medium">
               {formatDateRow(editingDate).display}
             </p>
           </div>
@@ -58,7 +55,7 @@ export function DailyEditModal({
             variant="ghost"
             size="sm"
             onClick={onClose}
-            className="h-8 w-8 p-0 text-white/80 hover:text-white hover:bg-white/10 rounded-full"
+            className="h-8 w-8 p-0 text-[#52627A] hover:text-[#172B4D] hover:bg-slate-200 rounded-full cursor-pointer"
             title="Close modal"
           >
             <X className="h-5 w-5" />
@@ -67,17 +64,17 @@ export function DailyEditModal({
 
         <form onSubmit={onSave} className="p-6 space-y-4">
           {modalError && (
-            <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-medium flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+            <div className="p-3 bg-[#FDECEC] border border-red-200 text-[#B42318] rounded-xl text-xs font-medium flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-[#B42318]" />
               <span>{modalError}</span>
             </div>
           )}
 
           {/* All Deliveries Arithmetic Expression */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wide flex justify-between items-center">
+            <label className="text-xs font-bold text-[#172B4D] uppercase tracking-wide flex justify-between items-center">
               <span>All Deliveries Expression *</span>
-              <span className="text-[11px] text-slate-400 font-normal lowercase">
+              <span className="text-[11px] text-[#52627A] font-normal lowercase">
                 supports addition (e.g. 10+350+10)
               </span>
             </label>
@@ -86,25 +83,25 @@ export function DailyEditModal({
               value={editExpression}
               onChange={(e) => setEditExpression(e.target.value)}
               placeholder="e.g. 10+350+10 or 370"
-              className="font-mono text-sm border-slate-200 focus-visible:ring-[#2D7FF9]"
+              className="font-mono text-sm border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]"
             />
 
             {/* Real-time expression evaluation badge */}
             {parsedExpressionPreview && (
               <div className="mt-1.5 flex items-center gap-2 text-xs">
                 {parsedExpressionPreview.isValid && parsedExpressionPreview.value !== null ? (
-                  <span className="inline-flex items-center gap-1 font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-md border border-green-200">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                  <span className="inline-flex items-center gap-1 font-semibold text-[#087443] bg-[#EAF7EF] px-2 py-0.5 rounded-md border border-emerald-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#087443]" />
                     Calculated Total: {formatMoney(parsedExpressionPreview.value)}
                   </span>
                 ) : parsedExpressionPreview.isIncomplete ? (
-                  <span className="inline-flex items-center gap-1 text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                    <Loader2 className="w-3 h-3 animate-spin text-amber-600" />
+                  <span className="inline-flex items-center gap-1 text-[#92400E] bg-[#FFF4D6] px-2 py-0.5 rounded-md border border-amber-200">
+                    <Loader2 className="w-3 h-3 animate-spin text-[#92400E]" />
                     Typing expression (ends with '+')...
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-200">
-                    <AlertCircle className="w-3 h-3 text-red-500" />
+                  <span className="inline-flex items-center gap-1 text-[#B42318] bg-[#FDECEC] px-2 py-0.5 rounded-md border border-red-200">
+                    <AlertCircle className="w-3 h-3 text-[#B42318]" />
                     {parsedExpressionPreview.errorMessage || "Invalid expression"}
                   </span>
                 )}
@@ -114,7 +111,7 @@ export function DailyEditModal({
 
           {/* Fuel Expenses */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+            <label className="text-xs font-bold text-[#172B4D] uppercase tracking-wide">
               Fuel Expenses (₹)
             </label>
             <Input
@@ -124,13 +121,13 @@ export function DailyEditModal({
               value={editFuel}
               onChange={(e) => setEditFuel(e.target.value)}
               placeholder="0.00"
-              className="font-mono text-sm border-slate-200 focus-visible:ring-[#2D7FF9]"
+              className="font-mono text-sm border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]"
             />
           </div>
 
           {/* Remarks / Notes */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+            <label className="text-xs font-bold text-[#172B4D] uppercase tracking-wide">
               Remarks / Notes
             </label>
             <textarea
@@ -138,24 +135,24 @@ export function DailyEditModal({
               value={editRemarks}
               onChange={(e) => setEditRemarks(e.target.value)}
               placeholder="e.g. Route details, driver notes, extra deliveries..."
-              className="w-full text-sm p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#2D7FF9]/20 focus:border-[#2D7FF9]"
+              className="w-full text-sm p-3 rounded-xl border border-[#D9E0E8] bg-white text-[#172B4D] focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
             />
           </div>
 
           {/* Modal Actions */}
-          <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
+          <div className="flex justify-end gap-2.5 pt-3 border-t border-[#D9E0E8]">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={isSaving}
-              className="border-slate-200 text-slate-700"
+              className="cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold shadow-sm"
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs cursor-pointer"
               disabled={isSaving || (parsedExpressionPreview !== null && !parsedExpressionPreview.isValid)}
             >
               {isSaving ? "Saving..." : "Save Daily Entry"}

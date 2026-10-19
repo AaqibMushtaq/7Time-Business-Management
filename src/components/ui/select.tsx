@@ -14,7 +14,7 @@ const Select = React.forwardRef<
   return (
     <select
       className={cn(
-        "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+        "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] shadow-xs placeholder:text-[#66758A] focus:outline-none focus:ring-2 focus:ring-[#2563EB] focus:border-[#2563EB] disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
         className
       )}
       ref={ref}
@@ -25,7 +25,7 @@ const Select = React.forwardRef<
 })
 Select.displayName = "Select"
 
-const SelectContent = ({ children }: { children: React.ReactNode }) => {
+const SelectContent = ({ children }: { children: React.ReactNode; className?: string }) => {
   return <>{children}</>
 }
 
@@ -41,12 +41,12 @@ const SelectItem = React.forwardRef<
 })
 SelectItem.displayName = "SelectItem"
 
-const SelectTrigger = ({ children }: { children: React.ReactNode }) => {
+const SelectTrigger = ({ children }: { children: React.ReactNode; className?: string }) => {
   return <>{children}</>
 }
 
-const SelectValue = ({ placeholder }: { placeholder?: string }) => {
-  return <option value="" disabled>{placeholder}</option>
+const SelectValue = ({ placeholder, className }: { placeholder?: string; className?: string }) => {
+  return <option value="" disabled className={className}>{placeholder}</option>
 }
 
 export { Select, SelectContent, SelectItem, SelectTrigger, SelectValue }

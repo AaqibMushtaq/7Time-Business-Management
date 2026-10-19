@@ -19,20 +19,20 @@ export interface StatCardProps {
 
 const variantStyles = {
   default: {
-    base: "bg-white border-[#E5E7EB] hover:border-slate-300",
-    active: "ring-2 ring-[#2D7FF9] bg-blue-50/40 border-[#2D7FF9]",
-    title: "text-[#64748B]",
-    value: "text-[#0E2A47]",
+    base: "bg-white border-[#DCE5F0] hover:border-slate-300",
+    active: "ring-2 ring-[#207FF9] bg-[#F0F6FE]/50 border-[#207FF9]",
+    title: "text-[#607087]",
+    value: "text-[#102B46]",
     dot: "bg-slate-400",
-    dotActive: "bg-[#2D7FF9] ring-2 ring-blue-300"
+    dotActive: "bg-[#207FF9] ring-2 ring-blue-300"
   },
   blue: {
-    base: "bg-[#EFF6FF] border-blue-200 hover:border-blue-300",
-    active: "ring-2 ring-[#2D7FF9] bg-[#DBEAFE] border-[#2D7FF9]",
-    title: "text-[#2D7FF9]",
-    value: "text-[#1E3A8A]",
-    dot: "bg-[#2D7FF9]",
-    dotActive: "bg-[#1E3A8A] ring-2 ring-blue-400"
+    base: "bg-[#F0F6FE] border-[#C6DCFC] hover:border-[#96BFFB]",
+    active: "ring-2 ring-[#207FF9] bg-[#DBEAFE] border-[#207FF9]",
+    title: "text-[#207FF9]",
+    value: "text-[#0E4399]",
+    dot: "bg-[#207FF9]",
+    dotActive: "bg-[#0E4399] ring-2 ring-blue-400"
   },
   amber: {
     base: "bg-[#FFFBEB] border-amber-200 hover:border-amber-300",
@@ -51,20 +51,20 @@ const variantStyles = {
     dotActive: "bg-[#14532D] ring-2 ring-green-400"
   },
   purple: {
-    base: "bg-purple-50/50 border-purple-200 hover:border-purple-300",
-    active: "ring-2 ring-purple-500 bg-purple-100 border-purple-500",
-    title: "text-purple-600",
-    value: "text-purple-900",
-    dot: "bg-purple-500",
-    dotActive: "bg-purple-700 ring-2 ring-purple-300"
+    base: "bg-[#F3EEFB] border-[#D4C5F4] hover:border-[#B79EEC]",
+    active: "ring-2 ring-[#5427B8] bg-[#E3D6F7] border-[#5427B8]",
+    title: "text-[#5427B8]",
+    value: "text-[#311470]",
+    dot: "bg-[#5427B8]",
+    dotActive: "bg-[#311470] ring-2 ring-purple-300"
   },
   rose: {
     base: "bg-rose-50/50 border-rose-200 hover:border-rose-300",
-    active: "ring-2 ring-rose-500 bg-rose-100 border-rose-500",
-    title: "text-rose-600",
-    value: "text-rose-900",
-    dot: "bg-rose-500",
-    dotActive: "bg-rose-700 ring-2 ring-rose-300"
+    active: "ring-2 ring-[#DC2626] bg-rose-100 border-[#DC2626]",
+    title: "text-[#DC2626]",
+    value: "text-[#991B1B]",
+    dot: "bg-[#DC2626]",
+    dotActive: "bg-[#991B1B] ring-2 ring-rose-300"
   }
 }
 

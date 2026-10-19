@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatMoney, formatDate } from "@/lib/utils"
+import { ResponsiveTable, CurrencyDisplay } from "@/components/shared"
 import { Loader2, Package, Wallet, ShoppingCart, Pencil, Phone, MessageCircle, MapPin, X } from "lucide-react"
 
 export default function DealerDetailPanel({ id, onClose }: { id: string, onClose: () => void }) {
@@ -127,28 +128,28 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
   const outstandingBalance = openingBalance + totalPurchases - totalPaid
 
   return (
-    <div className="flex flex-col h-full bg-background rounded-xl">
+    <div className="flex flex-col h-full bg-[#F8F7F2] rounded-xl">
       {/* Sticky Header */}
-      <div className="sticky top-0 z-10 bg-background border-b p-4 sm:p-6 space-y-6 flex-none rounded-t-xl">
+      <div className="sticky top-0 z-10 bg-[#FFFFFF] border-b border-[#D9E0E8] p-4 sm:p-6 space-y-6 flex-none rounded-t-xl">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold uppercase shrink-0 text-xl shadow-sm">
+            <div className="h-12 w-12 rounded-2xl bg-[#EBF2FE] border border-[#BFDBFE] flex items-center justify-center text-[#2563EB] font-bold uppercase shrink-0 text-xl shadow-xs">
               {dealer.name.substring(0, 2)}
             </div>
             <div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900">{dealer.name}</h2>
+              <h2 className="text-2xl font-bold tracking-tight text-[#172B4D]">{dealer.name}</h2>
               {(dealer.phone || dealer.address) && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm text-slate-500">
-                  {dealer.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> {dealer.phone}</span>}
-                  {dealer.address && <span className="flex items-center gap-1 max-w-[200px] sm:max-w-md truncate" title={dealer.address}><MapPin className="h-3 w-3" /> {dealer.address}</span>}
+                <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-[#52627A]">
+                  {dealer.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3 text-[#52627A]" /> {dealer.phone}</span>}
+                  {dealer.address && <span className="flex items-center gap-1 max-w-[200px] sm:max-w-md truncate text-[#52627A]" title={dealer.address}><MapPin className="h-3 w-3 text-[#52627A]" /> {dealer.address}</span>}
                 </div>
               )}
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1 mr-2 bg-slate-50 rounded-md p-1 border">
+            <div className="flex gap-1 mr-2 bg-[#F8F7F2] rounded-xl p-1 border border-[#D9E0E8]">
               <Button
-                variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+                variant="ghost" size="icon" className="h-8 w-8 text-[#2563EB] hover:bg-[#EBF2FE] rounded-lg cursor-pointer"
                 title={dealer.phone ? `Call ${dealer.phone}` : "No phone number available"}
                 onClick={() => dealer.phone && window.open(`tel:${dealer.phone.replace(/[^\d+]/g, '')}`)}
                 disabled={!dealer.phone}
@@ -156,7 +157,7 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
                 <Phone className="h-4 w-4" />
               </Button>
               <Button
-                variant="ghost" size="icon" className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-100"
+                variant="ghost" size="icon" className="h-8 w-8 text-[#087443] hover:bg-[#EAF7EF] rounded-lg cursor-pointer"
                 title={(dealer.whatsapp || dealer.phone) ? `WhatsApp ${(dealer.whatsapp || dealer.phone)}` : "No WhatsApp number available"}
                 onClick={() => {
                   const number = dealer.whatsapp || dealer.phone;
@@ -167,7 +168,7 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
                 <MessageCircle className="h-4 w-4" />
               </Button>
               <Button
-                variant="ghost" size="icon" className="h-8 w-8 text-rose-600 hover:text-rose-700 hover:bg-rose-100"
+                variant="ghost" size="icon" className="h-8 w-8 text-[#B42318] hover:bg-[#FDECEC] rounded-lg cursor-pointer"
                 title={dealer.address ? `Map to ${dealer.address}` : "No address available"}
                 onClick={() => dealer.address && window.open(`https://maps.google.com/?q=${encodeURIComponent(dealer.address)}`, '_blank')}
                 disabled={!dealer.address}
@@ -175,41 +176,41 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
                 <MapPin className="h-4 w-4" />
               </Button>
             </div>
-            <Button variant="outline" size="sm" className="bg-white" onClick={openEditModal}>
+            <Button variant="outline" size="sm" className="bg-[#FFFFFF] border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] cursor-pointer" onClick={openEditModal}>
               <Pencil className="mr-2 h-4 w-4" /> Edit Dealer
             </Button>
             <Link to="/purchases">
-              <Button variant="outline" size="sm" className="bg-white"><ShoppingCart className="mr-2 h-4 w-4" /> Add Purchase</Button>
+              <Button variant="outline" size="sm" className="bg-[#FFFFFF] border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] cursor-pointer"><ShoppingCart className="mr-2 h-4 w-4" /> Add Purchase</Button>
             </Link>
             <Link to="/dealer-payments">
-              <Button size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground"><Wallet className="mr-2 h-4 w-4" /> Record Payment</Button>
+              <Button size="sm" className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white cursor-pointer"><Wallet className="mr-2 h-4 w-4" /> Record Payment</Button>
             </Link>
-            <Button variant="ghost" size="icon" onClick={onClose} className="ml-2 hover:bg-slate-100 rounded-full text-slate-500" title="Close">
+            <Button variant="ghost" size="icon" onClick={onClose} className="ml-2 hover:bg-[#F1F4F8] rounded-full text-[#52627A] hover:text-[#172B4D] cursor-pointer" title="Close">
               <X className="h-5 w-5" />
             </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6">
-          <Card className="bg-white border-slate-200 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-500 font-medium">Total Purchases</CardTitle></CardHeader>
-            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-bold text-slate-900">{formatMoney(totalPurchases)}</div></CardContent>
+          <Card className="bg-[#FFFFFF] border-[#D9E0E8] rounded-2xl shadow-xs">
+            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-xs uppercase tracking-wider text-[#52627A] font-semibold">Total Purchases</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-extrabold text-[#172B4D]">{formatMoney(totalPurchases)}</div></CardContent>
           </Card>
           
-          <Card className="bg-white border-slate-200 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-500 font-medium">Total Paid</CardTitle></CardHeader>
-            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-bold text-slate-900">{formatMoney(totalPaid)}</div></CardContent>
+          <Card className="bg-[#FFFFFF] border-[#D9E0E8] rounded-2xl shadow-xs">
+            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-xs uppercase tracking-wider text-[#52627A] font-semibold">Total Paid</CardTitle></CardHeader>
+            <CardContent className="px-4 pb-4"><div className="text-2xl lg:text-3xl font-extrabold text-[#087443]">{formatMoney(totalPaid)}</div></CardContent>
           </Card>
 
-          <Card className="bg-white border-slate-200 shadow-sm">
-            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-sm text-slate-500 font-medium">Outstanding Balance</CardTitle></CardHeader>
+          <Card className="bg-[#FFFFFF] border-[#D9E0E8] rounded-2xl shadow-xs">
+            <CardHeader className="pb-2 pt-4 px-4"><CardTitle className="text-xs uppercase tracking-wider text-[#52627A] font-semibold">Outstanding Balance</CardTitle></CardHeader>
             <CardContent className="px-4 pb-4">
-              <div className={`text-2xl lg:text-3xl font-bold ${outstandingBalance > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>{formatMoney(outstandingBalance)}</div>
-              <p className={`text-xs font-semibold uppercase mt-1 tracking-wider ${outstandingBalance > 0 ? 'text-rose-600/70' : 'text-emerald-600/70'}`}>
+              <div className={`text-2xl lg:text-3xl font-extrabold ${outstandingBalance > 0 ? 'text-[#B42318]' : 'text-[#087443]'}`}>{formatMoney(outstandingBalance)}</div>
+              <p className={`text-xs font-semibold uppercase mt-1 tracking-wider ${outstandingBalance > 0 ? 'text-[#B42318]' : 'text-[#087443]'}`}>
                 {outstandingBalance >= 0 ? "We Owe Dealer" : "Advance / Dealer Owes Us"}
               </p>
               {openingBalance !== 0 && (
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-[#52627A] mt-1">
                   (Includes Opening: {formatMoney(openingBalance)})
                 </p>
               )}
@@ -218,24 +219,24 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-6 -mb-6 border-b overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-6 -mb-6 border-b border-[#D9E0E8] overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab("overview")}
-            className={`pb-3 pt-2 font-medium text-sm transition-colors relative whitespace-nowrap ${activeTab === 'overview' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-900'}`}
+            className={`pb-3 pt-2 font-semibold text-sm transition-colors relative whitespace-nowrap cursor-pointer ${activeTab === 'overview' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#52627A] hover:text-[#172B4D]'}`}
           >
             Overview
           </button>
           <button
             onClick={() => setActiveTab("purchases")}
-            className={`pb-3 pt-2 font-medium text-sm transition-colors relative whitespace-nowrap flex items-center gap-2 ${activeTab === 'purchases' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-900'}`}
+            className={`pb-3 pt-2 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-2 cursor-pointer ${activeTab === 'purchases' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#52627A] hover:text-[#172B4D]'}`}
           >
-            Purchases <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">{purchases?.length || 0}</span>
+            Purchases <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === 'purchases' ? 'bg-[#EBF2FE] text-[#2563EB]' : 'bg-[#F1F4F8] text-[#52627A]'}`}>{purchases?.length || 0}</span>
           </button>
           <button
             onClick={() => setActiveTab("payments")}
-            className={`pb-3 pt-2 font-medium text-sm transition-colors relative whitespace-nowrap flex items-center gap-2 ${activeTab === 'payments' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500 hover:text-slate-900'}`}
+            className={`pb-3 pt-2 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-2 cursor-pointer ${activeTab === 'payments' ? 'text-[#2563EB] border-b-2 border-[#2563EB]' : 'text-[#52627A] hover:text-[#172B4D]'}`}
           >
-            Payments <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full">{payments?.length || 0}</span>
+            Payments <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${activeTab === 'payments' ? 'bg-[#EBF2FE] text-[#2563EB]' : 'bg-[#F1F4F8] text-[#52627A]'}`}>{payments?.length || 0}</span>
           </button>
         </div>
       </div>
@@ -244,67 +245,71 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
       <div className="p-4 sm:p-6 flex-1 overflow-y-auto">
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 gap-6">
-            <Card className="shadow-sm border">
-              <CardHeader className="bg-slate-50 border-b">
-                <CardTitle className="flex items-center gap-2 text-base"><Package className="h-5 w-5 text-slate-500" /> Associated Products</CardTitle>
+            <Card className="shadow-xs border border-[#E2E8F0] bg-white rounded-2xl overflow-hidden">
+              <CardHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                <CardTitle className="flex items-center gap-2 text-base font-bold text-[#0F172A]"><Package className="h-5 w-5 text-[#2563EB]" /> Associated Products</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                  <Table>
+                <ResponsiveTable minWidth={450}>
+                  <Table className="border-collapse">
                     <TableHeader>
-                      <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                        <TableHead>Product</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Stock</TableHead>
-                        <TableHead className="text-right whitespace-nowrap">Buying Cost</TableHead>
+                      <TableRow className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-3">Product</TableHead>
+                        <TableHead className="text-right whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-3">Stock</TableHead>
+                        <TableHead className="text-right whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3">Buying Cost</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {products?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No products found.</TableCell></TableRow>}
+                      {products?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-[#64748B] py-8">No products found.</TableCell></TableRow>}
                       {products?.map((p: any) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-medium">
-                            <Link to={`/products/${p.id}`} className="text-blue-600 hover:underline">{p.name}</Link>
+                        <TableRow key={p.id} className="hover:bg-[#EEF4FF] border-b border-[#E2E8F0] transition-colors">
+                          <TableCell className="font-medium text-[#0F172A] py-2.5 px-3">
+                            <Link to={`/products/${p.id}`} className="text-[#2563EB] hover:underline font-semibold">{p.name}</Link>
                           </TableCell>
-                          <TableCell className="text-right whitespace-nowrap">{p.stock_quantity} {p.unit}</TableCell>
-                          <TableCell className="text-right whitespace-nowrap">{formatMoney(p.buying_cost)}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap font-mono text-[#0F172A] py-2.5 px-3">{p.stock_quantity} {p.unit}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap py-2.5 px-3">
+                            <CurrencyDisplay amount={p.buying_cost} />
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                </ResponsiveTable>
               </CardContent>
             </Card>
           </div>
         )}
 
         {activeTab === 'purchases' && (
-          <Card className="shadow-sm border">
-            <CardHeader className="bg-slate-50 border-b">
-              <CardTitle className="flex items-center gap-2 text-base"><ShoppingCart className="h-5 w-5 text-slate-500" /> Purchase History</CardTitle>
+          <Card className="shadow-xs border border-[#E2E8F0] bg-white rounded-2xl overflow-hidden">
+            <CardHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-[#0F172A]"><ShoppingCart className="h-5 w-5 text-[#2563EB]" /> Purchase History</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
+              <ResponsiveTable minWidth={550}>
+                <Table className="border-collapse">
                   <TableHeader>
-                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                      <TableHead className="whitespace-nowrap">Date</TableHead>
-                      <TableHead>Product</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">Qty</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">Total</TableHead>
-                      <TableHead className="text-right whitespace-nowrap w-[60px]">Action</TableHead>
+                    <TableRow className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                      <TableHead className="whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3">Date</TableHead>
+                      <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-3">Product</TableHead>
+                      <TableHead className="text-right whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-3">Qty</TableHead>
+                      <TableHead className="text-right whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-3">Total</TableHead>
+                      <TableHead className="text-right whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3 w-[60px]">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {purchases?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No purchases yet.</TableCell></TableRow>}
+                    {purchases?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-[#64748B] py-8">No purchases yet.</TableCell></TableRow>}
                     {purchases?.map((p: any) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="whitespace-nowrap">{formatDate(p.purchase_date)}</TableCell>
-                        <TableCell className="min-w-[150px]">{p.product?.name}</TableCell>
-                        <TableCell className="text-right whitespace-nowrap">{p.quantity_bought} {p.product?.unit}</TableCell>
-                        <TableCell className="text-right font-medium whitespace-nowrap">{formatMoney(p.total_amount)}</TableCell>
-                        <TableCell className="text-right">
+                      <TableRow key={p.id} className="hover:bg-[#EEF4FF] border-b border-[#E2E8F0] transition-colors">
+                        <TableCell className="whitespace-nowrap font-mono text-xs text-[#64748B] py-2.5 px-3">{formatDate(p.purchase_date)}</TableCell>
+                        <TableCell className="min-w-[150px] font-semibold text-[#0F172A] py-2.5 px-3">{p.product?.name}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap font-mono text-[#0F172A] py-2.5 px-3">{p.quantity_bought} {p.product?.unit}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap py-2.5 px-3">
+                          <CurrencyDisplay amount={p.total_amount} className="font-semibold text-[#0F172A]" />
+                        </TableCell>
+                        <TableCell className="text-right py-2.5 px-3">
                           <Link to="/purchases">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-slate-900" title="Edit Purchase in Purchases page">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-[#64748B] hover:text-[#2563EB] hover:bg-[#EEF4FF] rounded-lg cursor-pointer" title="Edit Purchase in Purchases page">
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Link>
@@ -313,41 +318,47 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </ResponsiveTable>
             </CardContent>
           </Card>
         )}
 
         {activeTab === 'payments' && (
-          <Card className="shadow-sm border">
-            <CardHeader className="bg-slate-50 border-b">
-              <CardTitle className="flex items-center gap-2 text-base"><Wallet className="h-5 w-5 text-slate-500" /> Payment History</CardTitle>
+          <Card className="shadow-xs border border-[#E2E8F0] bg-white rounded-2xl overflow-hidden">
+            <CardHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-[#0F172A]"><Wallet className="h-5 w-5 text-[#2563EB]" /> Payment History</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
+              <ResponsiveTable minWidth={600}>
+                <Table className="border-collapse">
                   <TableHeader>
-                    <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                      <TableHead className="whitespace-nowrap">Date</TableHead>
-                      <TableHead className="whitespace-nowrap">Method</TableHead>
-                      <TableHead className="whitespace-nowrap">Reference</TableHead>
-                      <TableHead className="min-w-[200px]">Note</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">Amount Paid</TableHead>
-                      <TableHead className="text-right whitespace-nowrap w-[60px]">Action</TableHead>
+                    <TableRow className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                      <TableHead className="whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3">Date</TableHead>
+                      <TableHead className="whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3">Method</TableHead>
+                      <TableHead className="whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3">Reference</TableHead>
+                      <TableHead className="min-w-[200px] font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3">Note</TableHead>
+                      <TableHead className="text-right whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-3">Amount Paid</TableHead>
+                      <TableHead className="text-right whitespace-nowrap font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-3 w-[60px]">Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No payments yet.</TableCell></TableRow>}
+                    {payments?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-[#64748B] py-8">No payments yet.</TableCell></TableRow>}
                     {payments?.map((p: any) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="whitespace-nowrap">{formatDate(p.payment_date)}</TableCell>
-                        <TableCell className="whitespace-nowrap">{p.payment_method}</TableCell>
-                        <TableCell className="whitespace-nowrap">{p.reference || "-"}</TableCell>
-                        <TableCell className="min-w-[200px] text-slate-600">{p.notes || "—"}</TableCell>
-                        <TableCell className="text-right font-bold text-emerald-600 whitespace-nowrap">{formatMoney(p.amount)}</TableCell>
-                        <TableCell className="text-right">
+                      <TableRow key={p.id} className="hover:bg-[#EEF4FF] border-b border-[#E2E8F0] transition-colors">
+                        <TableCell className="whitespace-nowrap font-mono text-xs text-[#64748B] py-2.5 px-3">{formatDate(p.payment_date)}</TableCell>
+                        <TableCell className="whitespace-nowrap py-2.5 px-3">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-[#EEF4FF] text-[#2563EB] border border-[#BFDBFE]/60">
+                            {p.payment_method}
+                          </span>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap font-mono text-xs text-[#64748B] py-2.5 px-3">{p.reference || "—"}</TableCell>
+                        <TableCell className="min-w-[200px] text-xs text-[#64748B] py-2.5 px-3">{p.notes || "—"}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap py-2.5 px-3">
+                          <CurrencyDisplay amount={p.amount} variant="positive" className="font-bold text-sm text-[#087443]" />
+                        </TableCell>
+                        <TableCell className="text-right py-2.5 px-3">
                           <Link to="/dealer-payments">
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-slate-900" title="Edit Payment in Dealer Payments page">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-[#64748B] hover:text-[#2563EB] hover:bg-[#EEF4FF] rounded-lg cursor-pointer" title="Edit Payment in Dealer Payments page">
                               <Pencil className="h-4 w-4" />
                             </Button>
                           </Link>
@@ -356,7 +367,7 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
                     ))}
                   </TableBody>
                 </Table>
-              </div>
+              </ResponsiveTable>
             </CardContent>
           </Card>
         )}
@@ -364,75 +375,79 @@ export default function DealerDetailPanel({ id, onClose }: { id: string, onClose
 
       {/* Edit Dealer Dialog */}
       {isEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-[425px] rounded-lg border bg-card text-card-foreground shadow-xl p-6 animate-in fade-in zoom-in-95 duration-150">
-            <h2 className="text-lg font-semibold leading-none tracking-tight mb-4">Edit Dealer</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-[425px] rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-2xl p-6 animate-in fade-in zoom-in-95 duration-150">
+            <h2 className="text-lg font-bold text-[#172B4D] leading-none tracking-tight mb-4">Edit Dealer</h2>
 
             {editFormError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
+              <div className="mb-4 p-3 bg-[#FDECEC] border border-[#FCA5A5] text-[#B42318] rounded-xl text-sm">
                 <p className="font-semibold mb-1">Error saving dealer</p>
                 <p>{editFormError}</p>
               </div>
             )}
 
             <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Dealer Name *</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Dealer Name *</label>
                 <Input
                   placeholder="e.g., AL INFAQ TRADERS"
                   value={editFormData.name}
                   onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB]"
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Phone Number</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Phone Number</label>
                 <Input
                   placeholder="+91..."
                   value={editFormData.phone}
                   onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB]"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">WhatsApp Number</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">WhatsApp Number</label>
                 <Input
                   placeholder="Optional (falls back to phone)"
                   value={editFormData.whatsapp}
                   onChange={(e) => setEditFormData({ ...editFormData, whatsapp: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB]"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Opening Balance (₹)</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Opening Balance (₹)</label>
                 <Input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
                   value={editFormData.opening_balance}
                   onChange={(e) => setEditFormData({ ...editFormData, opening_balance: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB]"
                 />
-                <p className="text-xs text-muted-foreground">Historical balance owed to this dealer before using 7TIME.</p>
+                <p className="text-xs text-[#52627A]">Historical balance owed to this dealer before using 7TIME.</p>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Address</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Address</label>
                 <textarea
-                  className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="flex min-h-[60px] w-full rounded-lg border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] placeholder:text-[#66758A] shadow-xs focus:border-[#2563EB] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20"
                   placeholder="Business Address"
                   value={editFormData.address}
                   onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Notes</label>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Notes</label>
                 <textarea
-                  className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  className="flex min-h-[60px] w-full rounded-lg border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] placeholder:text-[#66758A] shadow-xs focus:border-[#2563EB] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20"
                   placeholder="Additional notes"
                   value={editFormData.notes}
                   onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
                 />
               </div>
-              <div className="pt-2 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={closeEditModal}>Cancel</Button>
-                <Button type="submit" disabled={updateMutation.isPending}>
+              <div className="pt-2 flex justify-end gap-2 border-t border-[#D9E0E8]">
+                <Button type="button" variant="outline" onClick={closeEditModal} className="border-[#D9E0E8] text-[#52627A] hover:bg-[#F1F4F8] hover:text-[#172B4D] cursor-pointer">Cancel</Button>
+                <Button type="submit" disabled={updateMutation.isPending} className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white cursor-pointer">
                   {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Save Changes
                 </Button>

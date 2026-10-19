@@ -66,23 +66,23 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Application Settings</h1>
-        <p className="text-muted-foreground">Manage your business preferences and system defaults.</p>
+      <div className="pb-4 border-b border-[#D9E0E8]">
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#172B4D]">Application Settings</h1>
+        <p className="text-sm text-[#52627A] mt-1">Manage your business preferences, inventory thresholds, and system defaults.</p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
-        <Card>
+        <Card className="rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-xs">
           <CardHeader>
-            <CardTitle>Business Settings</CardTitle>
-            <CardDescription>Primary information about your business operation.</CardDescription>
+            <CardTitle className="text-lg font-bold text-[#172B4D]">Business Settings</CardTitle>
+            <CardDescription className="text-xs text-[#52627A]">Primary information about your business operation.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Business Name</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#172B4D]">Business Name</label>
               <input 
                 type="text" 
-                className="flex h-10 w-full md:w-1/2 rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                className="flex h-10 w-full md:w-1/2 rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                 value={settings.business_name}
                 onChange={e => setSettings({...settings, business_name: e.target.value})}
                 required
@@ -91,9 +91,9 @@ export default function SettingsPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="grid gap-2">
-                <label className="text-sm font-medium">Currency</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-[#172B4D]">Currency</label>
                 <select 
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                   value={settings.currency}
                   onChange={e => setSettings({...settings, currency: e.target.value})}
                 >
@@ -103,9 +103,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="grid gap-2">
-                <label className="text-sm font-medium">Timezone</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-[#172B4D]">Timezone</label>
                 <select 
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                   value={settings.timezone}
                   onChange={e => setSettings({...settings, timezone: e.target.value})}
                 >
@@ -115,9 +115,9 @@ export default function SettingsPage() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Date Format (Display Only)</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#172B4D]">Date Format (Display Only)</label>
               <select 
-                className="flex h-10 w-full md:w-1/2 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                className="flex h-10 w-full md:w-1/2 rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                 value={settings.date_format}
                 onChange={e => setSettings({...settings, date_format: e.target.value})}
               >
@@ -127,18 +127,18 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-xs">
           <CardHeader>
-            <CardTitle>Inventory Settings</CardTitle>
+            <CardTitle className="text-lg font-bold text-[#172B4D]">Inventory Settings</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-2">
-              <label className="text-sm font-medium">Low Stock Threshold</label>
-              <p className="text-xs text-muted-foreground mb-2">Products with stock at or below this number will be flagged as Low Stock.</p>
+              <label className="text-xs font-semibold uppercase tracking-wider text-[#172B4D]">Low Stock Threshold</label>
+              <p className="text-xs text-[#52627A] mb-2">Products with stock at or below this number will be flagged as Low Stock.</p>
               <input 
                 type="number" 
                 min="0"
-                className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm" 
+                className="flex h-10 w-32 rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                 value={settings.low_stock_threshold}
                 onChange={e => setSettings({...settings, low_stock_threshold: parseInt(e.target.value) || 0})}
               />
@@ -146,15 +146,15 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-xs">
           <CardHeader>
-            <CardTitle>Payment Methods</CardTitle>
-            <CardDescription>Payment methods are globally defined: Cash, UPI, Bank Transfer, Other. These are manual ledger references and do not connect to external APIs.</CardDescription>
+            <CardTitle className="text-lg font-bold text-[#172B4D]">Payment Methods</CardTitle>
+            <CardDescription className="text-xs text-[#52627A] leading-relaxed">Payment methods are globally defined: Cash, UPI, Bank Transfer, Other. These are manual ledger references and do not connect to external APIs.</CardDescription>
           </CardHeader>
         </Card>
 
         <div className="flex justify-end">
-          <Button type="submit" disabled={saving}>
+          <Button type="submit" disabled={saving} className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs rounded-xl cursor-pointer">
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Save Settings
           </Button>

@@ -441,6 +441,56 @@ export async function recordMultiEntryPayment(params: {
     throw new Error(`Total allocated amount (${totalAllocated}) cannot exceed payment amount (${parsedAmount}).`)
   }
 
+  // Attempt atomic PostgreSQL RPC execution first (guarantees transaction rollback on error)
+  if (typeof (supabase as any).rpc === "function") {
+    const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
+      "record_customer_payment_with_allocations",
+      {
+        p_customer_id: customerId,
+        p_amount: parsedAmount,
+        p_payment_date: paymentDate,
+        p_payment_method: paymentMethod || "CASH",
+        p_reference: reference?.trim() || null,
+        p_notes: notes?.trim() || null,
+        p_allocations: allocations.map(a => ({
+          credit_id: a.creditId,
+          amount: Number(a.amount),
+          notes: a.notes?.trim() || null
+        }))
+      }
+    )
+
+    if (!rpcError && rpcData) {
+      return {
+        paymentId: rpcData.payment_id,
+        totalAmount: Number(rpcData.total_amount),
+        allocatedAmount: Number(rpcData.allocated_amount),
+        advanceAmount: Number(rpcData.advance_amount)
+      }
+    }
+
+    if (rpcError) {
+      // Distinguish a genuinely missing RPC from business validation, authorization, constraint, or transaction failures
+      const isMissingRpc =
+        rpcError.code === "PGRST202" ||
+        rpcError.code === "42883" ||
+        (typeof rpcError.message === "string" &&
+          (rpcError.message.includes("Could not find the function") ||
+           rpcError.message.toLowerCase().includes("function record_customer_payment_with_allocations") ||
+           rpcError.message.toLowerCase().includes("function public.record_customer_payment_with_allocations")))
+
+      if (isMissingRpc) {
+        throw new Error(
+          "Transactional payment RPC 'record_customer_payment_with_allocations' is not available on database. Please apply migration 20261019151000_payment_allocation_rpc.sql."
+        )
+      }
+
+      // All business validation, authentication, and transaction aborts must fail cleanly
+      throw new Error(rpcError.message || "Payment transaction failed")
+    }
+  }
+
+  // Fallback REST path: Sequential insert with compensating cleanup guard
   // 1. Insert into reseller_payments
   const { data: paymentRecord, error: payError } = await supabase
     .from("reseller_payments")
@@ -474,7 +524,14 @@ export async function recordMultiEntryPayment(params: {
         .insert(validAllocations)
 
       if (allocError) {
-        throw new Error(`Payment recorded, but allocation failed: ${allocError.message}`)
+        // Compensating rollback attempt
+        try {
+          await supabase.from("reseller_payments").delete().eq("id", paymentRecord.id)
+        } catch {
+          // Log rollback failure
+          console.error("Failed to delete unallocated payment during rollback:", paymentRecord.id)
+        }
+        throw new Error(`Payment allocation failed: ${allocError.message}. Payment record was rolled back.`)
       }
     }
   }

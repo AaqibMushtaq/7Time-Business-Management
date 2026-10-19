@@ -11,12 +11,19 @@ import { calculateWholesaleSale } from "@/lib/wholesaleCalculations"
 import { getResellers } from "@/services/resellers"
 import { getProducts } from "@/services/products"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, Plus, Pencil, Trash2, X } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, X, ShoppingBag } from "lucide-react"
+import {
+  ConfirmDialog,
+  StatusBadge,
+  CurrencyDisplay,
+  DataTable,
+  type DataTableColumn,
+  DataTableActionButton,
+} from "@/components/shared"
 
 export default function WholesaleSalesPage() {
   const queryClient = useQueryClient()
@@ -29,6 +36,9 @@ export default function WholesaleSalesPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH")
   const [notes, setNotes] = useState("")
   const [todayDate] = useState(() => new Date())
+
+  // Delete modal state
+  const [saleToDelete, setSaleToDelete] = useState<WholesaleSale | null>(null)
 
   // Edit State
   const [editingSale, setEditingSale] = useState<WholesaleSale | null>(null)
@@ -100,6 +110,7 @@ export default function WholesaleSalesPage() {
       queryClient.invalidateQueries({ queryKey: ["products"] })
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       queryClient.invalidateQueries({ queryKey: ["inventory_page"] })
+      setSaleToDelete(null)
     },
     onError: (error) => {
       alert("Failed to delete sale: " + error.message)
@@ -166,6 +177,136 @@ export default function WholesaleSalesPage() {
   const totalWholesaleProfit = filteredSales.reduce((acc, s) => acc + s.profit, 0)
   const totalTransactions = filteredSales.length
   const totalProductsQtySold = filteredSales.reduce((acc, s) => acc + s.quantity, 0)
+
+  const wholesaleColumns: DataTableColumn<WholesaleSale>[] = useMemo(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        accessorKey: "sale_date",
+        sortable: true,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-[#64748B]">
+            {formatDate(row.sale_date)}
+          </span>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Customer",
+        accessorFn: (row) => row.customer?.name || "—",
+        sortable: true,
+        cell: ({ row }) => (
+          <span className="font-medium text-[#0F172A]">
+            {row.customer?.name || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "product",
+        header: "Product",
+        accessorFn: (row) => row.product?.name || "—",
+        sortable: true,
+        cell: ({ row }) => (
+          <span className="text-[#0F172A]">
+            {row.product?.name || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "quantity",
+        header: "Qty",
+        accessorKey: "quantity",
+        align: "right",
+        sortable: true,
+        cell: ({ row }) => (
+          <span className="font-mono font-medium text-[#0F172A]">
+            {row.quantity} <span className="text-xs text-[#64748B]">{row.product?.unit}</span>
+          </span>
+        ),
+      },
+      {
+        id: "total_sale",
+        header: "Total Sale",
+        accessorKey: "total_sale",
+        align: "right",
+        sortable: true,
+        cell: ({ row }) => (
+          <CurrencyDisplay amount={row.total_sale} variant="default" className="font-semibold text-[#0F172A]" />
+        ),
+      },
+      {
+        id: "amount_received",
+        header: "Received",
+        accessorKey: "amount_received",
+        align: "right",
+        sortable: true,
+        cell: ({ row }) => (
+          <CurrencyDisplay amount={row.amount_received} variant="positive" />
+        ),
+      },
+      {
+        id: "balance",
+        header: "Balance",
+        accessorKey: "balance",
+        align: "right",
+        sortable: true,
+        cell: ({ row }) => (
+          <CurrencyDisplay
+            amount={row.balance}
+            variant={row.balance > 0 ? "warning" : "positive"}
+            className="font-medium"
+          />
+        ),
+      },
+      {
+        id: "profit",
+        header: "Profit",
+        accessorKey: "profit",
+        align: "right",
+        sortable: true,
+        cell: ({ row }) => (
+          <CurrencyDisplay amount={row.profit} variant="positive" className="font-semibold" />
+        ),
+      },
+      {
+        id: "method",
+        header: "Method",
+        accessorKey: "payment_method",
+        align: "center",
+        cell: ({ row }) => (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-[#EEF4FF] text-[#2563EB] border border-[#BFDBFE]/60">
+            {row.payment_method || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorKey: "payment_status",
+        align: "center",
+        cell: ({ row }) => <StatusBadge status={row.payment_status} />,
+      },
+      {
+        id: "notes",
+        header: "Notes",
+        accessorKey: "notes",
+        cell: ({ row }) =>
+          row.notes ? (
+            <span
+              className="inline-block max-w-[180px] truncate text-[#64748B] text-xs cursor-pointer hover:text-[#0F172A] hover:underline"
+              title={row.notes}
+              onClick={() => alert(`Transaction Note:\n\n${row.notes}`)}
+            >
+              {row.notes}
+            </span>
+          ) : (
+            <span className="text-[#64748B] text-xs">—</span>
+          ),
+      },
+    ],
+    []
+  )
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
@@ -244,18 +385,18 @@ export default function WholesaleSalesPage() {
   }
 
   const handleDelete = (sale: WholesaleSale) => {
-    const confirmMsg = `Are you sure you want to delete the sale of ${sale.quantity} ${sale.product?.unit || "units"} to ${sale.customer?.name || "customer"}? This will restore ${sale.quantity} units to inventory.`
-    if (window.confirm(confirmMsg)) {
-      deleteMutation.mutate(sale.id)
-    }
+    setSaleToDelete(sale)
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Wholesale Dashboard</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#D9E0E8]">
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-[#172B4D]">Wholesale Dashboard</h1>
+          <p className="text-sm text-[#52627A] mt-1">Record and monitor wholesale customer sales, profits, and balances.</p>
+        </div>
         <select 
-          className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          className="h-9 rounded-xl border border-[#D9E0E8] bg-white px-3 py-1 text-sm text-[#172B4D] shadow-xs focus:ring-2 focus:ring-[#2563EB]"
           value={dateFilter}
           onChange={e => setDateFilter(e.target.value)}
         >
@@ -265,54 +406,54 @@ export default function WholesaleSalesPage() {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader className="pb-2 p-4"><CardTitle className="text-xs uppercase text-blue-800">Total Sales</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0"><div className="text-xl font-bold text-blue-900">{formatMoney(totalSalesAmount)}</div></CardContent>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">
+        <Card className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs">
+          <CardHeader className="pb-1 p-4"><CardTitle className="text-xs uppercase font-bold text-[#2563EB] tracking-wider">Total Sales</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0"><div className="text-xl sm:text-2xl font-extrabold text-[#172B4D]">{formatMoney(totalSalesAmount)}</div></CardContent>
         </Card>
-        <Card className="bg-green-50 border-green-200">
-          <CardHeader className="pb-2 p-4"><CardTitle className="text-xs uppercase text-green-800">Received</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0"><div className="text-xl font-bold text-green-900">{formatMoney(totalReceivedAmount)}</div></CardContent>
+        <Card className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs">
+          <CardHeader className="pb-1 p-4"><CardTitle className="text-xs uppercase font-bold text-[#087443] tracking-wider">Received</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0"><div className="text-xl sm:text-2xl font-extrabold text-[#087443]">{formatMoney(totalReceivedAmount)}</div></CardContent>
         </Card>
-        <Card className="bg-orange-50 border-orange-200">
-          <CardHeader className="pb-2 p-4"><CardTitle className="text-xs uppercase text-orange-800">Balance Due</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0"><div className="text-xl font-bold text-orange-900">{formatMoney(totalBalanceDue)}</div></CardContent>
+        <Card className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs">
+          <CardHeader className="pb-1 p-4"><CardTitle className="text-xs uppercase font-bold text-[#92400E] tracking-wider">Balance Due</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0"><div className="text-xl sm:text-2xl font-extrabold text-[#92400E]">{formatMoney(totalBalanceDue)}</div></CardContent>
         </Card>
-        <Card className="bg-purple-50 border-purple-200">
-          <CardHeader className="pb-2 p-4"><CardTitle className="text-xs uppercase text-purple-800">Total Profit</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0"><div className="text-xl font-bold text-purple-900">{formatMoney(totalWholesaleProfit)}</div></CardContent>
+        <Card className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs">
+          <CardHeader className="pb-1 p-4"><CardTitle className="text-xs uppercase font-bold text-[#087443] tracking-wider">Total Profit</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0"><div className="text-xl sm:text-2xl font-extrabold text-[#087443]">{formatMoney(totalWholesaleProfit)}</div></CardContent>
         </Card>
-        <Card className="bg-slate-50 border-slate-200">
-          <CardHeader className="pb-2 p-4"><CardTitle className="text-xs uppercase text-slate-600">Transactions</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0"><div className="text-xl font-bold text-slate-900">{totalTransactions}</div></CardContent>
+        <Card className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs">
+          <CardHeader className="pb-1 p-4"><CardTitle className="text-xs uppercase font-bold text-[#66758A] tracking-wider">Transactions</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0"><div className="text-xl sm:text-2xl font-extrabold text-[#172B4D]">{totalTransactions}</div></CardContent>
         </Card>
-        <Card className="bg-slate-50 border-slate-200">
-          <CardHeader className="pb-2 p-4"><CardTitle className="text-xs uppercase text-slate-600">Products Sold</CardTitle></CardHeader>
-          <CardContent className="p-4 pt-0"><div className="text-xl font-bold text-slate-900">{totalProductsQtySold}</div></CardContent>
+        <Card className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs">
+          <CardHeader className="pb-1 p-4"><CardTitle className="text-xs uppercase font-bold text-[#66758A] tracking-wider">Products Sold</CardTitle></CardHeader>
+          <CardContent className="p-4 pt-0"><div className="text-xl sm:text-2xl font-extrabold text-[#172B4D]">{totalProductsQtySold}</div></CardContent>
         </Card>
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border border-[#D9E0E8] bg-white shadow-xs">
         <CardHeader>
-          <CardTitle>New Wholesale Sale</CardTitle>
+          <CardTitle className="text-lg font-bold text-[#172B4D]">New Wholesale Sale</CardTitle>
         </CardHeader>
         <CardContent>
           {formError && (
-            <div className="mb-4 p-3 rounded-md bg-destructive/15 text-destructive text-sm font-medium">
+            <div className="mb-4 p-3 rounded-xl bg-[#FDECEC] border border-red-200 text-[#B42318] text-sm font-medium">
               Failed to create sale: {formError}
             </div>
           )}
           <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
             <div className="space-y-2">
-              <Label>Date</Label>
-              <Input type="date" required value={saleDate} onChange={e => setSaleDate(e.target.value)} />
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Date</Label>
+              <Input type="date" required value={saleDate} onChange={e => setSaleDate(e.target.value)} className="border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]" />
             </div>
 
             <div className="space-y-2">
-              <Label>Customer</Label>
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Customer</Label>
               <select
                 required
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 value={customerId}
                 onChange={e => setCustomerId(e.target.value)}
               >
@@ -322,10 +463,10 @@ export default function WholesaleSalesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Product</Label>
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Product</Label>
               <select
                 required
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 value={productId}
                 onChange={e => setProductId(e.target.value)}
               >
@@ -335,19 +476,19 @@ export default function WholesaleSalesPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Quantity</Label>
-              <Input type="number" step="0.01" required value={quantity} onChange={e => setQuantity(e.target.value)} />
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Quantity</Label>
+              <Input type="number" step="0.01" required value={quantity} onChange={e => setQuantity(e.target.value)} className="border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]" />
             </div>
 
             <div className="space-y-2">
-              <Label>Amount Received</Label>
-              <Input type="number" step="0.01" value={amountReceived} onChange={e => setAmountReceived(e.target.value)} />
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Amount Received</Label>
+              <Input type="number" step="0.01" value={amountReceived} onChange={e => setAmountReceived(e.target.value)} className="border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]" />
             </div>
 
             <div className="space-y-2">
-              <Label>Payment Method</Label>
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Payment Method</Label>
               <select 
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-md border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2563EB]"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
@@ -358,35 +499,35 @@ export default function WholesaleSalesPage() {
             </div>
 
             <div className="space-y-2 md:col-span-2">
-              <Label>Notes (Optional)</Label>
-              <Input placeholder="e.g. Delivered - Settled" value={notes} onChange={e => setNotes(e.target.value)} />
+              <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Notes (Optional)</Label>
+              <Input placeholder="e.g. Delivered - Settled" value={notes} onChange={e => setNotes(e.target.value)} className="border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]" />
             </div>
 
             {selectedProduct && (
-              <div className="col-span-1 md:col-span-2 lg:col-span-4 bg-slate-100 p-4 rounded-md grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="col-span-1 md:col-span-2 lg:col-span-4 bg-[#F8F7F2] border border-[#D9E0E8] p-4 rounded-xl grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
-                  <span className="text-sm text-slate-500 block">Wholesale Rate</span>
-                  <span className="text-lg font-medium">{formatMoney(wholesalePrice)}</span>
+                  <span className="text-xs font-bold text-[#66758A] uppercase tracking-wider block">Wholesale Rate</span>
+                  <span className="text-lg font-bold text-[#172B4D]">{formatMoney(wholesalePrice)}</span>
                 </div>
                 <div>
-                  <span className="text-sm text-slate-500 block">Total Sale</span>
-                  <span className="text-lg font-bold text-primary">{formatMoney(totalSale)}</span>
+                  <span className="text-xs font-bold text-[#66758A] uppercase tracking-wider block">Total Sale</span>
+                  <span className="text-lg font-bold text-[#2563EB]">{formatMoney(totalSale)}</span>
                 </div>
                 <div>
-                  <span className="text-sm text-slate-500 block">Balance</span>
-                  <span className={`text-lg font-bold ${balance > 0 ? "text-orange-600" : "text-green-600"}`}>
+                  <span className="text-xs font-bold text-[#66758A] uppercase tracking-wider block">Balance</span>
+                  <span className={`text-lg font-bold ${balance > 0 ? "text-[#92400E]" : "text-[#087443]"}`}>
                     {formatMoney(balance)}
                   </span>
                 </div>
                 <div>
-                  <span className="text-sm text-slate-500 block">Profit</span>
-                  <span className="text-lg font-bold text-green-600">{formatMoney(profit)}</span>
+                  <span className="text-xs font-bold text-[#66758A] uppercase tracking-wider block">Profit</span>
+                  <span className="text-lg font-bold text-[#087443]">{formatMoney(profit)}</span>
                 </div>
               </div>
             )}
 
             <div className="col-span-1 md:col-span-2 lg:col-span-4 flex justify-end">
-              <Button type="submit" disabled={createMutation.isPending || !productId}>
+              <Button type="submit" disabled={createMutation.isPending || !productId} className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs">
                 {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                 Record Sale
               </Button>
@@ -395,161 +536,97 @@ export default function WholesaleSalesPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Wholesale Transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoadingSales ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto w-full">
-              <Table className="min-w-[1000px]">
-                <TableHeader>
-                  <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Total Sale</TableHead>
-                  <TableHead className="text-right">Received</TableHead>
-                  <TableHead className="text-right">Balance</TableHead>
-                  <TableHead className="text-right">Profit</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSales.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={12} className="text-center text-muted-foreground py-8">
-                      No sales found.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredSales.map((sale) => (
-                    <TableRow key={sale.id}>
-                      <TableCell>{formatDate(sale.sale_date)}</TableCell>
-                      <TableCell className="font-medium">{sale.customer?.name}</TableCell>
-                      <TableCell>{sale.product?.name}</TableCell>
-                      <TableCell className="text-right font-medium">
-                        {sale.quantity} {sale.product?.unit}
-                      </TableCell>
-                      <TableCell className="text-right font-bold text-primary">{formatMoney(sale.total_sale)}</TableCell>
-                      <TableCell className="text-right text-green-600">{formatMoney(sale.amount_received)}</TableCell>
-                      <TableCell className="text-right text-orange-600 font-medium">{formatMoney(sale.balance)}</TableCell>
-                      <TableCell className="text-right text-green-600 font-medium">{formatMoney(sale.profit)}</TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
-                          {sale.payment_method || "—"}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          sale.payment_status === "PAID" ? "bg-green-100 text-green-800" :
-                          sale.payment_status === "PARTIAL" ? "bg-blue-100 text-blue-800" :
-                          "bg-orange-100 text-orange-800"
-                        }`}>
-                          {sale.payment_status}
-                        </span>
-                      </TableCell>
-                      <TableCell className="max-w-[200px]">
-                        {sale.notes ? (
-                          <span 
-                            className="inline-block max-w-[180px] truncate text-slate-700 text-xs cursor-pointer hover:text-slate-900 hover:underline" 
-                            title={sale.notes}
-                            onClick={() => alert(`Transaction Note:\n\n${sale.notes}`)}
-                          >
-                            {sale.notes}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                            onClick={() => handleStartEdit(sale)}
-                            title="Edit Transaction"
-                            aria-label={`Edit transaction for ${sale.customer?.name || "customer"}`}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-800 hover:bg-red-50"
-                            onClick={() => handleDelete(sale)}
-                            disabled={deleteMutation.isPending}
-                            title="Delete Transaction"
-                            aria-label={`Delete transaction for ${sale.customer?.name || "customer"}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <DataTable<WholesaleSale>
+        title="Wholesale Transactions"
+        subtitle="Record and monitor wholesale bulk transactions, receivables, and profit margins."
+        columns={wholesaleColumns}
+        data={filteredSales}
+        loading={isLoadingSales}
+        searchable
+        searchPlaceholder="Search by customer, product, notes..."
+        searchFn={(sale, query) => {
+          const q = query.toLowerCase()
+          return (
+            (sale.customer?.name?.toLowerCase().includes(q) ?? false) ||
+            (sale.product?.name?.toLowerCase().includes(q) ?? false) ||
+            (sale.notes?.toLowerCase().includes(q) ?? false) ||
+            (sale.payment_method?.toLowerCase().includes(q) ?? false)
+          )
+        }}
+        pagination
+        pageSize={15}
+        minWidth={1150}
+        getRowId={(s) => s.id}
+        emptyState={{
+          icon: ShoppingBag,
+          title: "No wholesale transactions found",
+          description: "Transactions recorded using the form above will appear in this ledger.",
+        }}
+        rowActions={(sale) => (
+          <div className="flex items-center justify-end gap-1">
+            <DataTableActionButton
+              variant="primary"
+              icon={Pencil}
+              label={`Edit transaction for ${sale.customer?.name || "customer"}`}
+              onClick={() => handleStartEdit(sale)}
+            />
+            <DataTableActionButton
+              variant="destructive"
+              icon={Trash2}
+              label={`Delete transaction for ${sale.customer?.name || "customer"}`}
+              onClick={() => handleDelete(sale)}
+              disabled={deleteMutation.isPending}
+            />
+          </div>
+        )}
+      />
 
       {/* Edit Wholesale Sale Modal Dialog */}
       {editingSale && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto"
           role="dialog"
           aria-modal="true"
           aria-labelledby="edit-sale-title"
         >
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl my-8 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b pb-3">
-              <h2 id="edit-sale-title" className="text-xl font-bold text-slate-900">Edit Wholesale Sale</h2>
+          <div className="bg-white rounded-2xl shadow-xl border border-[#D9E0E8] w-full max-w-2xl my-8 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[#D9E0E8] pb-3">
+              <h2 id="edit-sale-title" className="text-xl font-bold text-[#172B4D]">Edit Wholesale Sale</h2>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleCancelEdit}
                 aria-label="Close edit modal"
-                className="h-8 w-8 p-0"
+                className="h-8 w-8 p-0 text-[#52627A] hover:text-[#172B4D]"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
 
             {editError && (
-              <div className="p-3 rounded-md bg-destructive/15 text-destructive text-sm font-medium">
+              <div className="p-3 rounded-xl bg-[#FDECEC] border border-red-200 text-[#B42318] text-sm font-medium">
                 Failed to update sale: {editError}
               </div>
             )}
 
             <form onSubmit={handleUpdate} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Date</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Date</Label>
                   <Input 
                     type="date" 
                     required 
                     value={editSaleDate} 
                     onChange={e => setEditSaleDate(e.target.value)} 
+                    className="border-[#D9E0E8] bg-white text-[#172B4D]"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Customer</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Customer</Label>
                   <select
                     required
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                     value={editCustomerId}
                     onChange={e => setEditCustomerId(e.target.value)}
                   >
@@ -558,11 +635,11 @@ export default function WholesaleSalesPage() {
                   </select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Product</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Product</Label>
                   <select
                     required
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                     value={editProductId}
                     onChange={e => setEditProductId(e.target.value)}
                   >
@@ -571,31 +648,33 @@ export default function WholesaleSalesPage() {
                   </select>
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Quantity</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Quantity</Label>
                   <Input 
                     type="number" 
                     step="0.01" 
                     required 
                     value={editQuantity} 
                     onChange={e => setEditQuantity(e.target.value)} 
+                    className="border-[#D9E0E8] bg-white text-[#172B4D]"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Amount Received</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Amount Received</Label>
                   <Input 
                     type="number" 
                     step="0.01" 
                     value={editAmountReceived} 
                     onChange={e => setEditAmountReceived(e.target.value)} 
+                    className="border-[#D9E0E8] bg-white text-[#172B4D]"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Payment Method</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Payment Method</Label>
                   <select 
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                     value={editPaymentMethod}
                     onChange={(e) => setEditPaymentMethod(e.target.value)}
                   >
@@ -605,35 +684,36 @@ export default function WholesaleSalesPage() {
                   </select>
                 </div>
 
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Notes (Optional)</Label>
+                <div className="space-y-1.5 md:col-span-2">
+                  <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Notes (Optional)</Label>
                   <Input 
                     placeholder="e.g. Delivered - Settled" 
                     value={editNotes} 
                     onChange={e => setEditNotes(e.target.value)} 
+                    className="border-[#D9E0E8] bg-white text-[#172B4D]"
                   />
                 </div>
               </div>
 
               {selectedEditProduct && (
-                <div className="bg-slate-50 p-4 rounded-md grid grid-cols-2 md:grid-cols-4 gap-4 border border-slate-200">
+                <div className="bg-[#F8F7F2] p-4 rounded-xl grid grid-cols-2 md:grid-cols-4 gap-4 border border-[#D9E0E8]">
                   <div>
-                    <span className="text-xs text-slate-500 block">Wholesale Rate</span>
-                    <span className="text-base font-medium">{formatMoney(editWholesalePrice)}</span>
+                    <span className="text-xs text-[#52627A] block font-medium">Wholesale Rate</span>
+                    <span className="text-base font-bold text-[#172B4D] font-mono">{formatMoney(editWholesalePrice)}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-slate-500 block">Total Sale</span>
-                    <span className="text-base font-bold text-primary">{formatMoney(editTotalSale)}</span>
+                    <span className="text-xs text-[#52627A] block font-medium">Total Sale</span>
+                    <span className="text-base font-bold text-[#2563EB] font-mono">{formatMoney(editTotalSale)}</span>
                   </div>
                   <div>
-                    <span className="text-xs text-slate-500 block">Balance</span>
-                    <span className={`text-base font-bold ${editBalance > 0 ? "text-orange-600" : "text-green-600"}`}>
+                    <span className="text-xs text-[#52627A] block font-medium">Balance</span>
+                    <span className={`text-base font-bold font-mono ${editBalance > 0 ? "text-[#92400E]" : "text-[#087443]"}`}>
                       {formatMoney(editBalance)}
                     </span>
                   </div>
                   <div>
-                    <span className="text-xs text-slate-500 block">Profit</span>
-                    <span className="text-base font-bold text-green-600">{formatMoney(editProfit)}</span>
+                    <span className="text-xs text-[#52627A] block font-medium">Profit</span>
+                    <span className="text-base font-bold text-[#087443] font-mono">{formatMoney(editProfit)}</span>
                   </div>
                 </div>
               )}
@@ -644,12 +724,14 @@ export default function WholesaleSalesPage() {
                   variant="outline" 
                   onClick={handleCancelEdit}
                   disabled={updateMutation.isPending}
+                  className="border-[#D9E0E8] text-[#172B4D]"
                 >
                   Cancel
                 </Button>
                 <Button 
                   type="submit" 
                   disabled={updateMutation.isPending || !editProductId || !editCustomerId || editQtyNum <= 0}
+                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold"
                 >
                   {updateMutation.isPending ? (
                     <>
@@ -665,6 +747,26 @@ export default function WholesaleSalesPage() {
           </div>
         </div>
       )}
+
+      {/* Accessible Confirm Dialog for Deleting Wholesale Sale */}
+      <ConfirmDialog
+        open={Boolean(saleToDelete)}
+        onOpenChange={(open) => !open && setSaleToDelete(null)}
+        title="Delete Wholesale Sale"
+        description={
+          saleToDelete
+            ? `Are you sure you want to delete the sale of ${saleToDelete.quantity} ${saleToDelete.product?.unit || "units"} to ${saleToDelete.customer?.name || "customer"}? This will restore ${saleToDelete.quantity} units to inventory.`
+            : ""
+        }
+        confirmLabel="Delete Sale"
+        variant="danger"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (saleToDelete) {
+            deleteMutation.mutate(saleToDelete.id)
+          }
+        }}
+      />
     </div>
   )
 }

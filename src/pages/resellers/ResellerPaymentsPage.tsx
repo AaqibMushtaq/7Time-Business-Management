@@ -1,18 +1,28 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getResellerPayments, createResellerPayment } from "@/services/resellerPayments"
+import {
+  getResellerPayments,
+  createResellerPayment,
+  type ResellerPayment,
+} from "@/services/resellerPayments"
 import { getResellers } from "@/services/resellers"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatMoney, formatDate } from "@/lib/utils"
+import { formatDate } from "@/lib/utils"
 import { Loader2, Plus } from "lucide-react"
+import {
+  PageContainer,
+  PageHeader,
+  DataTable,
+  type DataTableColumn,
+  CurrencyDisplay,
+} from "@/components/shared"
 
 export default function ResellerPaymentsPage() {
   const queryClient = useQueryClient()
-  
+
   const [customerId, setCustomerId] = useState("")
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0])
   const [amount, setAmount] = useState("")
@@ -55,47 +65,135 @@ export default function ResellerPaymentsPage() {
     })
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Reseller Payments</h1>
-      </div>
+  const paymentColumns: DataTableColumn<ResellerPayment>[] = useMemo(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        accessorKey: "payment_date",
+        sortable: true,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-[#64748B]">
+            {formatDate(row.payment_date)}
+          </span>
+        ),
+      },
+      {
+        id: "person",
+        header: "Person",
+        accessorFn: (row) => row.customer?.name || "—",
+        sortable: true,
+        cell: ({ row }) => (
+          <span className="font-medium text-[#0F172A]">
+            {row.customer?.name || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "method",
+        header: "Method",
+        accessorKey: "payment_method",
+        cell: ({ row }) => (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-[#EEF4FF] text-[#2563EB] border border-[#BFDBFE]/60">
+            {row.payment_method || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "reference",
+        header: "Reference",
+        accessorKey: "reference",
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-[#64748B]">
+            {row.reference || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "notes",
+        header: "Notes",
+        accessorKey: "notes",
+        cell: ({ row }) => (
+          <span className="text-xs text-[#64748B] max-w-[200px] truncate block" title={row.notes || ""}>
+            {row.notes || "—"}
+          </span>
+        ),
+      },
+      {
+        id: "amount",
+        header: "Amount Received",
+        accessorKey: "amount",
+        align: "right",
+        sortable: true,
+        cell: ({ row }) => (
+          <CurrencyDisplay amount={row.amount} variant="positive" bold />
+        ),
+      },
+    ],
+    []
+  )
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Record Payment from Reseller</CardTitle>
+  return (
+    <PageContainer>
+      <PageHeader
+        title="Personal Ledger Settlements"
+        badge={{ label: "SETTLEMENTS & CASH IN", variant: "brand" }}
+        description="Record incoming payments and debt settlements from personal ledger contacts."
+      />
+
+      <Card className="rounded-2xl border border-[#D9E0E8] bg-white shadow-xs">
+        <CardHeader className="border-b border-[#D9E0E8] bg-[#F8FAFC]">
+          <CardTitle className="text-base font-bold text-[#0F172A]">Record Payment from Contact</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
-            <div className="space-y-2">
-              <Label>Customer</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#0F172A] uppercase tracking-wider">Contact *</Label>
               <select
                 required
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                 value={customerId}
-                onChange={e => setCustomerId(e.target.value)}
+                onChange={(e) => setCustomerId(e.target.value)}
               >
-                <option value="" disabled>Select Customer</option>
-                {customers?.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                <option value="" disabled>Select Contact</option>
+                {customers?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
               </select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Payment Date</Label>
-              <Input type="date" required value={paymentDate} onChange={e => setPaymentDate(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#0F172A] uppercase tracking-wider">Payment Date *</Label>
+              <Input
+                type="date"
+                required
+                value={paymentDate}
+                onChange={(e) => setPaymentDate(e.target.value)}
+                className="border-[#D9E0E8] bg-white text-[#0F172A] rounded-xl h-10 focus:border-[#2563EB]"
+              />
             </div>
 
-            <div className="space-y-2">
-              <Label>Amount Received</Label>
-              <Input type="number" step="0.01" required value={amount} onChange={e => setAmount(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#0F172A] uppercase tracking-wider">Amount Received (₹) *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                required
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="border-[#D9E0E8] bg-white text-[#0F172A] rounded-xl h-10 focus:border-[#2563EB]"
+              />
             </div>
 
-            <div className="space-y-2">
-              <Label>Payment Method</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#0F172A] uppercase tracking-wider">Payment Method</Label>
               <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#0F172A] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                 value={paymentMethod}
-                onChange={e => setPaymentMethod(e.target.value)}
+                onChange={(e) => setPaymentMethod(e.target.value)}
               >
                 <option value="CASH">Cash</option>
                 <option value="BANK_TRANSFER">Bank Transfer</option>
@@ -104,14 +202,27 @@ export default function ResellerPaymentsPage() {
               </select>
             </div>
 
-            <div className="space-y-2">
-              <Label>Reference</Label>
-              <Input placeholder="Transaction ID" value={reference} onChange={e => setReference(e.target.value)} />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-[#0F172A] uppercase tracking-wider">Reference / Transaction ID</Label>
+              <Input
+                placeholder="e.g. UPI Ref / Cheque #"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                className="border-[#D9E0E8] bg-white text-[#0F172A] rounded-xl h-10 focus:border-[#2563EB]"
+              />
             </div>
 
-            <div className="space-y-2">
-              <Button type="submit" disabled={createMutation.isPending} className="w-full">
-                {createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+            <div className="space-y-1.5">
+              <Button
+                type="submit"
+                disabled={createMutation.isPending}
+                className="w-full h-10 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold rounded-xl cursor-pointer"
+              >
+                {createMutation.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="mr-2 h-4 w-4" />
+                )}
                 Record Payment
               </Button>
             </div>
@@ -119,53 +230,30 @@ export default function ResellerPaymentsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Payment History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoadingPayments ? (
-            <div className="flex justify-center p-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Customer</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead className="text-right">Amount Received</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments?.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground">
-                      No payments recorded.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  payments?.map((payment) => (
-                    <TableRow key={payment.id}>
-                      <TableCell>{formatDate(payment.payment_date)}</TableCell>
-                      <TableCell className="font-medium">{payment.customer?.name}</TableCell>
-                      <TableCell>{payment.payment_method}</TableCell>
-                      <TableCell>{payment.reference || "-"}</TableCell>
-                      <TableCell className="text-right font-bold text-green-600">
-                        {formatMoney(payment.amount)}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-</div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+      <DataTable<ResellerPayment>
+        title="Payment History"
+        subtitle="Historical log of payments and settlements received from personal ledger contacts."
+        columns={paymentColumns}
+        data={payments || []}
+        loading={isLoadingPayments}
+        searchable
+        searchPlaceholder="Search payments by person, reference..."
+        searchFn={(payment, query) => {
+          const q = query.toLowerCase()
+          return (
+            (payment.customer?.name?.toLowerCase().includes(q) ?? false) ||
+            (payment.reference?.toLowerCase().includes(q) ?? false) ||
+            (payment.notes?.toLowerCase().includes(q) ?? false) ||
+            (payment.payment_method?.toLowerCase().includes(q) ?? false)
+          )
+        }}
+        pagination
+        pageSize={15}
+        minWidth={800}
+        getRowId={(p) => p.id}
+        emptyTitle="No payments recorded"
+        emptyMessage="Payments and settlements recorded will appear here."
+      />
+    </PageContainer>
   )
 }

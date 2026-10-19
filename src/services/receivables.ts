@@ -185,10 +185,15 @@ export async function getUnifiedReceivables(
 
   const totalOutstanding = wholesaleOutstanding + (naeemOutstanding > 0 ? naeemOutstanding : 0) + otherOutstanding
 
+  // Calculate personal ledger outstanding from credit balances
+  const personalLedgerOutstanding = creditsRes.data?.reduce((sum: number, c: any) => {
+    return sum + Math.max(0, Number(c.total_amount || 0) - Number(c.amount_paid || 0))
+  }, 0) || 0
+
   return {
     totalOutstanding,
     wholesaleOutstanding,
-    personalLedgerOutstanding: 0,
+    personalLedgerOutstanding,
     naeemOutstanding: Math.max(0, naeemOutstanding),
     otherOutstanding,
     debtorsCount: debtorsList.length,

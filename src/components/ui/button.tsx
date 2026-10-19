@@ -14,15 +14,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // I can't use cva without installing class-variance-authority, I'll use standard classes
     const Comp = asChild ? Slot : "button"
     
-    let baseStyles = "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50"
+    let baseStyles = "inline-flex items-center justify-center whitespace-nowrap rounded-lg text-sm font-semibold ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 cursor-pointer"
     
     let variants = {
-      default: "bg-primary text-primary-foreground hover:bg-primary/90",
-      destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-      outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
-      secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-      ghost: "hover:bg-accent hover:text-accent-foreground",
-      link: "text-primary underline-offset-4 hover:underline",
+      default: "bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs active:scale-[0.99]",
+      destructive: "bg-[#B42318] text-white hover:bg-red-700 shadow-xs active:scale-[0.99]",
+      outline: "border border-[#D9E0E8] bg-white hover:bg-[#F1F4F8] text-[#172B4D] shadow-xs active:scale-[0.99]",
+      secondary: "bg-[#F1F4F8] border border-[#D9E0E8] text-[#172B4D] hover:bg-slate-200 shadow-xs active:scale-[0.99]",
+      ghost: "hover:bg-[#F1F4F8] text-[#52627A] hover:text-[#172B4D]",
+      link: "text-[#2563EB] hover:text-[#1D4ED8] underline-offset-4 hover:underline",
     }
     
     let sizes = {

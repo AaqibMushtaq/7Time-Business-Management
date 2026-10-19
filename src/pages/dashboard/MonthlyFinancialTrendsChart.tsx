@@ -40,15 +40,15 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
   }, [visibleData])
 
   return (
-    <Card className="border-[#E5E7EB] shadow-xs">
-      <CardHeader className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50">
+    <Card className="border-[#D9E0E8] shadow-xs bg-white rounded-2xl">
+      <CardHeader className="p-4 sm:p-5 border-b border-[#D9E0E8] bg-[#F8F7F2]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-sm sm:text-base font-bold text-[#0E2A47] flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-[#2D7FF9]" />
+            <CardTitle className="text-sm sm:text-base font-bold text-[#172B4D] flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-[#2563EB]" />
               Historical Monthly Financial Trends
             </CardTitle>
-            <CardDescription className="text-xs text-[#64748B] mt-0.5">
+            <CardDescription className="text-xs text-[#52627A] mt-0.5">
               Chronological trajectory of purchases, sales, profit, and actual liquid cash movements
             </CardDescription>
           </div>
@@ -56,14 +56,14 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
           {/* Controls: Horizon & Series Selector */}
           <div className="flex flex-wrap items-center gap-2">
             {/* 6M vs 12M Horizon Toggle */}
-            <div className="flex items-center bg-white border border-[#E5E7EB] p-0.5 rounded-lg shadow-2xs text-xs font-semibold">
+            <div className="flex items-center bg-white border border-[#D9E0E8] p-0.5 rounded-lg shadow-2xs text-xs font-semibold">
               <button
                 type="button"
                 onClick={() => setHorizon(6)}
                 className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                   horizon === 6
-                    ? "bg-[#2D7FF9] text-white shadow-xs font-bold"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-[#2563EB] text-white shadow-xs font-bold"
+                    : "text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8]"
                 }`}
               >
                 6 Months
@@ -73,8 +73,8 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
                 onClick={() => setHorizon(12)}
                 className={`px-2.5 py-1 rounded-md transition-all cursor-pointer ${
                   horizon === 12
-                    ? "bg-[#2D7FF9] text-white shadow-xs font-bold"
-                    : "text-slate-600 hover:text-slate-900"
+                    ? "bg-[#2563EB] text-white shadow-xs font-bold"
+                    : "text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8]"
                 }`}
               >
                 12 Months
@@ -82,12 +82,12 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
             </div>
 
             {/* Series Filter Dropdown */}
-            <div className="flex items-center gap-1.5 bg-white border border-[#E5E7EB] rounded-lg px-2.5 py-1 shadow-2xs">
-              <Filter className="w-3.5 h-3.5 text-slate-400" />
+            <div className="flex items-center gap-1.5 bg-white border border-[#D9E0E8] rounded-lg px-2.5 py-1 shadow-2xs">
+              <Filter className="w-3.5 h-3.5 text-[#52627A]" />
               <select
                 value={seriesFilter}
                 onChange={e => setSeriesFilter(e.target.value as TrendSeriesFilter)}
-                className="text-xs font-bold text-[#0E2A47] bg-transparent outline-none cursor-pointer"
+                className="text-xs font-bold text-[#172B4D] bg-transparent outline-none cursor-pointer"
                 aria-label="Filter trend series"
               >
                 <option value="ALL">All Financial Series</option>
@@ -102,12 +102,12 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
 
       <CardContent className="p-4 sm:p-5">
         {isAllZero ? (
-          <div className="h-64 sm:h-72 flex flex-col items-center justify-center text-center p-6 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-            <div className="w-10 h-10 rounded-full bg-blue-50 text-[#2D7FF9] flex items-center justify-center mb-2">
+          <div className="h-64 sm:h-72 flex flex-col items-center justify-center text-center p-6 bg-[#F8F7F2] rounded-xl border border-dashed border-[#D9E0E8]">
+            <div className="w-10 h-10 rounded-full bg-[#EFF6FF] text-[#2563EB] flex items-center justify-center mb-2">
               <Calendar className="w-5 h-5" />
             </div>
-            <p className="text-xs sm:text-sm font-bold text-slate-700">No Historical Financial Activity Recorded</p>
-            <p className="text-[11px] text-slate-500 max-w-sm mt-1">
+            <p className="text-xs sm:text-sm font-bold text-[#172B4D]">No Historical Financial Activity Recorded</p>
+            <p className="text-[11px] text-[#52627A] max-w-sm mt-1">
               Monthly trend lines will automatically render chronologically as wholesale sales, supplier purchases, and cash transactions are logged across months.
             </p>
           </div>
@@ -115,17 +115,17 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
           <div className="h-68 sm:h-80 w-full">
             <ResponsiveContainer width="100%" height="100%" minHeight={260} debounce={100}>
               <LineChart data={visibleData} margin={{ top: 15, right: 15, bottom: 5, left: -5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5EAF0" />
                 <XAxis
                   dataKey="shortLabel"
-                  tick={{ fontSize: 10, fill: "#64748B", fontWeight: 600 }}
-                  axisLine={{ stroke: "#E2E8F0" }}
+                  tick={{ fontSize: 10, fill: "#66758A", fontWeight: 600 }}
+                  axisLine={{ stroke: "#D9E0E8" }}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: "#64748B" }}
+                  tick={{ fontSize: 10, fill: "#66758A" }}
                   tickFormatter={(val: number) => `₹${Math.abs(val) >= 1000 ? `${(val / 1000).toFixed(0)}k` : val}`}
-                  axisLine={{ stroke: "#E2E8F0" }}
+                  axisLine={{ stroke: "#D9E0E8" }}
                   tickLine={false}
                 />
                 <Tooltip
@@ -133,10 +133,10 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
                     if (active && payload && payload.length) {
                       const item: MonthlyFinancialTrend = payload[0]?.payload
                       return (
-                        <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-lg p-3 text-xs space-y-1.5 min-w-[200px]">
-                          <p className="font-bold text-[#0E2A47] pb-1 border-b border-slate-100 flex items-center justify-between">
+                        <div className="bg-white border border-[#D9E0E8] rounded-xl shadow-lg p-3 text-xs space-y-1.5 min-w-[200px]">
+                          <p className="font-bold text-[#172B4D] pb-1 border-b border-[#D9E0E8] flex items-center justify-between">
                             <span>{item?.monthLabel || String(label)}</span>
-                            <span className="text-[10px] text-slate-400 font-normal">Monthly Flow</span>
+                            <span className="text-[10px] text-[#66758A] font-normal">Monthly Flow</span>
                           </p>
 
                           <div className="space-y-1 pt-0.5">
@@ -291,9 +291,9 @@ export default function MonthlyFinancialTrendsChart({ data = [] }: MonthlyFinanc
         )}
 
         {/* Disclaimer / Accounting Note */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-slate-400 gap-1">
+        <div className="pt-3 border-t border-[#D9E0E8] flex flex-col sm:flex-row items-start sm:items-center justify-between text-[11px] text-[#66758A] gap-1">
           <span>* Purchases, sales, and gross profit are mapped by transaction/invoice date; Cash In and Cash Out are mapped by actual payment date. Cumulative balances (Receivables & Payables) are displayed separately.</span>
-          <span className="font-semibold text-slate-500">Source: Realtime Verified Financial Records</span>
+          <span className="font-semibold text-[#52627A]">Source: Realtime Verified Financial Records</span>
         </div>
       </CardContent>
     </Card>

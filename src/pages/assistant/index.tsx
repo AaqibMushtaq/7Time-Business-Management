@@ -42,14 +42,14 @@ function parseInlineMarkdown(text: string) {
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**")) {
       return (
-        <strong key={i} className="font-semibold text-slate-900">
+        <strong key={i} className="font-semibold text-[#172B4D]">
           {part.slice(2, -2)}
         </strong>
       )
     }
     if (part.startsWith("`") && part.endsWith("`")) {
       return (
-        <code key={i} className="px-1.5 py-0.5 rounded bg-slate-100 text-blue-700 font-mono text-[11px]">
+        <code key={i} className="px-1.5 py-0.5 rounded bg-[#F1F4F8] text-[#2563EB] border border-[#D9E0E8] font-mono text-[11px]">
           {part.slice(1, -1)}
         </code>
       )
@@ -65,7 +65,7 @@ function SafeMarkdownText({ content, isUser }: { content: string; isUser?: boole
 
   const lines = content.split("\n")
   return (
-    <div className="space-y-1.5 leading-relaxed">
+    <div className="space-y-1.5 leading-relaxed text-[#172B4D]">
       {lines.map((line, idx) => {
         const trimmed = line.trim()
         if (!trimmed) {
@@ -75,7 +75,7 @@ function SafeMarkdownText({ content, isUser }: { content: string; isUser?: boole
         // Heading 3
         if (trimmed.startsWith("### ")) {
           return (
-            <h4 key={idx} className="font-bold text-sm text-[#0E2A47] mt-2 mb-0.5">
+            <h4 key={idx} className="font-bold text-sm text-[#172B4D] mt-2 mb-0.5">
               {parseInlineMarkdown(trimmed.slice(4))}
             </h4>
           )
@@ -84,7 +84,7 @@ function SafeMarkdownText({ content, isUser }: { content: string; isUser?: boole
         // Heading 2
         if (trimmed.startsWith("## ")) {
           return (
-            <h3 key={idx} className="font-bold text-base text-[#0E2A47] mt-2.5 mb-1">
+            <h3 key={idx} className="font-bold text-base text-[#172B4D] mt-2.5 mb-1">
               {parseInlineMarkdown(trimmed.slice(3))}
             </h3>
           )
@@ -93,7 +93,7 @@ function SafeMarkdownText({ content, isUser }: { content: string; isUser?: boole
         // Heading 1
         if (trimmed.startsWith("# ")) {
           return (
-            <h2 key={idx} className="font-extrabold text-lg text-[#0E2A47] mt-3 mb-1">
+            <h2 key={idx} className="font-extrabold text-lg text-[#172B4D] mt-3 mb-1">
               {parseInlineMarkdown(trimmed.slice(2))}
             </h2>
           )
@@ -104,8 +104,8 @@ function SafeMarkdownText({ content, isUser }: { content: string; isUser?: boole
           const bulletText = trimmed.replace(/^(\*|-|•)\s+/, "")
           return (
             <div key={idx} className="flex items-start gap-2 pl-1.5">
-              <span className="text-[#2D7FF9] font-bold shrink-0 leading-5 text-sm">•</span>
-              <div className="flex-1 text-slate-700">{parseInlineMarkdown(bulletText)}</div>
+              <span className="text-[#2563EB] font-bold shrink-0 leading-5 text-sm">•</span>
+              <div className="flex-1 text-[#52627A]">{parseInlineMarkdown(bulletText)}</div>
             </div>
           )
         }
@@ -115,10 +115,10 @@ function SafeMarkdownText({ content, isUser }: { content: string; isUser?: boole
         if (numMatch) {
           return (
             <div key={idx} className="flex items-start gap-2 pl-1.5">
-              <span className="text-slate-500 font-semibold shrink-0 text-xs leading-5">
+              <span className="text-[#52627A] font-semibold shrink-0 text-xs leading-5">
                 {numMatch[1]}.
               </span>
-              <div className="flex-1 text-slate-700">{parseInlineMarkdown(numMatch[2])}</div>
+              <div className="flex-1 text-[#52627A]">{parseInlineMarkdown(numMatch[2])}</div>
             </div>
           )
         }
@@ -284,23 +284,23 @@ export default function AIAssistantPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-4 pb-12 flex flex-col h-[calc(100vh-5rem)]">
       {/* HEADER BAR */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-white p-4 sm:p-5 rounded-xl border border-[#E5E7EB] shadow-xs shrink-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#FFFFFF] p-4 sm:p-5 rounded-2xl border border-[#D9E0E8] shadow-xs shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#2D7FF9] to-[#4A39D6] flex items-center justify-center text-white shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-[#2563EB] flex items-center justify-center text-white shadow-xs">
               <Sparkles className="w-4 h-4" />
             </div>
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0E2A47]">
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#172B4D]">
               7TIME AI Assistant
             </h1>
-            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-[#4A39D6] border border-purple-200 uppercase">
+            <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#EAF2FD] text-[#2563EB] border border-[#2563EB]/20 uppercase">
               {activeModel.replace(/-/g, " ").toUpperCase()}
             </span>
-            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EAF7EF] text-[#087443] border border-[#087443]/20">
               <ShieldCheck className="w-3 h-3" /> READ-ONLY
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
+          <p className="text-xs sm:text-sm text-[#52627A] mt-0.5">
             Deterministic business intelligence and natural language reporting on your live records
           </p>
         </div>
@@ -310,17 +310,17 @@ export default function AIAssistantPage() {
             variant="outline"
             size="sm"
             onClick={handleClearConversation}
-            className="text-xs text-slate-600 hover:text-[#0E2A47] gap-1.5 cursor-pointer"
+            className="text-xs text-[#172B4D] hover:bg-[#F8F7F2] hover:text-[#2563EB] border-[#D9E0E8] gap-1.5 cursor-pointer rounded-xl shadow-xs"
             title="Reset conversation and clear chat history"
           >
-            <RotateCcw className="w-3.5 h-3.5" />
+            <RotateCcw className="w-3.5 h-3.5 text-[#2563EB]" />
             <span>New Chat</span>
           </Button>
         </div>
       </div>
 
       {/* CHAT THREAD VIEWPORT */}
-      <Card className="flex-1 border-[#E5E7EB] shadow-xs flex flex-col min-h-0 bg-slate-50/50 overflow-hidden">
+      <Card className="flex-1 border-[#D9E0E8] rounded-2xl shadow-xs flex flex-col min-h-0 bg-[#F8F7F2] overflow-hidden">
         <CardContent className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4">
           {messages.map((message) => {
             const isUser = message.role === "user"
@@ -335,10 +335,10 @@ export default function AIAssistantPage() {
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-white ${
                     isUser
-                      ? "bg-[#0E2A47]"
+                      ? "bg-[#172B4D]"
                       : message.isError
-                      ? "bg-red-500"
-                      : "bg-gradient-to-tr from-[#2D7FF9] to-[#4A39D6]"
+                      ? "bg-[#B42318]"
+                      : "bg-[#2563EB]"
                   }`}
                 >
                   {isUser ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
@@ -346,32 +346,32 @@ export default function AIAssistantPage() {
 
                 {/* Message Body */}
                 <div
-                  className={`rounded-2xl p-4 shadow-2xs space-y-2 text-xs sm:text-sm leading-relaxed ${
+                  className={`rounded-2xl p-4 shadow-xs space-y-2 text-xs sm:text-sm leading-relaxed ${
                     isUser
-                      ? "bg-[#2D7FF9] text-white rounded-tr-none"
+                      ? "bg-[#2563EB] text-white rounded-tr-none"
                       : message.isError
-                      ? "bg-red-50/90 border border-red-200 text-red-950 rounded-tl-none"
-                      : "bg-white border border-[#E5E7EB] text-[#0E2A47] rounded-tl-none"
+                      ? "bg-[#FDECEC] border border-[#F87171]/40 text-[#B42318] rounded-tl-none"
+                      : "bg-[#FFFFFF] border border-[#D9E0E8] text-[#172B4D] rounded-tl-none"
                   }`}
                 >
                   {/* Text or Error Content */}
                   {message.isError ? (
                     <div className="space-y-2">
-                      <div className="flex items-center gap-1.5 font-bold text-red-700 text-xs sm:text-sm">
-                        <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
+                      <div className="flex items-center gap-1.5 font-bold text-[#B42318] text-xs sm:text-sm">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-[#B42318]" />
                         <span>{getErrorTitle(message.errorDetails?.code)}</span>
                       </div>
-                      <p className="text-red-900/90 text-xs sm:text-sm whitespace-pre-wrap">{message.text}</p>
+                      <p className="text-[#B42318] text-xs sm:text-sm whitespace-pre-wrap">{message.text}</p>
                       {message.errorDetails?.code === "QUOTA_EXCEEDED" && (
-                        <div className="mt-2 p-2.5 bg-white/80 border border-red-200 rounded-lg text-[11px] text-red-800 space-y-1">
-                          <p className="font-semibold text-red-900">Google AI Studio Quota Notice:</p>
+                        <div className="mt-2 p-2.5 bg-white border border-[#F87171]/40 rounded-lg text-[11px] text-[#B42318] space-y-1">
+                          <p className="font-semibold text-[#B42318]">Google AI Studio Quota Notice:</p>
                           <p>
                             Gemini API quota or rate limit has been reached for this model. Verify project limits and billing in{" "}
                             <a
                               href="https://aistudio.google.com"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="underline font-semibold text-blue-700 hover:text-blue-900"
+                              className="underline font-semibold text-[#2563EB] hover:text-[#1D4ED8]"
                             >
                               Google AI Studio
                             </a>. Immediate retry is not recommended.
@@ -379,16 +379,16 @@ export default function AIAssistantPage() {
                         </div>
                       )}
                       {message.errorDetails?.code === "MODEL_NOT_FOUND" && (
-                        <div className="mt-2 p-2.5 bg-white/80 border border-red-200 rounded-lg text-[11px] text-red-800 space-y-1">
-                          <p className="font-semibold text-red-900">Unsupported Model Notice:</p>
+                        <div className="mt-2 p-2.5 bg-white border border-[#F87171]/40 rounded-lg text-[11px] text-[#B42318] space-y-1">
+                          <p className="font-semibold text-[#B42318]">Unsupported Model Notice:</p>
                           <p>
                             The configured model is unavailable or unsupported. Configure an active, supported model ID in Supabase Edge Function secrets.
                           </p>
                         </div>
                       )}
                       {message.errorDetails?.code === "PROVIDER_UNAVAILABLE" && (
-                        <div className="mt-2 p-2.5 bg-white/80 border border-amber-200 rounded-lg text-[11px] text-amber-900 space-y-1">
-                          <p className="font-semibold text-amber-950">Temporary Provider Demand:</p>
+                        <div className="mt-2 p-2.5 bg-white border border-[#FDE68A] rounded-lg text-[11px] text-[#92400E] space-y-1">
+                          <p className="font-semibold text-[#92400E]">Temporary Provider Demand:</p>
                           <p>
                             Google Gemini servers are experiencing high traffic. You can try asking again shortly using the retry button below.
                           </p>
@@ -401,15 +401,15 @@ export default function AIAssistantPage() {
 
                   {/* Referenced module badges (for assistant messages) */}
                   {!isUser && !message.isError && message.referencedModules && message.referencedModules.length > 0 && (
-                    <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5 mt-2">
-                      <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                    <div className="pt-2 border-t border-[#D9E0E8] flex flex-wrap items-center gap-1.5 mt-2">
+                      <span className="text-[10px] text-[#52627A] font-semibold uppercase tracking-wider">
                         Source Data:
                       </span>
                       {message.referencedModules.map((mod) => (
                         <Link
                           key={mod}
                           to={getModuleRoute(mod)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 hover:bg-blue-50 hover:text-[#2D7FF9] border border-slate-200 transition-colors"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-[#F1F4F8] text-[#52627A] hover:bg-[#EAF2FD] hover:text-[#2563EB] border border-[#D9E0E8] transition-colors"
                         >
                           <span>{mod}</span>
                           <ArrowRight className="w-2.5 h-2.5" />
@@ -419,20 +419,20 @@ export default function AIAssistantPage() {
                   )}
 
                   {/* Metadata and actions footer */}
-                  <div className="flex items-center justify-between gap-4 pt-1 text-[10px] text-slate-400">
+                  <div className="flex items-center justify-between gap-4 pt-1 text-[10px] text-[#52627A]">
                     <span>{message.timestamp}</span>
 
                     <button
                       type="button"
                       onClick={() => handleCopyText(message.id, message.text)}
                       className={`inline-flex items-center gap-1 hover:underline transition-colors cursor-pointer ${
-                        isUser ? "text-blue-100 hover:text-white" : "text-slate-400 hover:text-slate-600"
+                        isUser ? "text-blue-100 hover:text-white" : "text-[#52627A] hover:text-[#172B4D]"
                       }`}
                       title="Copy response to clipboard"
                     >
                       {copiedId === message.id ? (
                         <>
-                          <Check className="w-3 h-3 text-emerald-500" />
+                          <Check className="w-3 h-3 text-[#087443]" />
                           <span>Copied</span>
                         </>
                       ) : (
@@ -451,11 +451,11 @@ export default function AIAssistantPage() {
           {/* THINKING SPINNER */}
           {isLoading && (
             <div className="flex gap-3 max-w-[85%] mr-auto items-center animate-pulse">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#2D7FF9] to-[#4A39D6] flex items-center justify-center text-white shrink-0">
+              <div className="w-8 h-8 rounded-full bg-[#2563EB] flex items-center justify-center text-white shrink-0">
                 <Bot className="w-4 h-4" />
               </div>
-              <div className="bg-white border border-[#E5E7EB] rounded-2xl rounded-tl-none p-3.5 shadow-2xs flex items-center gap-2.5 text-xs text-slate-500">
-                <Loader2 className="w-4 h-4 animate-spin text-[#2D7FF9]" />
+              <div className="bg-[#FFFFFF] border border-[#D9E0E8] rounded-2xl rounded-tl-none p-3.5 shadow-xs flex items-center gap-2.5 text-xs text-[#52627A]">
+                <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" />
                 <span>Consulting verified financial records with Gemini AI...</span>
               </div>
             </div>
@@ -469,7 +469,7 @@ export default function AIAssistantPage() {
                   <button
                     type="button"
                     onClick={() => handleSendMessage(lastFailedPrompt)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#B42318] text-xs font-semibold rounded-lg transition-colors cursor-pointer"
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
                     <span>Retry failed question</span>
@@ -480,14 +480,14 @@ export default function AIAssistantPage() {
                       setInputPrompt(lastFailedPrompt)
                       inputRef.current?.focus()
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#F1F4F8] hover:bg-[#E5E9F0] text-[#172B4D] text-xs font-medium rounded-lg transition-colors cursor-pointer"
                   >
                     <span>Edit question</span>
                   </button>
                 </>
               ) : (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg">
-                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF4D6] border border-[#FDE68A] text-[#92400E] text-xs rounded-lg">
+                  <AlertCircle className="w-3.5 h-3.5 text-[#92400E] shrink-0" />
                   <span>
                     {lastErrorDetails?.code === "QUOTA_EXCEEDED"
                       ? "Quota exhausted: retrying immediately will not succeed. Check Google AI Studio."
@@ -507,8 +507,8 @@ export default function AIAssistantPage() {
 
         {/* SUGGESTED QUESTIONS (Shown if conversation has <= 2 messages) */}
         {messages.length <= 2 && (
-          <div className="px-4 py-3 bg-white border-t border-slate-100 shrink-0">
-            <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-wider block mb-2">
+          <div className="px-4 py-3 bg-[#FFFFFF] border-t border-[#D9E0E8] shrink-0">
+            <span className="text-[11px] font-bold text-[#52627A] uppercase tracking-wider block mb-2">
               Suggested Questions
             </span>
             <div className="flex flex-wrap gap-1.5">
@@ -518,9 +518,9 @@ export default function AIAssistantPage() {
                   type="button"
                   onClick={() => handleSendMessage(item.prompt)}
                   disabled={isLoading}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-700 hover:text-[#2D7FF9] border border-slate-200 hover:border-blue-200 transition-all cursor-pointer text-left"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg bg-[#FFFFFF] hover:bg-[#F1F4F8] text-[#172B4D] hover:text-[#2563EB] border border-[#D9E0E8] hover:border-[#2563EB]/30 transition-all cursor-pointer text-left"
                 >
-                  <Sparkles className="w-3 h-3 text-[#2D7FF9] shrink-0" />
+                  <Sparkles className="w-3 h-3 text-[#2563EB] shrink-0" />
                   <span>{item.label}</span>
                 </button>
               ))}
@@ -529,7 +529,7 @@ export default function AIAssistantPage() {
         )}
 
         {/* INPUT COMPOSER */}
-        <div className="p-3 sm:p-4 bg-white border-t border-[#E5E7EB] shrink-0">
+        <div className="p-3 sm:p-4 bg-[#FFFFFF] border-t border-[#D9E0E8] shrink-0">
           <label htmlFor="ai-assistant-prompt-input" className="sr-only">
             Ask a business intelligence question
           </label>
@@ -544,14 +544,14 @@ export default function AIAssistantPage() {
               disabled={isLoading}
               aria-label="Ask the 7TIME AI Assistant"
               rows={2}
-              className="flex-1 resize-none rounded-xl border border-slate-200 p-2.5 text-xs sm:text-sm text-[#0E2A47] focus:outline-none focus:ring-2 focus:ring-[#2D7FF9]/40 focus:border-[#2D7FF9] transition-all bg-slate-50/50"
+              className="flex-1 resize-none rounded-xl border border-[#D9E0E8] p-2.5 text-xs sm:text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-all bg-[#FFFFFF] placeholder:text-[#52627A]"
             />
             <Button
               type="button"
               onClick={() => handleSendMessage()}
               disabled={isLoading || !inputPrompt.trim()}
               aria-label="Send message"
-              className="bg-[#2D7FF9] hover:bg-blue-600 text-white rounded-xl h-11 px-4 shrink-0 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5 font-semibold"
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white rounded-xl h-11 px-4 shrink-0 transition-opacity shadow-xs cursor-pointer flex items-center gap-1.5 font-semibold"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -565,7 +565,7 @@ export default function AIAssistantPage() {
           </div>
 
           {/* COMPLIANCE & PRIVACY FOOTER */}
-          <div className="flex flex-wrap items-center justify-between text-[10px] text-slate-400 mt-2 px-1">
+          <div className="flex flex-wrap items-center justify-between text-[10px] text-[#52627A] mt-2 px-1">
             <span className="flex items-center gap-1">
               <Info className="w-3 h-3" />
               <span>Read-only assistant. Never modifies or creates financial transactions.</span>

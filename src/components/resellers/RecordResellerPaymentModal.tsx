@@ -197,27 +197,24 @@ export default function RecordResellerPaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 overflow-y-auto">
       <div 
-        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
+        className="relative w-full max-w-2xl bg-white rounded-xl shadow-2xl border border-[#D9E0E8] overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="record-customer-payment-title"
       >
         {/* Modal Header */}
-        <div 
-          className="px-6 py-5 text-white flex items-center justify-between"
-          style={{ background: "linear-gradient(135deg, #2D7FF9 0%, #4A39D6 100%)" }}
-        >
+        <div className="px-6 py-5 bg-[#F8F7F2] border-b border-[#D9E0E8] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-white shadow-inner">
+            <div className="h-10 w-10 rounded-xl bg-[#EBF2FE] border border-[#BFDBFE] flex items-center justify-center text-[#2563EB]">
               <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="record-customer-payment-title" className="text-xl font-bold leading-tight">
+              <h2 id="record-customer-payment-title" className="text-xl font-bold text-[#172B4D] leading-tight">
                 Record Settlement Received
               </h2>
-              <p className="text-xs text-blue-100 font-medium">
+              <p className="text-xs text-[#52627A] font-medium">
                 {currentReseller ? `Settlement received from ${currentReseller.name}` : "Personal ledger settlement received"}
               </p>
             </div>
@@ -225,7 +222,7 @@ export default function RecordResellerPaymentModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-1.5 text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            className="rounded-full p-1.5 text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8] transition-colors cursor-pointer"
             title="Close"
             aria-label="Close"
           >
@@ -236,24 +233,24 @@ export default function RecordResellerPaymentModal({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
           {formError && (
-            <div className="p-3.5 bg-red-50 border border-red-200 text-red-700 rounded-xl text-sm flex items-start gap-2.5">
-              <AlertCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            <div className="p-3.5 bg-[#FDECEC] border border-[#FECDCA] text-[#B42318] rounded-xl text-sm flex items-start gap-2.5">
+              <AlertCircle className="h-5 w-5 text-[#B42318] shrink-0 mt-0.5" />
               <div>
-                <p className="font-semibold">Unable to record settlement</p>
-                <p className="text-xs text-red-600 mt-0.5">{formError}</p>
+                <p className="font-semibold text-[#B42318]">Unable to record settlement</p>
+                <p className="text-xs text-[#B42318] mt-0.5">{formError}</p>
               </div>
             </div>
           )}
 
           {/* Person Selection */}
           <div className="space-y-1.5">
-            <Label htmlFor="reseller-select" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-              Person <span className="text-red-500">*</span>
+            <Label htmlFor="reseller-select" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+              Person <span className="text-[#B42318]">*</span>
             </Label>
             <select
               id="reseller-select"
               required
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
+              className="flex h-10 w-full rounded-lg border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] shadow-xs focus:border-[#2563EB] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20"
               value={customerId}
               onChange={(e) => {
                 setSelectedId(e.target.value)
@@ -272,8 +269,8 @@ export default function RecordResellerPaymentModal({
             {/* Current Balance Hint */}
             {currentReseller && (
               <div className="flex items-center justify-between text-xs px-1 pt-1">
-                <span className="text-slate-500">Total Account Outstanding:</span>
-                <span className={`font-bold ${Number(currentReseller.outstanding || 0) > 0 ? "text-red-600" : "text-emerald-600"}`}>
+                <span className="text-[#52627A]">Total Account Outstanding:</span>
+                <span className={`font-bold ${Number(currentReseller.outstanding || 0) > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
                   {formatMoney(currentReseller.outstanding || 0)}
                 </span>
               </div>
@@ -283,8 +280,8 @@ export default function RecordResellerPaymentModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Settlement Date */}
             <div className="space-y-1.5">
-              <Label htmlFor="payment-date" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Settlement Date <span className="text-red-500">*</span>
+              <Label htmlFor="payment-date" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                Settlement Date <span className="text-[#B42318]">*</span>
               </Label>
               <Input
                 id="payment-date"
@@ -293,14 +290,14 @@ export default function RecordResellerPaymentModal({
                 value={paymentDate}
                 onChange={(e) => setPaymentDate(e.target.value)}
                 disabled={mutation.isPending}
-                className="border-slate-200 focus-visible:ring-[#2D7FF9]"
+                className="border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]"
               />
             </div>
 
             {/* Amount Received */}
             <div className="space-y-1.5">
-              <Label htmlFor="payment-amount" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                Amount Received (Rs) <span className="text-red-500">*</span>
+              <Label htmlFor="payment-amount" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                Amount Received (Rs) <span className="text-[#B42318]">*</span>
               </Label>
               <Input
                 id="payment-amount"
@@ -312,7 +309,7 @@ export default function RecordResellerPaymentModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 disabled={mutation.isPending}
-                className="border-slate-200 focus-visible:ring-[#2D7FF9] font-bold text-lg text-slate-900"
+                className="border-[#D9E0E8] bg-white font-bold text-lg text-[#172B4D] focus-visible:ring-[#2563EB]"
               />
             </div>
           </div>
@@ -320,12 +317,12 @@ export default function RecordResellerPaymentModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Payment Method */}
             <div className="space-y-1.5">
-              <Label htmlFor="payment-method" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <Label htmlFor="payment-method" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
                 Payment Method
               </Label>
               <select
                 id="payment-method"
-                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs focus:border-[#2D7FF9] focus:outline-hidden focus:ring-2 focus:ring-[#2D7FF9]/20"
+                className="flex h-10 w-full rounded-lg border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] shadow-xs focus:border-[#2563EB] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20"
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
                 disabled={mutation.isPending}
@@ -339,7 +336,7 @@ export default function RecordResellerPaymentModal({
 
             {/* Reference */}
             <div className="space-y-1.5">
-              <Label htmlFor="reference" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+              <Label htmlFor="reference" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
                 Reference / Cheque No.
               </Label>
               <Input
@@ -348,18 +345,18 @@ export default function RecordResellerPaymentModal({
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
                 disabled={mutation.isPending}
-                className="border-slate-200 focus-visible:ring-[#2D7FF9]"
+                className="border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]"
               />
             </div>
           </div>
 
           {/* Explicit Allocation Section for Outstanding Entries */}
           {outstandingEntries.length > 0 && (
-            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+            <div className="p-4 bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <Layers className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                  <Layers className="h-4 w-4 text-[#2563EB]" />
+                  <span className="text-xs font-bold text-[#172B4D] uppercase tracking-wider">
                     Allocate to Outstanding Entries ({outstandingEntries.length})
                   </span>
                 </div>
@@ -368,22 +365,22 @@ export default function RecordResellerPaymentModal({
                     type="button"
                     onClick={handleAutoDistribute}
                     disabled={parsedTotalPayment <= 0}
-                    className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline disabled:opacity-50"
+                    className="text-xs font-bold text-[#2563EB] hover:text-[#1D4ED8] hover:underline disabled:opacity-50 cursor-pointer"
                   >
                     Auto-Allocate
                   </button>
-                  <span className="text-slate-300">|</span>
+                  <span className="text-[#D9E0E8]">|</span>
                   <button
                     type="button"
                     onClick={handleClearAllocations}
-                    className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline"
+                    className="text-xs font-medium text-[#52627A] hover:text-[#172B4D] hover:underline cursor-pointer"
                   >
                     Clear
                   </button>
                 </div>
               </div>
 
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-[#52627A]">
                 You can specify exactly how much of this settlement covers each outstanding Expense on Behalf, Qard Hasan, or Other Personal transaction. Unallocated funds act as advance.
               </p>
 
@@ -394,27 +391,27 @@ export default function RecordResellerPaymentModal({
                   return (
                     <div
                       key={entry.id}
-                      className="p-2.5 bg-white border border-slate-200 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs"
+                      className="p-2.5 bg-white border border-[#D9E0E8] rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-xs"
                     >
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
                             {getCreditTypeLabel(entry.entry_type)}
                           </span>
-                          <span className="text-xs font-bold text-slate-800">
+                          <span className="text-xs font-bold text-[#172B4D]">
                             {entry.entry_type === "PRODUCT_CREDIT" && (entry.product_name || "Expense on Behalf")}
                             {entry.entry_type === "CASH_LOAN" && "Qard Hasan"}
                             {entry.entry_type === "OTHER_CREDIT" && (entry.description || "Other Personal")}
                           </span>
                         </div>
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[11px] text-[#52627A]">
                           Date: {formatDate(entry.entry_date)} • Total: {formatMoney(entry.total_amount)} • Remaining:{" "}
-                          <span className="font-bold text-red-600">{formatMoney(entry.balance)}</span>
+                          <span className="font-bold text-[#B42318]">{formatMoney(entry.balance)}</span>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        <Label className="text-[11px] text-slate-500">Allocate:</Label>
+                        <Label className="text-[11px] text-[#52627A]">Allocate:</Label>
                         <Input
                           type="number"
                           step="0.01"
@@ -423,12 +420,12 @@ export default function RecordResellerPaymentModal({
                           placeholder="0.00"
                           value={entryAlloc}
                           onChange={(e) => handleAllocationChange(entry.id, e.target.value)}
-                          className="w-28 h-8 text-xs font-bold text-slate-900 border-slate-300"
+                          className="w-28 h-8 text-xs font-bold text-[#172B4D] border-[#D9E0E8] bg-white"
                         />
                         <button
                           type="button"
                           onClick={() => handleAllocationChange(entry.id, entry.balance.toString())}
-                          className="text-[10px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-md"
+                          className="text-[10px] font-bold text-[#2563EB] hover:text-[#1D4ED8] bg-[#EBF2FE] px-2 py-1 rounded-md cursor-pointer"
                           title="Allocate full balance"
                         >
                           Full
@@ -440,19 +437,19 @@ export default function RecordResellerPaymentModal({
               </div>
 
               {/* Allocation Summary Bar */}
-              <div className="p-2.5 bg-blue-50/70 border border-blue-200 rounded-lg flex items-center justify-between text-xs font-medium">
+              <div className="p-2.5 bg-[#EBF2FE] border border-[#BFDBFE] rounded-lg flex items-center justify-between text-xs font-medium">
                 <div>
-                  <span className="text-slate-600">Allocated: </span>
-                  <span className="font-bold text-blue-800">{formatMoney(totalAllocated)}</span>
+                  <span className="text-[#52627A]">Allocated: </span>
+                  <span className="font-bold text-[#2563EB]">{formatMoney(totalAllocated)}</span>
                 </div>
                 <div>
-                  <span className="text-slate-600">Advance Balance: </span>
-                  <span className="font-bold text-emerald-700">{formatMoney(unallocatedAdvance)}</span>
+                  <span className="text-[#52627A]">Advance Balance: </span>
+                  <span className="font-bold text-[#087443]">{formatMoney(unallocatedAdvance)}</span>
                 </div>
               </div>
 
               {isOverAllocated && (
-                <div className="text-xs text-red-600 font-bold flex items-center gap-1">
+                <div className="text-xs text-[#B42318] font-bold flex items-center gap-1">
                   <AlertCircle className="h-3.5 w-3.5" />
                   Total allocated exceeds settlement amount!
                 </div>
@@ -462,7 +459,7 @@ export default function RecordResellerPaymentModal({
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <Label htmlFor="notes" className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+            <Label htmlFor="notes" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
               Notes / Remarks
             </Label>
             <Input
@@ -471,25 +468,25 @@ export default function RecordResellerPaymentModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               disabled={mutation.isPending}
-              className="border-slate-200 focus-visible:ring-[#2D7FF9]"
+              className="border-[#D9E0E8] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]"
             />
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#D9E0E8]">
             <Button
               type="button"
               variant="outline"
               onClick={onClose}
               disabled={mutation.isPending}
-              className="border-slate-200 hover:bg-slate-50 text-slate-700"
+              className="border-[#D9E0E8] hover:bg-[#F1F4F8] text-[#172B4D] cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={mutation.isPending || isOverAllocated}
-              className="bg-[#2D7FF9] hover:bg-[#2068d4] text-white font-semibold shadow-xs"
+              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs cursor-pointer"
             >
               {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Save Settlement

@@ -103,22 +103,56 @@ export async function upsertDailyRecord(
       }])
       .select()
 
-    if (error) throw new Error(error.message)
-    dailyRecordId = data[0].id
+    if (error) {
+      // Concurrency race condition recovery: if another client created the daily record concurrently
+      if (error.code === "23505" || error.message?.includes("duplicate key") || error.message?.includes("23505")) {
+        const { data: retryExisting, error: retryErr } = await supabase
+          .from("general_daily_records")
+          .select("id")
+          .eq("record_date", record_date)
+          .single()
+
+        if (retryErr) throw new Error(retryErr.message)
+        dailyRecordId = retryExisting.id
+
+        // Apply updates to the concurrently created record
+        const updatePayload: Record<string, any> = { updated_at: new Date().toISOString() }
+        if (params.fuel_expenses !== undefined) updatePayload.fuel_expenses = params.fuel_expenses
+        if (params.opening_balance !== undefined) updatePayload.opening_balance = params.opening_balance
+        if (params.remarks !== undefined) updatePayload.remarks = params.remarks
+        if (params.delivery_expression !== undefined) updatePayload.delivery_expression = params.delivery_expression
+
+        const { error: retryUpdateErr } = await supabase
+          .from("general_daily_records")
+          .update(updatePayload)
+          .eq("id", dailyRecordId)
+
+        if (retryUpdateErr) throw new Error(retryUpdateErr.message)
+      } else {
+        throw new Error(error.message)
+      }
+    } else {
+      dailyRecordId = data[0].id
+    }
   }
 
   // 2. If delivery_expression is present, sync with general_delivery_entries so dashboard & reports stay accurate
   if (params.delivery_expression && dailyRecordId) {
     const parseResult = parseArithmeticExpression(params.delivery_expression)
     if (parseResult.isValid && parseResult.value !== null) {
-      const { data: existingEntries } = await supabase
+      const { data: existingEntries, error: fetchEntriesErr } = await supabase
         .from("general_delivery_entries")
-        .select("id")
+        .select("id, customer_name")
         .eq("daily_record_id", dailyRecordId)
-        .limit(1)
+        .limit(20)
 
-      if (existingEntries && existingEntries.length > 0) {
-        await supabase
+      if (fetchEntriesErr) throw new Error(fetchEntriesErr.message)
+
+      // Strictly target the 'Daily Operations' entry or unnamed legacy summary to preserve specific customer delivery rows
+      const targetEntry = (existingEntries || []).find((e: any) => e.customer_name === "Daily Operations" || !e.customer_name)
+
+      if (targetEntry) {
+        const { error: updateEntryErr } = await supabase
           .from("general_delivery_entries")
           .update({
             amount: parseResult.value,
@@ -126,9 +160,11 @@ export async function upsertDailyRecord(
             description: params.delivery_expression,
             updated_at: new Date().toISOString()
           })
-          .eq("id", existingEntries[0].id)
+          .eq("id", targetEntry.id)
+
+        if (updateEntryErr) throw new Error(updateEntryErr.message)
       } else {
-        await supabase
+        const { error: insertEntryErr } = await supabase
           .from("general_delivery_entries")
           .insert([{
             id: crypto.randomUUID(),
@@ -139,6 +175,8 @@ export async function upsertDailyRecord(
             received_amount: parseResult.value,
             payment_method: "Cash"
           }])
+
+        if (insertEntryErr) throw new Error(insertEntryErr.message)
       }
     }
   }
@@ -186,8 +224,23 @@ export async function upsertDeliveryEntry(record_date: string, entry: GeneralDel
       .insert([{ record_date, fuel_expenses: 0, opening_balance: 0, remarks: null }])
       .select()
       .single()
-    if (insertError) throw new Error(insertError.message)
-    dailyRecord = newRec
+
+    if (insertError) {
+      // Concurrency race condition recovery: if concurrent request inserted the record
+      if (insertError.code === "23505" || insertError.message?.includes("duplicate key") || insertError.message?.includes("23505")) {
+        const { data: existingRec, error: fetchErr } = await supabase
+          .from("general_daily_records")
+          .select("id")
+          .eq("record_date", record_date)
+          .single()
+        if (fetchErr) throw new Error(fetchErr.message)
+        dailyRecord = existingRec
+      } else {
+        throw new Error(insertError.message)
+      }
+    } else {
+      dailyRecord = newRec
+    }
   }
 
   // Insert or Update the entry

@@ -3,12 +3,19 @@ import { useParams, Link } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { updateDealer } from "@/services/dealers"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { formatMoney, formatDate } from "@/lib/utils"
-import { Loader2, ArrowLeft, Package, Wallet, ShoppingCart, Pencil } from "lucide-react"
+import { formatDate } from "@/lib/utils"
+import {
+  PageContainer,
+  SectionCard,
+  MetricCard,
+  CurrencyDisplay,
+  ResponsiveTable,
+  EmptyState,
+} from "@/components/shared"
+import { Loader2, ArrowLeft, Package, Wallet, ShoppingCart, Pencil, Building2 } from "lucide-react"
 
 export default function DealerDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -45,7 +52,10 @@ export default function DealerDetailPage() {
   const { data: purchases } = useQuery({
     queryKey: ["dealerPurchases", id],
     queryFn: async () => {
-      const { data, error } = await (supabase.from("purchases").select(`*, product:products(name)`) as any).eq("dealer_id", id).order("purchase_date", { ascending: false }).limit(999999)
+      const { data, error } = await (supabase.from("purchases").select(`*, product:products(name)`) as any)
+        .eq("dealer_id", id)
+        .order("purchase_date", { ascending: false })
+        .limit(999999)
       if (error) throw new Error(error.message)
       return data
     },
@@ -54,7 +64,12 @@ export default function DealerDetailPage() {
   const { data: payments } = useQuery({
     queryKey: ["dealerPaymentsHistory", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("dealer_payments").select("*").eq("dealer_id", id).order("payment_date", { ascending: false }).limit(999999)
+      const { data, error } = await supabase
+        .from("dealer_payments")
+        .select("*")
+        .eq("dealer_id", id)
+        .order("payment_date", { ascending: false })
+        .limit(999999)
       if (error) throw new Error(error.message)
       return data
     },
@@ -81,14 +96,9 @@ export default function DealerDetailPage() {
       whatsapp: dealer.whatsapp || "",
       address: dealer.address || "",
       notes: dealer.notes || "",
-      opening_balance: dealer.opening_balance != null ? String(dealer.opening_balance) : "0"
+      opening_balance: dealer.opening_balance !== null && dealer.opening_balance !== undefined ? String(dealer.opening_balance) : "0"
     })
     setIsEditOpen(true)
-  }
-
-  const closeEditModal = () => {
-    setIsEditOpen(false)
-    setEditFormError(null)
   }
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -96,7 +106,7 @@ export default function DealerDetailPage() {
     setEditFormError(null)
     if (!editFormData.name.trim()) return
 
-    const payload = {
+    updateMutation.mutate({
       name: editFormData.name.trim(),
       phone: editFormData.phone.trim() || null,
       whatsapp: editFormData.whatsapp.trim() || null,
@@ -105,17 +115,34 @@ export default function DealerDetailPage() {
       opening_balance: editFormData.opening_balance !== "" && !isNaN(Number(editFormData.opening_balance))
         ? Number(editFormData.opening_balance)
         : 0
-    }
-
-    updateMutation.mutate(payload)
+    })
   }
 
   if (isLoadingDealer) {
-    return <div className="flex justify-center p-8"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+    return (
+      <div className="flex justify-center p-16">
+        <Loader2 className="h-8 w-8 animate-spin text-[#207FF9]" />
+      </div>
+    )
   }
 
   if (!dealer) {
-    return <div>Dealer not found.</div>
+    return (
+      <PageContainer>
+        <EmptyState
+          icon={Building2}
+          title="Dealer not found"
+          description="The dealer you are looking for does not exist or has been removed."
+          action={
+            <Link to="/dealers">
+              <Button variant="outline" className="border-[#DCE5F0] text-[#102B46]">
+                <ArrowLeft className="h-4 w-4 mr-2" /> Back to Dealers
+              </Button>
+            </Link>
+          }
+        />
+      </PageContainer>
+    )
   }
 
   // Calculate totals
@@ -127,249 +154,436 @@ export default function DealerDetailPage() {
   const outstandingBalance = openingBalance + totalPurchases - totalPaid
 
   return (
-    <div className="space-y-6">
+    <PageContainer>
+      {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <Link to="/dealers">
-            <Button variant="outline" size="icon"><ArrowLeft className="h-4 w-4" /></Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] rounded-xl h-10 w-10 transition-colors shadow-xs cursor-pointer"
+              aria-label="Back to Dealers"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">{dealer.name}</h1>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#172B4D]">
+              {dealer.name}
+            </h1>
+            <p className="text-xs sm:text-sm text-[#52627A]">
+              {dealer.phone ? `Phone: ${dealer.phone}` : "No phone registered"} {dealer.address ? `• ${dealer.address}` : ""}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={openEditModal}>
-            <Pencil className="mr-2 h-4 w-4" /> Edit Dealer
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            onClick={openEditModal}
+            className="border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] rounded-xl font-medium cursor-pointer"
+          >
+            <Pencil className="mr-1.5 h-4 w-4 text-[#52627A]" /> Edit Dealer
           </Button>
           <Link to="/purchases">
-            <Button variant="outline"><ShoppingCart className="mr-2 h-4 w-4" /> Add Purchase</Button>
+            <Button variant="outline" className="border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] rounded-xl font-medium cursor-pointer">
+              <ShoppingCart className="mr-1.5 h-4 w-4 text-[#2563EB]" /> Add Purchase
+            </Button>
           </Link>
           <Link to="/dealer-payments">
-            <Button><Wallet className="mr-2 h-4 w-4" /> Record Payment</Button>
+            <Button className="rounded-xl font-semibold shadow-xs bg-[#2563EB] hover:bg-[#1D4ED8] text-white cursor-pointer">
+              <Wallet className="mr-1.5 h-4 w-4" /> Record Payment
+            </Button>
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-sm">
-          <CardHeader className="pb-2"><CardTitle className="text-sm opacity-90">Total Purchases</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{formatMoney(totalPurchases)}</div></CardContent>
-        </Card>
-        
-        <Card className="bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm">
-          <CardHeader className="pb-2"><CardTitle className="text-sm opacity-90">Total Paid</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{formatMoney(totalPaid)}</div></CardContent>
-        </Card>
+      {/* 3 Metric Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <MetricCard
+          title="Total Purchases"
+          value={<CurrencyDisplay amount={totalPurchases} />}
+          subtitle="Cumulative purchase volume"
+          icon={ShoppingCart}
+          variant="default"
+        />
 
-        <Card className={`bg-gradient-to-br ${outstandingBalance > 0 ? 'from-rose-500 to-rose-600' : 'from-emerald-500 to-emerald-600'} text-white shadow-sm`}>
-          <CardHeader className="pb-2"><CardTitle className="text-sm opacity-90">Outstanding Balance</CardTitle></CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{formatMoney(outstandingBalance)}</div>
-            <p className="text-xs font-semibold uppercase mt-1 tracking-wider opacity-90">
+        <MetricCard
+          title="Total Paid"
+          value={<CurrencyDisplay amount={totalPaid} variant="positive" />}
+          subtitle="At purchase + separate payments"
+          icon={Wallet}
+          variant="green"
+        />
+
+        <MetricCard
+          title="Outstanding Balance"
+          value={
+            <CurrencyDisplay
+              amount={outstandingBalance}
+              variant={outstandingBalance > 0 ? "negative" : "positive"}
+            />
+          }
+          subtitle={
+            <span>
               {outstandingBalance >= 0 ? "We Owe Dealer" : "Advance / Dealer Owes Us"}
-            </p>
-            {openingBalance !== 0 && (
-              <p className="text-xs opacity-80 mt-1">
-                (Includes Opening: {formatMoney(openingBalance)})
-              </p>
-            )}
-          </CardContent>
-        </Card>
+              {openingBalance !== 0 && ` (Incl. Op. Bal: ₹${openingBalance.toLocaleString()})`}
+            </span>
+          }
+          icon={Wallet}
+          variant={outstandingBalance > 0 ? "red" : "green"}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Products */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Associated Products</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
-                  <TableHead className="text-right">Buying Cost</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products?.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground">No products found.</TableCell></TableRow>}
-                {products?.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">
-                      <Link to={`/products/${p.id}`} className="text-blue-600 hover:underline">{p.name}</Link>
-                    </TableCell>
-                    <TableCell className="text-right">{p.stock_quantity} {p.unit}</TableCell>
-                    <TableCell className="text-right">{formatMoney(p.buying_cost)}</TableCell>
+        <SectionCard
+          title="Associated Products"
+          icon={Package}
+          description="Catalog items sourced from this dealer."
+          noPadding
+        >
+          {products?.length === 0 ? (
+            <div className="p-6">
+              <EmptyState
+                icon={Package}
+                title="No products found"
+                description="No catalog products are currently associated with this dealer."
+              />
+            </div>
+          ) : (
+            <ResponsiveTable minWidth={450}>
+              <Table className="border-collapse">
+                <TableHeader>
+                  <TableRow className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-4">
+                      Product
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-4">
+                      Stock
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Buying Cost
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-</div>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {products?.map((p: any) => (
+                    <TableRow
+                      key={p.id}
+                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] transition-colors"
+                    >
+                      <TableCell className="font-medium py-2.5 px-4">
+                        <Link
+                          to={`/products/${p.id}`}
+                          className="text-[#2563EB] hover:underline font-semibold"
+                        >
+                          {p.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-[#0F172A] py-2.5 px-4 font-mono">
+                        {p.stock_quantity} {p.unit}
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <CurrencyDisplay amount={p.buying_cost} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ResponsiveTable>
+          )}
+        </SectionCard>
 
-        {/* Purchase History */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-5 w-5" /> Purchase History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Total</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {purchases?.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No purchases yet.</TableCell></TableRow>}
-                {purchases?.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{formatDate(p.purchase_date)}</TableCell>
-                    <TableCell className="truncate max-w-[120px]" title={p.product?.name}>{p.product?.name}</TableCell>
-                    <TableCell className="text-right">{p.quantity_bought} {p.product?.unit}</TableCell>
-                    <TableCell className="text-right font-medium">{formatMoney(p.total_amount)}</TableCell>
-                    <TableCell className="text-right">
-                      <Link to="/purchases">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-slate-900" title="Edit Purchase in Purchases page">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </TableCell>
+        {/* Purchases */}
+        <SectionCard
+          title="Purchase History"
+          icon={ShoppingCart}
+          description="Log of purchases made from this supplier."
+          noPadding
+        >
+          {purchases?.length === 0 ? (
+            <div className="p-6">
+              <EmptyState
+                icon={ShoppingCart}
+                title="No purchases yet"
+                description="No purchase records have been logged with this dealer."
+              />
+            </div>
+          ) : (
+            <ResponsiveTable minWidth={550}>
+              <Table className="border-collapse">
+                <TableHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                  <TableRow className="border-b border-[#E2E8F0] hover:bg-transparent">
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Date
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-4">
+                      Product
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-4">
+                      Qty
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-4">
+                      Total
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Action
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-</div>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {purchases?.map((p: any) => (
+                    <TableRow
+                      key={p.id}
+                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] transition-colors"
+                    >
+                      <TableCell className="text-[#0F172A] font-medium py-2.5 px-4 font-mono text-xs">
+                        {formatDate(p.purchase_date)}
+                      </TableCell>
+                      <TableCell
+                        className="truncate max-w-[140px] text-[#0F172A] font-semibold py-2.5 px-4"
+                        title={p.product?.name}
+                      >
+                        {p.product?.name}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-[#64748B] py-2.5 px-4">
+                        {p.quantity_bought} {p.product?.unit}
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <CurrencyDisplay amount={p.total_amount} bold />
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <Link to="/purchases">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-[#64748B] hover:text-[#0F172A] hover:bg-[#EEF4FF] rounded-lg"
+                            title="Edit Purchase in Purchases page"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ResponsiveTable>
+          )}
+        </SectionCard>
 
         {/* Payment History */}
-        <Card className="lg:col-span-2 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> Payment History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto w-full">
-<Table className="min-w-[800px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Reference</TableHead>
-                  <TableHead>Note</TableHead>
-                  <TableHead className="text-right">Amount Paid</TableHead>
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments?.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No payments yet.</TableCell></TableRow>}
-                {payments?.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell>{formatDate(p.payment_date)}</TableCell>
-                    <TableCell>{p.payment_method}</TableCell>
-                    <TableCell>{p.reference || "-"}</TableCell>
-                    <TableCell className="max-w-[150px] truncate" title={p.notes || ""}>{p.notes || "—"}</TableCell>
-                    <TableCell className="text-right font-bold text-emerald-600">{formatMoney(p.amount)}</TableCell>
-                    <TableCell className="text-right">
-                      <Link to="/dealer-payments">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-slate-900" title="Edit Payment in Dealer Payments page">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </Link>
-                    </TableCell>
+        <SectionCard
+          title="Payment History"
+          icon={Wallet}
+          description="Payments issued to this dealer against orders and running balance."
+          className="lg:col-span-2"
+          noPadding
+        >
+          {payments?.length === 0 ? (
+            <div className="p-6">
+              <EmptyState
+                icon={Wallet}
+                title="No payments yet"
+                description="No standalone payments have been recorded for this dealer."
+              />
+            </div>
+          ) : (
+            <ResponsiveTable minWidth={650}>
+              <Table className="border-collapse">
+                <TableHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
+                  <TableRow className="border-b border-[#E2E8F0] hover:bg-transparent">
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Date
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Method
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Reference
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Note
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-[#0F172A] py-3 px-4">
+                      Amount Paid
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider text-[#64748B] py-3 px-4">
+                      Action
+                    </TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-</div>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {payments?.map((p: any) => (
+                    <TableRow
+                      key={p.id}
+                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] transition-colors"
+                    >
+                      <TableCell className="text-[#0F172A] font-medium py-2.5 px-4 font-mono text-xs">
+                        {formatDate(p.payment_date)}
+                      </TableCell>
+                      <TableCell className="py-2.5 px-4">
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-[#EEF4FF] text-[#2563EB] border border-[#BFDBFE]/60">
+                          {p.payment_method}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-[#64748B] py-2.5 px-4 font-mono text-xs">{p.reference || "—"}</TableCell>
+                      <TableCell
+                        className="max-w-[180px] truncate text-[#64748B] py-2.5 px-4 text-xs"
+                        title={p.notes || ""}
+                      >
+                        {p.notes || "—"}
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <CurrencyDisplay amount={p.amount} variant="positive" bold />
+                      </TableCell>
+                      <TableCell className="text-right py-2.5 px-4">
+                        <Link to="/dealer-payments">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-[#64748B] hover:text-[#0F172A] hover:bg-[#EEF4FF] rounded-lg"
+                            title="Edit Payment in Dealer Payments page"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </ResponsiveTable>
+          )}
+        </SectionCard>
       </div>
 
       {/* Edit Dealer Dialog */}
       {isEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-[425px] rounded-lg border bg-card text-card-foreground shadow-xl p-6 animate-in fade-in zoom-in-95 duration-150">
-            <h2 className="text-lg font-semibold leading-none tracking-tight mb-4">Edit Dealer</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in-50 duration-150">
+          <div className="w-full max-w-[440px] rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] shadow-xl p-6 animate-in zoom-in-95 duration-200">
+            <h2 className="text-lg font-bold text-[#172B4D] mb-1">Edit Dealer</h2>
+            <p className="text-xs text-[#52627A] mb-4">
+              Update dealer contact details, address, and opening balance.
+            </p>
 
             {editFormError && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md text-sm">
-                <p className="font-semibold mb-1">Error saving dealer</p>
+              <div className="mb-4 p-3 bg-[#FDECEC] border border-[#F87171]/40 text-[#B42318] rounded-xl text-xs sm:text-sm">
+                <p className="font-semibold mb-0.5">Error saving dealer</p>
                 <p>{editFormError}</p>
               </div>
             )}
 
-            <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Dealer Name *</label>
+            <form onSubmit={handleEditSubmit} className="space-y-4 pt-1">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  Dealer Name *
+                </label>
                 <Input
                   placeholder="e.g., AL INFAQ TRADERS"
                   value={editFormData.name}
                   onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                   required
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Phone Number</label>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  Phone Number
+                </label>
                 <Input
                   placeholder="+91..."
                   value={editFormData.phone}
                   onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">WhatsApp Number</label>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  WhatsApp Number
+                </label>
                 <Input
                   placeholder="Optional (falls back to phone)"
                   value={editFormData.whatsapp}
                   onChange={(e) => setEditFormData({ ...editFormData, whatsapp: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Opening Balance (₹)</label>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  Opening Balance (₹)
+                </label>
                 <Input
                   type="number"
                   step="0.01"
                   placeholder="0.00"
                   value={editFormData.opening_balance}
                   onChange={(e) => setEditFormData({ ...editFormData, opening_balance: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
                 />
-                <p className="text-xs text-muted-foreground">Historical balance owed to this dealer before using 7TIME.</p>
+                <p className="text-[11px] text-[#52627A]">
+                  Historical balance owed to this dealer before using 7TIME.
+                </p>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Address</label>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  Address
+                </label>
                 <textarea
-                  className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder="Business Address"
+                  className="flex min-h-[70px] w-full rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] px-3 py-2 text-sm text-[#172B4D] placeholder:text-[#52627A] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
+                  placeholder="City, State, Location..."
                   value={editFormData.address}
                   onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
                 />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Notes</label>
-                <textarea
-                  className="flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  placeholder="Additional notes"
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  Notes / Terms
+                </label>
+                <Input
+                  placeholder="e.g. Net 15 days payment"
                   value={editFormData.notes}
                   onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                  className="border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
                 />
               </div>
-              <div className="pt-2 flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={closeEditModal}>Cancel</Button>
-                <Button type="submit" disabled={updateMutation.isPending}>
-                  {updateMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Changes
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-[#D9E0E8]">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsEditOpen(false)}
+                  disabled={updateMutation.isPending}
+                  className="border-[#D9E0E8] text-[#172B4D] hover:bg-[#F8F7F2] rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={updateMutation.isPending}
+                  className="rounded-xl font-semibold shadow-xs bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
+                >
+                  {updateMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-1.5" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
                 </Button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }

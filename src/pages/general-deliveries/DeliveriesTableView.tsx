@@ -7,6 +7,8 @@ import { formatExpressionDisplay } from "@/lib/arithmeticParser"
 import { formatDateRow } from "@/lib/dateUtils"
 import { Edit, Layers, Trash2, X, Check } from "lucide-react"
 import { DailyDetailPanel } from "./DailyDetailPanel"
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { ResponsiveTable } from "@/components/shared"
 
 interface DeliveriesTableViewProps {
   displayedDates: string[]
@@ -56,41 +58,41 @@ export function DeliveriesTableView({
   isSavingInline
 }: DeliveriesTableViewProps) {
   return (
-    <div className="overflow-x-auto w-full">
-      <table className="w-full text-sm text-left border-collapse min-w-[820px]">
-        {/* 3.1 DARK NAVY HEADER */}
-        <thead className="bg-[#0E2A47] text-white uppercase text-xs tracking-wider">
-          <tr>
-            <th className="px-3 py-3.5 text-center w-14 font-semibold text-slate-300 border-r border-slate-700">
+    <ResponsiveTable minWidth={850}>
+      <Table className="border-collapse">
+        {/* STANDARDIZED LIGHT HEADER */}
+        <TableHeader>
+          <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+            <TableHead className="px-3 py-3.5 text-center w-14 font-semibold text-xs tracking-wider uppercase text-[#52627A] border-r border-[#D9E0E8]">
               S. No.
-            </th>
-            <th className="px-4 py-3.5 font-semibold text-slate-100 min-w-[125px] border-r border-slate-700">
+            </TableHead>
+            <TableHead className="px-4 py-3.5 font-semibold text-xs tracking-wider uppercase text-[#172B4D] min-w-[125px] border-r border-[#D9E0E8]">
               Date
-            </th>
-            <th className={`px-4 py-3.5 font-semibold text-right min-w-[210px] border-r border-slate-700 transition-colors ${
-              highlightColumn === "deliveries" ? "bg-[#1E3A8A] text-yellow-300 ring-2 ring-blue-400" : "text-blue-200"
+            </TableHead>
+            <TableHead className={`px-4 py-3.5 font-semibold text-xs tracking-wider uppercase text-right min-w-[210px] border-r border-[#D9E0E8] transition-colors ${
+              highlightColumn === "deliveries" ? "bg-[#EBF2FE] text-[#2563EB] ring-2 ring-[#2563EB]/50" : "text-[#172B4D]"
             }`}>
               All Deliveries
-            </th>
-            <th className={`px-4 py-3.5 font-semibold text-right min-w-[140px] border-r border-slate-700 transition-colors ${
-              highlightColumn === "fuel" ? "bg-[#78350F] text-yellow-300 ring-2 ring-amber-400" : "text-amber-200"
+            </TableHead>
+            <TableHead className={`px-4 py-3.5 font-semibold text-xs tracking-wider uppercase text-right min-w-[140px] border-r border-[#D9E0E8] transition-colors ${
+              highlightColumn === "fuel" ? "bg-[#FFF4D6] text-[#92400E] ring-2 ring-[#FEDF89]" : "text-[#172B4D]"
             }`}>
               Fuel Expenses
-            </th>
-            <th className="px-4 py-3.5 font-semibold text-right min-w-[130px] border-r border-slate-700 text-green-200">
+            </TableHead>
+            <TableHead className="px-4 py-3.5 font-semibold text-xs tracking-wider uppercase text-right min-w-[130px] border-r border-[#D9E0E8] text-[#172B4D]">
               Net Total
-            </th>
-            <th className="px-4 py-3.5 font-semibold min-w-[200px] border-r border-slate-700 text-slate-300">
+            </TableHead>
+            <TableHead className="px-4 py-3.5 font-semibold text-xs tracking-wider uppercase min-w-[200px] border-r border-[#D9E0E8] text-[#52627A]">
               Remarks / Notes
-            </th>
-            <th className="px-3 py-3.5 font-semibold text-center w-28 text-slate-300">
+            </TableHead>
+            <TableHead className="px-3 py-3.5 font-semibold text-xs tracking-wider uppercase text-center w-28 text-[#52627A]">
               Actions
-            </th>
-          </tr>
-        </thead>
+            </TableHead>
+          </TableRow>
+        </TableHeader>
 
-        {/* 3.2 ROW DESIGN WITH FULL CLICKABILITY */}
-        <tbody className="divide-y divide-slate-100 bg-white">
+        {/* ROW DESIGN WITH FULL CLICKABILITY */}
+        <TableBody className="bg-white">
           {displayedDates.map((date, idx) => {
             const record = recordsMap[date]
             const calc = dayCalculations[date]
@@ -105,9 +107,9 @@ export function DeliveriesTableView({
 
             return (
               <React.Fragment key={date}>
-                <tr 
-                  className={`transition-colors group hover:bg-blue-50/50 ${
-                    isExpanded ? "bg-blue-50/30" : isWeekend ? "bg-slate-50/60" : ""
+                <TableRow
+                  className={`border-b border-[#D9E0E8] transition-colors group hover:bg-[#F1F4F8] ${
+                    isExpanded ? "bg-[#EBF2FE]/30" : isWeekend ? "bg-[#F8F7F2]/60" : ""
                   }`}
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -120,32 +122,32 @@ export function DeliveriesTableView({
                   }}
                 >
                   {/* S. No. — Clicking toggles day expansion */}
-                  <td 
+                  <TableCell
                     onClick={() => toggleExpand(date)}
-                    className="px-3 py-2.5 text-center font-mono text-xs text-slate-500 border-r border-slate-100 cursor-pointer select-none"
+                    className="px-3 py-2.5 text-center font-mono text-xs text-[#52627A] border-r border-[#D9E0E8] cursor-pointer select-none"
                     title="Click row to view customer breakdown"
                   >
                     {idx + 1}
-                  </td>
+                  </TableCell>
 
                   {/* Date Cell — Fully Clickable (opens day details modal) */}
-                  <td 
+                  <TableCell
                     onClick={() => openEditModal(date)}
-                    className="px-4 py-2.5 font-medium whitespace-nowrap text-[#0E2A47] border-r border-slate-100 cursor-pointer group-hover:text-[#2D7FF9] transition-colors"
+                    className="px-4 py-2.5 font-medium whitespace-nowrap text-[#172B4D] border-r border-[#D9E0E8] cursor-pointer group-hover:text-[#2563EB] transition-colors"
                     title="Click date to view or edit day's operations"
                   >
                     <div className="flex items-center gap-1.5">
-                      <span className={isWeekend ? "text-amber-700 font-bold" : "font-semibold"}>
+                      <span className={isWeekend ? "text-[#92400E] font-bold" : "font-semibold"}>
                         {dateDisplay}
                       </span>
-                      <Edit className="h-3 w-3 opacity-0 group-hover:opacity-70 transition-opacity text-[#2D7FF9]" />
+                      <Edit className="h-3 w-3 opacity-0 group-hover:opacity-70 transition-opacity text-[#2563EB]" />
                     </div>
-                  </td>
+                  </TableCell>
 
                   {/* All Deliveries Cell: Interactive & Inline Editable */}
-                  <td 
-                    className={`px-4 py-2.5 text-right border-r border-slate-100 transition-colors ${
-                      highlightColumn === "deliveries" ? "bg-blue-50/70" : ""
+                  <TableCell
+                    className={`px-4 py-2.5 text-right border-r border-[#D9E0E8] transition-colors ${
+                      highlightColumn === "deliveries" ? "bg-[#EBF2FE]/50" : ""
                     }`}
                   >
                     {isEditingDelivery ? (
@@ -162,13 +164,13 @@ export function DeliveriesTableView({
                               if (e.key === "Escape") cancelInlineEdit(e)
                             }}
                             placeholder="e.g. 500+300"
-                            className="h-8 w-44 text-right font-mono text-xs border-blue-400 focus-visible:ring-blue-500"
+                            className="h-8 w-44 text-right font-mono text-xs border-[#2563EB] bg-white text-[#172B4D] focus-visible:ring-[#2563EB]"
                           />
                           <Button
                             size="sm"
                             onClick={saveInlineEdit}
                             disabled={isSavingInline || (parsedInlinePreview !== null && !parsedInlinePreview.isValid)}
-                            className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 text-white shrink-0"
+                            className="h-8 w-8 p-0 bg-[#087443] hover:bg-[#076037] text-white shrink-0 shadow-xs cursor-pointer"
                             title="Save expression (Enter)"
                           >
                             <Check className="h-4 w-4" />
@@ -177,7 +179,7 @@ export function DeliveriesTableView({
                             size="sm"
                             variant="ghost"
                             onClick={cancelInlineEdit}
-                            className="h-8 w-8 p-0 text-slate-500 hover:bg-slate-100 shrink-0"
+                            className="h-8 w-8 p-0 text-[#52627A] hover:bg-[#F1F4F8] shrink-0 cursor-pointer"
                             title="Cancel (Esc)"
                           >
                             <X className="h-4 w-4" />
@@ -185,7 +187,7 @@ export function DeliveriesTableView({
                         </div>
                         {parsedInlinePreview && (
                           <span className={`text-[10px] font-semibold ${
-                            parsedInlinePreview.isValid ? "text-green-700" : "text-amber-700"
+                            parsedInlinePreview.isValid ? "text-[#087443]" : "text-[#92400E]"
                           }`}>
                             {parsedInlinePreview.isValid
                               ? `Total: ${formatMoney(parsedInlinePreview.value || 0)}`
@@ -197,27 +199,27 @@ export function DeliveriesTableView({
                       /* DISPLAY DELIVERY CELL (CLICKABLE) */
                       <div
                         onClick={(e) => startInlineEdit(date, "delivery", e)}
-                        className="cursor-pointer group/cell py-1 px-1.5 -my-1 rounded-md hover:bg-blue-100/60 transition-colors flex items-center justify-end gap-1.5"
+                        className="cursor-pointer group/cell py-1 px-1.5 -my-1 rounded-md hover:bg-[#EBF2FE] transition-colors flex items-center justify-end gap-1.5"
                         title="Click to edit delivery expression"
                       >
-                        <Edit className="h-3 w-3 opacity-0 group-hover/cell:opacity-80 text-blue-600 shrink-0 transition-opacity" />
+                        <Edit className="h-3 w-3 opacity-0 group-hover/cell:opacity-80 text-[#2563EB] shrink-0 transition-opacity" />
                         {calc.deliveryAmount > 0 ? (
-                          <div className="font-semibold text-[#1E3A8A]">
+                          <div className="font-semibold text-[#172B4D] font-mono">
                             {formatExpressionDisplay(calc.expression, calc.deliveryAmount, formatMoney)}
                           </div>
                         ) : (
-                          <span className="text-slate-300 hover:text-blue-500 text-xs italic select-none">
+                          <span className="text-[#66758A] hover:text-[#2563EB] text-xs italic select-none">
                             — <span className="text-[10px] hidden group-hover/cell:inline font-sans">(+add)</span>
                           </span>
                         )}
                       </div>
                     )}
-                  </td>
+                  </TableCell>
 
                   {/* Fuel Expenses Cell: Interactive & Inline Editable */}
-                  <td 
-                    className={`px-4 py-2.5 text-right font-medium border-r border-slate-100 transition-colors ${
-                      highlightColumn === "fuel" ? "bg-amber-50/70" : ""
+                  <TableCell
+                    className={`px-4 py-2.5 text-right font-medium border-r border-[#D9E0E8] transition-colors ${
+                      highlightColumn === "fuel" ? "bg-[#FFF4D6]/50" : ""
                     }`}
                   >
                     {isEditingFuel ? (
@@ -236,13 +238,13 @@ export function DeliveriesTableView({
                             if (e.key === "Escape") cancelInlineEdit(e)
                           }}
                           placeholder="0.00"
-                          className="h-8 w-28 text-right font-mono text-xs border-amber-400 focus-visible:ring-amber-500"
+                          className="h-8 w-28 text-right font-mono text-xs border-[#FEDF89] bg-white text-[#172B4D] focus-visible:ring-[#92400E]"
                         />
                         <Button
                           size="sm"
                           onClick={saveInlineEdit}
                           disabled={isSavingInline}
-                          className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 text-white shrink-0"
+                          className="h-8 w-8 p-0 bg-[#087443] hover:bg-[#076037] text-white shrink-0 shadow-xs cursor-pointer"
                           title="Save fuel expense"
                         >
                           <Check className="h-4 w-4" />
@@ -251,7 +253,7 @@ export function DeliveriesTableView({
                           size="sm"
                           variant="ghost"
                           onClick={cancelInlineEdit}
-                          className="h-8 w-8 p-0 text-slate-500 hover:bg-slate-100 shrink-0"
+                          className="h-8 w-8 p-0 text-[#52627A] hover:bg-[#F1F4F8] shrink-0 cursor-pointer"
                           title="Cancel"
                         >
                           <X className="h-4 w-4" />
@@ -261,41 +263,41 @@ export function DeliveriesTableView({
                       /* DISPLAY FUEL CELL (CLICKABLE) */
                       <div
                         onClick={(e) => startInlineEdit(date, "fuel", e)}
-                        className="cursor-pointer group/cell py-1 px-1.5 -my-1 rounded-md hover:bg-amber-100/60 transition-colors flex items-center justify-end gap-1.5 text-[#B45309]"
+                        className="cursor-pointer group/cell py-1 px-1.5 -my-1 rounded-md hover:bg-[#FFF4D6] transition-colors flex items-center justify-end gap-1.5 text-[#92400E] font-mono"
                         title="Click to edit fuel expense"
                       >
-                        <Edit className="h-3 w-3 opacity-0 group-hover/cell:opacity-80 text-amber-600 shrink-0 transition-opacity" />
+                        <Edit className="h-3 w-3 opacity-0 group-hover/cell:opacity-80 text-[#92400E] shrink-0 transition-opacity" />
                         {calc.fuel > 0 ? (
                           formatMoney(calc.fuel)
                         ) : (
-                          <span className="text-slate-300 hover:text-amber-600 text-xs italic select-none">
+                          <span className="text-[#66758A] hover:text-[#92400E] text-xs italic select-none">
                             — <span className="text-[10px] hidden group-hover/cell:inline font-sans">(+fuel)</span>
                           </span>
                         )}
                       </div>
                     )}
-                  </td>
+                  </TableCell>
 
                   {/* Net Total Cell */}
-                  <td className="px-4 py-2.5 text-right font-bold border-r border-slate-100">
+                  <TableCell className="px-4 py-2.5 text-right font-bold border-r border-[#D9E0E8]">
                     {calc.deliveryAmount > 0 || calc.fuel > 0 ? (
                       <span 
-                        className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${
-                          calc.net >= 0 
-                            ? "text-[#15803D] bg-green-50 border border-green-200/50" 
-                            : "text-[#B91C1C] bg-red-50 border border-red-200/50"
+                        className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold font-mono ${
+                          calc.net >= 0
+                            ? "text-[#087443] bg-[#EAF7EF] border border-[#A6F4C5]"
+                            : "text-[#B42318] bg-[#FDECEC] border border-[#FECDCA]"
                         }`}
                         title={`Net Total = Deliveries (${formatMoney(calc.deliveryAmount)}) − Fuel (${formatMoney(calc.fuel)})`}
                       >
                         {formatMoney(calc.net)}
                       </span>
                     ) : (
-                      <span className="text-slate-300 select-none">—</span>
+                      <span className="text-[#66758A] select-none">—</span>
                     )}
-                  </td>
+                  </TableCell>
 
                   {/* Remarks / Notes Cell */}
-                  <td className="px-4 py-2.5 border-r border-slate-100">
+                  <TableCell className="px-4 py-2.5 border-r border-[#D9E0E8]">
                     {isEditingRemarks ? (
                       /* INLINE REMARKS EDITOR */
                       <div className="flex flex-col gap-1.5 animate-in fade-in duration-100" onClick={(e) => e.stopPropagation()}>
@@ -310,17 +312,17 @@ export function DeliveriesTableView({
                             if (e.key === "Escape") cancelInlineEdit(e)
                           }}
                           placeholder="Enter note / remarks..."
-                          className="w-full text-xs p-1.5 rounded-md border border-slate-300 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-inner"
+                          className="w-full text-xs p-1.5 rounded-md border border-[#D9E0E8] bg-white text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB] shadow-xs"
                         />
                         <div className="flex justify-end gap-1">
-                          <Button size="sm" variant="ghost" onClick={cancelInlineEdit} className="h-6 text-[11px] px-2">
+                          <Button size="sm" variant="ghost" onClick={cancelInlineEdit} className="h-6 text-[11px] px-2 text-[#52627A] hover:bg-[#F1F4F8] cursor-pointer">
                             Cancel
                           </Button>
                           <Button
                             size="sm"
                             onClick={saveInlineEdit}
                             disabled={isSavingInline}
-                            className="h-6 text-[11px] px-2 bg-[#2D7FF9] text-white"
+                            className="h-6 text-[11px] px-2 bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs cursor-pointer"
                           >
                             Save
                           </Button>
@@ -330,31 +332,31 @@ export function DeliveriesTableView({
                       /* DISPLAY REMARKS CELL (CLICKABLE) */
                       <div
                         onClick={(e) => startInlineEdit(date, "remarks", e)}
-                        className="cursor-pointer group/cell py-1 px-1.5 -my-1 rounded-md hover:bg-slate-100/80 transition-colors flex items-center justify-between gap-1.5"
+                        className="cursor-pointer group/cell py-1 px-1.5 -my-1 rounded-md hover:bg-[#F1F4F8] transition-colors flex items-center justify-between gap-1.5"
                         title="Click to add or edit note"
                       >
                         {record?.remarks ? (
-                          <span className="text-xs text-slate-700 block max-w-xs truncate font-normal">
+                          <span className="text-xs text-[#172B4D] block max-w-xs truncate font-normal">
                             {record.remarks}
                           </span>
                         ) : (
-                          <span className="text-xs text-slate-400 group-hover/cell:text-[#2D7FF9] italic transition-colors">
+                          <span className="text-xs text-[#66758A] group-hover/cell:text-[#2563EB] italic transition-colors">
                             Click to add note
                           </span>
                         )}
-                        <Edit className="h-3 w-3 opacity-0 group-hover/cell:opacity-70 text-slate-400 shrink-0 transition-opacity" />
+                        <Edit className="h-3 w-3 opacity-0 group-hover/cell:opacity-70 text-[#52627A] shrink-0 transition-opacity" />
                       </div>
                     )}
-                  </td>
+                  </TableCell>
 
                   {/* Actions Column */}
-                  <td className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  <TableCell className="px-3 py-2.5 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => openEditModal(date)}
-                        className="h-7 w-7 p-0 text-[#2D7FF9] hover:bg-blue-50 rounded-md"
+                        className="h-7 w-7 p-0 text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer"
                         title="Edit day's deliveries & fuel"
                         aria-label={`Edit ${dateDisplay}`}
                       >
@@ -365,10 +367,10 @@ export function DeliveriesTableView({
                         variant="ghost"
                         size="sm"
                         onClick={() => toggleExpand(date)}
-                        className={`h-7 px-1.5 text-xs font-semibold rounded-md ${
-                          entries.length > 0 
-                            ? "text-[#2D7FF9] bg-blue-50/80 hover:bg-blue-100" 
-                            : "text-slate-500 hover:bg-slate-100"
+                        className={`h-7 px-1.5 text-xs font-semibold rounded-md cursor-pointer ${
+                          entries.length > 0
+                            ? "text-[#2563EB] bg-[#EBF2FE] hover:bg-[#BFDBFE]"
+                            : "text-[#52627A] hover:bg-[#F1F4F8]"
                         }`}
                         title={entries.length > 0 ? "View individual customer entries" : "Add customer entries"}
                         aria-label={`Toggle customer entries for ${dateDisplay}`}
@@ -382,7 +384,7 @@ export function DeliveriesTableView({
                           variant="ghost"
                           size="sm"
                           onClick={() => onDeleteRecord(record.id!, dateDisplay)}
-                          className="h-7 w-7 p-0 text-red-500 hover:bg-red-50 rounded-md"
+                          className="h-7 w-7 p-0 text-[#B42318] hover:bg-[#FDECEC] rounded-md cursor-pointer"
                           title="Clear day's record"
                           aria-label={`Delete record for ${dateDisplay}`}
                         >
@@ -390,45 +392,45 @@ export function DeliveriesTableView({
                         </Button>
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
 
                 {/* Expandable Customer Entries Drawer */}
                 {isExpanded && (
-                  <tr>
-                    <td colSpan={7} className="p-0 bg-slate-50 border-y border-blue-200">
+                  <TableRow>
+                    <TableCell colSpan={7} className="p-0 bg-[#F8F7F2] border-y border-[#D9E0E8]">
                       <DailyDetailPanel date={date} record={record} />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
               </React.Fragment>
             )
           })}
-        </tbody>
+        </TableBody>
 
         {/* TABLE FOOTER SUMMARY ROW */}
-        <tfoot className="bg-[#0E2A47] text-white font-bold text-xs uppercase">
-          <tr>
-            <td className="px-3 py-3 text-center border-r border-slate-700">TOTAL</td>
-            <td className="px-4 py-3 border-r border-slate-700 text-slate-300 font-semibold">
+        <TableFooter className="bg-[#F8F7F2] text-[#172B4D] font-bold text-xs uppercase border-t-2 border-[#D9E0E8]">
+          <TableRow>
+            <TableCell className="px-3 py-3 text-center border-r border-[#D9E0E8] text-[#172B4D]">TOTAL</TableCell>
+            <TableCell className="px-4 py-3 border-r border-[#D9E0E8] text-[#52627A] font-semibold">
               {activeDays} Active Days
-            </td>
-            <td className="px-4 py-3 text-right text-blue-200 border-r border-slate-700 text-sm font-bold">
+            </TableCell>
+            <TableCell className="px-4 py-3 text-right text-[#2563EB] border-r border-[#D9E0E8] text-sm font-bold font-mono">
               {formatMoney(totalDeliveries)}
-            </td>
-            <td className="px-4 py-3 text-right text-amber-200 border-r border-slate-700 text-sm font-bold">
+            </TableCell>
+            <TableCell className="px-4 py-3 text-right text-[#92400E] border-r border-[#D9E0E8] text-sm font-bold font-mono">
               {formatMoney(totalFuel)}
-            </td>
-            <td className="px-4 py-3 text-right text-green-300 border-r border-slate-700 text-sm font-extrabold">
+            </TableCell>
+            <TableCell className="px-4 py-3 text-right text-[#087443] border-r border-[#D9E0E8] text-sm font-extrabold font-mono">
               {formatMoney(netTotal)}
-            </td>
-            <td className="px-4 py-3 border-r border-slate-700 text-slate-400 font-normal lowercase">
+            </TableCell>
+            <TableCell className="px-4 py-3 border-r border-[#D9E0E8] text-[#52627A] font-normal lowercase">
               monthly aggregated totals
-            </td>
-            <td className="px-3 py-3 text-center text-slate-400">—</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
+            </TableCell>
+            <TableCell className="px-3 py-3 text-center text-[#52627A]">—</TableCell>
+          </TableRow>
+        </TableFooter>
+      </Table>
+    </ResponsiveTable>
   )
 }

@@ -302,27 +302,24 @@ function UnifiedReceivePaymentContent({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto animate-in fade-in duration-150">
       <div 
-        className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-8"
+        className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl border border-[#D9E0E8] overflow-hidden my-8"
         role="dialog"
         aria-modal="true"
         aria-labelledby="receive-payment-title"
       >
         {/* Header */}
-        <div 
-          className="px-6 py-5 text-white flex items-center justify-between"
-          style={{ background: "linear-gradient(135deg, #0E2A47 0%, #1E3A8A 50%, #2D7FF9 100%)" }}
-        >
+        <div className="px-6 py-4.5 bg-[#F8F7F2] border-b border-[#D9E0E8] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-white/15 backdrop-blur-xs flex items-center justify-center text-white shadow-inner">
+            <div className="h-10 w-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB]">
               <Wallet className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="receive-payment-title" className="text-lg font-bold leading-tight">
+              <h2 id="receive-payment-title" className="text-lg font-bold text-[#172B4D] leading-tight">
                 Receive Account Payment
               </h2>
-              <p className="text-xs text-blue-200 font-medium">
+              <p className="text-xs text-[#52627A] font-medium">
                 Unified Collections · Direct Source Ledger Recording
               </p>
             </div>
@@ -331,7 +328,7 @@ function UnifiedReceivePaymentContent({
             type="button"
             onClick={onClose}
             disabled={isPending}
-            className="rounded-full p-1.5 text-white/80 hover:text-white hover:bg-white/20 transition-colors"
+            className="rounded-full p-1.5 text-[#52627A] hover:text-[#172B4D] hover:bg-slate-200 transition-colors cursor-pointer"
             title="Close"
           >
             <X className="h-5 w-5" />
@@ -342,16 +339,16 @@ function UnifiedReceivePaymentContent({
         <div className="p-6">
           {formSuccess ? (
             <div className="py-8 flex flex-col items-center justify-center text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center animate-bounce">
+              <div className="w-12 h-12 rounded-full bg-[#EAF7EF] text-[#087443] flex items-center justify-center animate-bounce">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">Payment Recorded Successfully</h3>
-              <p className="text-xs text-slate-600 max-w-xs">{formSuccess}</p>
+              <h3 className="text-base font-bold text-[#172B4D]">Payment Recorded Successfully</h3>
+              <p className="text-xs text-[#52627A] max-w-xs">{formSuccess}</p>
             </div>
           ) : (
             <form onSubmit={validateAndProceed} className="space-y-4">
               {formError && (
-                <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-start gap-2">
+                <div className="p-3 bg-[#FDECEC] border border-red-200 text-[#B42318] rounded-xl text-xs flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>{formError}</span>
                 </div>
@@ -359,7 +356,7 @@ function UnifiedReceivePaymentContent({
 
               {/* Debtor Selection */}
               <div className="space-y-1.5">
-                <Label htmlFor="debtor-select" className="text-xs font-semibold text-slate-700">
+                <Label htmlFor="debtor-select" className="text-xs font-semibold text-[#172B4D]">
                   Debtor Account
                 </Label>
                 {debtors.length > 0 ? (
@@ -368,7 +365,7 @@ function UnifiedReceivePaymentContent({
                     value={activeDebtor?.id || selectedDebtorId}
                     onValueChange={handleDebtorChange}
                     disabled={isPending || isConfirming}
-                    className="w-full h-10 text-xs bg-slate-50 border-slate-200"
+                    className="w-full h-10 text-xs bg-white border-[#D9E0E8] text-[#172B4D]"
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select debtor account" />
@@ -385,24 +382,24 @@ function UnifiedReceivePaymentContent({
                   <Input
                     value={activeDebtor?.name || "Selected Debtor"}
                     readOnly
-                    className="h-10 text-xs bg-slate-100 text-slate-700 font-semibold"
+                    className="h-10 text-xs bg-[#F1F4F8] text-[#172B4D] font-semibold border-[#D9E0E8]"
                   />
                 )}
               </div>
 
               {/* Account Context Banner */}
               {activeDebtor && (
-                <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 flex items-center justify-between">
+                <div className="bg-[#F1F4F8] rounded-xl p-3 border border-[#D9E0E8] flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     {getSourceIcon(activeDebtor.source)}
                     <div>
-                      <span className="text-xs font-bold text-slate-900 block">{activeDebtor.name}</span>
-                      <span className="text-[10px] text-slate-500">{activeDebtor.sourceLabel} Ledger</span>
+                      <span className="text-xs font-bold text-[#172B4D] block">{activeDebtor.name}</span>
+                      <span className="text-[10px] text-[#52627A]">{activeDebtor.sourceLabel} Ledger</span>
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Current Due</span>
-                    <span className="text-sm font-black text-red-600">{formatMoney(activeDebtor.outstanding)}</span>
+                    <span className="text-[10px] uppercase font-bold text-[#66758A] block tracking-wider">Current Due</span>
+                    <span className="text-sm font-black text-[#B42318]">{formatMoney(activeDebtor.outstanding)}</span>
                   </div>
                 </div>
               )}
@@ -410,11 +407,11 @@ function UnifiedReceivePaymentContent({
               {/* Amount & Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="payment-amount" className="text-xs font-semibold text-slate-700">
+                  <Label htmlFor="payment-amount" className="text-xs font-semibold text-[#172B4D]">
                     Amount Received (₹) <span className="text-red-500">*</span>
                   </Label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">₹</span>
+                    <span className="absolute left-3 top-2.5 text-xs font-bold text-[#66758A]">₹</span>
                     <Input
                       id="payment-amount"
                       type="number"
@@ -429,14 +426,14 @@ function UnifiedReceivePaymentContent({
                       }}
                       disabled={isPending || isConfirming}
                       required
-                      className="pl-7 h-10 text-sm font-bold bg-slate-50/50 border-slate-200 focus:bg-white"
+                      className="pl-7 h-10 text-sm font-bold bg-white border-[#D9E0E8] text-[#172B4D]"
                       autoFocus
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="payment-date" className="text-xs font-semibold text-slate-700">
+                  <Label htmlFor="payment-date" className="text-xs font-semibold text-[#172B4D]">
                     Payment Date <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -449,7 +446,7 @@ function UnifiedReceivePaymentContent({
                     }}
                     disabled={isPending || isConfirming}
                     required
-                    className="h-10 text-xs bg-slate-50/50 border-slate-200 focus:bg-white"
+                    className="h-10 text-xs bg-white border-[#D9E0E8] text-[#172B4D]"
                   />
                 </div>
               </div>
@@ -457,7 +454,7 @@ function UnifiedReceivePaymentContent({
               {/* Payment Method & Reference */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="payment-method" className="text-xs font-semibold text-slate-700">
+                  <Label htmlFor="payment-method" className="text-xs font-semibold text-[#172B4D]">
                     Payment Method
                   </Label>
                   <Select
@@ -468,7 +465,7 @@ function UnifiedReceivePaymentContent({
                       setIsConfirming(false)
                     }}
                     disabled={isPending || isConfirming}
-                    className="h-10 text-xs bg-slate-50/50 border-slate-200"
+                    className="h-10 text-xs bg-white border-[#D9E0E8] text-[#172B4D]"
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -483,7 +480,7 @@ function UnifiedReceivePaymentContent({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="payment-ref" className="text-xs font-semibold text-slate-700">
+                  <Label htmlFor="payment-ref" className="text-xs font-semibold text-[#172B4D]">
                     Transaction / Cheque Ref
                   </Label>
                   <Input
@@ -496,14 +493,14 @@ function UnifiedReceivePaymentContent({
                       setIsConfirming(false)
                     }}
                     disabled={isPending || isConfirming}
-                    className="h-10 text-xs bg-slate-50/50 border-slate-200 focus:bg-white"
+                    className="h-10 text-xs bg-white border-[#D9E0E8] text-[#172B4D]"
                   />
                 </div>
               </div>
 
               {/* Notes */}
               <div className="space-y-1.5">
-                <Label htmlFor="payment-notes" className="text-xs font-semibold text-slate-700">
+                <Label htmlFor="payment-notes" className="text-xs font-semibold text-[#172B4D]">
                   Notes (Optional)
                 </Label>
                 <Input
@@ -516,19 +513,19 @@ function UnifiedReceivePaymentContent({
                     setIsConfirming(false)
                   }}
                   disabled={isPending || isConfirming}
-                  className="h-10 text-xs bg-slate-50/50 border-slate-200 focus:bg-white"
+                  className="h-10 text-xs bg-white border-[#D9E0E8] text-[#172B4D]"
                 />
               </div>
 
               {/* Confirmation Prompt */}
               {isConfirming && (
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-1 animate-in fade-in">
-                  <span className="font-bold text-amber-900 block">Confirm Payment Details:</span>
-                  <p className="text-amber-800">
+                <div className="p-3 bg-[#FFF4D6] border border-amber-200 rounded-xl text-xs space-y-1 animate-in fade-in">
+                  <span className="font-bold text-[#92400E] block">Confirm Payment Details:</span>
+                  <p className="text-[#92400E]">
                     Credit <span className="font-bold">{formatMoney(parseFloat(amount))}</span> to{" "}
                     <span className="font-bold">{activeDebtor?.name}</span> via {paymentMethod} on {formatDate(paymentDate)}?
                   </p>
-                  <p className="text-[11px] text-amber-700">
+                  <p className="text-[11px] text-[#92400E]/80">
                     This will directly post to the {activeDebtor?.sourceLabel} ledger and refresh outstanding balances.
                   </p>
                 </div>
@@ -541,17 +538,17 @@ function UnifiedReceivePaymentContent({
                   variant="outline"
                   onClick={isConfirming ? () => setIsConfirming(false) : onClose}
                   disabled={isPending}
-                  className="h-9 px-4 text-xs font-semibold"
+                  className="h-9 px-4 text-xs font-semibold cursor-pointer"
                 >
                   {isConfirming ? "Back" : "Cancel"}
                 </Button>
                 <Button
                   type="submit"
                   disabled={isPending}
-                  className={`h-9 px-5 text-xs font-semibold shadow-xs ${
-                    isConfirming 
-                      ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
-                      : "bg-[#2D7FF9] hover:bg-[#2068d4] text-white"
+                  className={`h-9 px-5 text-xs font-semibold shadow-xs cursor-pointer ${
+                    isConfirming
+                      ? "bg-[#087443] hover:bg-emerald-700 text-white"
+                      : "bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
                   }`}
                 >
                   {isPending ? (

@@ -110,32 +110,32 @@ export default function BackupPage() {
 
   return (
     <div className="max-w-5xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Backup & Data Health</h1>
-        <p className="text-muted-foreground">Secure your business data and run diagnostic checks.</p>
+      <div className="pb-4 border-b border-[#D9E0E8]">
+        <h1 className="text-3xl font-extrabold tracking-tight text-[#172B4D]">Backup & Data Health</h1>
+        <p className="text-sm text-[#52627A] mt-1">Secure your business records, generate full JSON backups, and verify diagnostic health.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
+        <Card className="rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-xs">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><DatabaseBackup className="h-5 w-5" /> Export Data</CardTitle>
-            <CardDescription>Download a complete JSON backup of your entire database.</CardDescription>
+            <CardTitle className="text-lg font-bold text-[#172B4D] flex items-center gap-2"><DatabaseBackup className="h-5 w-5 text-[#2563EB]" /> Export Data</CardTitle>
+            <CardDescription className="text-xs text-[#52627A]">Download a complete JSON backup of your entire business database.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={handleExportJSON} disabled={loading} className="w-full">
+            <Button onClick={handleExportJSON} disabled={loading} className="w-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold shadow-xs rounded-xl cursor-pointer">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <DatabaseBackup className="mr-2 h-4 w-4" />}
               Generate Full Backup (JSON)
             </Button>
-            <p className="text-xs text-muted-foreground mt-4">
+            <p className="text-xs text-[#52627A] mt-4 leading-relaxed">
               This backup file contains all products, purchases, sales, and payments. Keep it in a secure location. It does not contain passwords or Supabase secrets.
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-xs">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Upload className="h-5 w-5" /> Restore Data</CardTitle>
-            <CardDescription>Upload a previously exported JSON backup file.</CardDescription>
+            <CardTitle className="text-lg font-bold text-[#172B4D] flex items-center gap-2"><Upload className="h-5 w-5 text-[#087443]" /> Restore Data</CardTitle>
+            <CardDescription className="text-xs text-[#52627A]">Upload a previously exported JSON backup file.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-4">
@@ -144,52 +144,52 @@ export default function BackupPage() {
                 <input 
                   type="file" 
                   accept=".json"
-                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                  className="block w-full text-sm text-[#52627A] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-[#EAF2FD] file:text-[#2563EB] hover:file:bg-[#DCE9FA] cursor-pointer"
                   onChange={handleFileChange}
                   disabled={restoring}
                 />
               </label>
             </div>
             {restoring && (
-              <div className="mt-4 flex items-center text-sm text-blue-600 font-medium">
+              <div className="mt-4 flex items-center text-sm text-[#2563EB] font-medium">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Restoring data...
               </div>
             )}
-            <p className="text-xs text-red-500 mt-4 font-medium flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3" /> Duplicate protection is enabled. Existing records will be skipped.
+            <p className="text-xs text-[#B42318] mt-4 font-medium flex items-center gap-1">
+              <AlertTriangle className="h-3.5 w-3.5" /> Duplicate protection is enabled. Existing records will be skipped.
             </p>
           </CardContent>
         </Card>
       </div>
 
-      <Card>
+      <Card className="rounded-2xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-xs">
         <CardHeader>
-          <CardTitle>Data Health Diagnostics</CardTitle>
-          <CardDescription>System integrity checks running automatically.</CardDescription>
+          <CardTitle className="text-lg font-bold text-[#172B4D]">Data Health Diagnostics</CardTitle>
+          <CardDescription className="text-xs text-[#52627A]">System integrity checks running automatically against active records.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-3 border rounded-md bg-green-50">
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between p-3.5 border border-[#D9E0E8] rounded-xl bg-[#F8F7F2]">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span className="font-medium text-green-900">Inventory Consistency</span>
+              <CheckCircle2 className="h-5 w-5 text-[#087443]" />
+              <span className="font-semibold text-[#172B4D]">Inventory Consistency</span>
             </div>
-            <span className="text-sm text-green-700">Healthy</span>
+            <span className="text-xs font-bold text-[#087443] bg-[#EAF7EF] border border-[#087443]/20 px-2.5 py-0.5 rounded-full">Healthy</span>
           </div>
-          <div className="flex items-center justify-between p-3 border rounded-md bg-green-50">
+          <div className="flex items-center justify-between p-3.5 border border-[#D9E0E8] rounded-xl bg-[#F8F7F2]">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span className="font-medium text-green-900">Financial Consistency</span>
+              <CheckCircle2 className="h-5 w-5 text-[#087443]" />
+              <span className="font-semibold text-[#172B4D]">Financial Consistency</span>
             </div>
-            <span className="text-sm text-green-700">Healthy</span>
+            <span className="text-xs font-bold text-[#087443] bg-[#EAF7EF] border border-[#087443]/20 px-2.5 py-0.5 rounded-full">Healthy</span>
           </div>
-          <div className="flex items-center justify-between p-3 border rounded-md bg-green-50">
+          <div className="flex items-center justify-between p-3.5 border border-[#D9E0E8] rounded-xl bg-[#F8F7F2]">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <span className="font-medium text-green-900">Foreign Key Integrity</span>
+              <CheckCircle2 className="h-5 w-5 text-[#087443]" />
+              <span className="font-semibold text-[#172B4D]">Foreign Key Integrity</span>
             </div>
-            <span className="text-sm text-green-700">Healthy</span>
+            <span className="text-xs font-bold text-[#087443] bg-[#EAF7EF] border border-[#087443]/20 px-2.5 py-0.5 rounded-full">Healthy</span>
           </div>
-          <p className="text-xs text-muted-foreground pt-2">All checks passed. No negative stock, missing references, or negative balances detected.</p>
+          <p className="text-xs text-[#52627A] pt-2">All checks passed. No negative stock, missing references, or corrupted ledger balances detected.</p>
         </CardContent>
       </Card>
     </div>

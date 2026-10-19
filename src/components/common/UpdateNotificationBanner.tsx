@@ -9,6 +9,10 @@ export function UpdateNotificationBanner() {
   const [isDismissed, setIsDismissed] = useState(false)
 
   const verifyUpdate = useCallback(async () => {
+    // Prevent false update notifications during local development
+    if (import.meta.env.DEV) {
+      return
+    }
     try {
       const result = await checkForAppUpdate()
       if (result.hasUpdate) {
@@ -63,13 +67,13 @@ export function UpdateNotificationBanner() {
     <div 
       role="status" 
       aria-live="polite"
-      className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 text-white px-4 py-2.5 shadow-md flex items-center justify-between gap-3 text-xs md:text-sm sticky top-0 z-50 animate-in slide-in-from-top duration-300"
+      className="bg-[#EFF6FF] border-b border-[#BFDBFE] text-[#1E40AF] px-4 py-2.5 shadow-xs flex items-center justify-between gap-3 text-xs md:text-sm shrink-0"
     >
       <div className="flex items-center gap-2 min-w-0">
-        <Sparkles className="w-4 h-4 text-amber-300 shrink-0 animate-pulse" />
+        <Sparkles className="w-4 h-4 text-[#2563EB] shrink-0 animate-pulse" />
         <span className="truncate">
-          <strong className="font-semibold">New update available{latestVersion ? ` (v${latestVersion})` : ""}!</strong>
-          <span className="hidden sm:inline text-blue-100 ml-1.5">Refresh now to load the latest improvements.</span>
+          <strong className="font-semibold text-[#1E3A8A]">New update available{latestVersion ? ` (v${latestVersion})` : ""}!</strong>
+          <span className="hidden sm:inline text-[#2563EB] ml-1.5 font-medium">Refresh now to load the latest improvements.</span>
         </span>
       </div>
 
@@ -78,7 +82,7 @@ export function UpdateNotificationBanner() {
           type="button"
           onClick={handleUpdateClick}
           disabled={isUpdating}
-          className="inline-flex items-center gap-1.5 bg-white text-blue-700 hover:bg-blue-50 font-semibold px-3 py-1 rounded shadow-sm text-xs transition-all active:scale-95 disabled:opacity-75"
+          className="inline-flex items-center gap-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold px-3 py-1 rounded-lg shadow-xs text-xs transition-all active:scale-95 disabled:opacity-75 cursor-pointer"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isUpdating ? "animate-spin" : ""}`} />
           <span>{isUpdating ? "Updating..." : "Update Now"}</span>
@@ -87,7 +91,7 @@ export function UpdateNotificationBanner() {
         <button
           type="button"
           onClick={() => setIsDismissed(true)}
-          className="text-blue-200 hover:text-white p-1 rounded transition-colors"
+          className="text-[#64748B] hover:text-[#0F172A] hover:bg-[#DBEAFE] p-1 rounded-lg transition-colors cursor-pointer"
           title="Dismiss update notice"
           aria-label="Dismiss update notice"
         >
