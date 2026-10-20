@@ -29,48 +29,48 @@
 }
 
 :root, .dark {
-  /* 7TIME Brand Color Tokens - Professional Warm Cream & White Light Theme */
-  --background: 48 27% 96%; /* #F8F7F2 Warm Cream */
-  --foreground: 218 54% 20%; /* #172B4D Charcoal Navy */
-  --card: 0 0% 100%; /* #FFFFFF Pure White */
-  --card-foreground: 218 54% 20%; /* #172B4D */
+  /* 7TIME Modern Enterprise Design Tokens - Clean Crisp Slate-50 Background & White Cards */
+  --background: 210 40% 98%; /* #F8FAFC Ultra-clean modern slate-50 canvas */
+  --foreground: 222 47% 11%; /* #0F172A Slate-900 High contrast readable text */
+  --card: 0 0% 100%; /* #FFFFFF Pure Crisp White */
+  --card-foreground: 222 47% 11%; /* #0F172A */
   --popover: 0 0% 100%; /* #FFFFFF */
-  --popover-foreground: 218 54% 20%; /* #172B4D */
-  --primary: 221 83% 53%; /* #2563EB Primary Blue */
+  --popover-foreground: 222 47% 11%; /* #0F172A */
+  --primary: 221 83% 53%; /* #2563EB Royal Primary Blue */
   --primary-foreground: 0 0% 100%;
-  --secondary: 214 31% 96%; /* #F1F4F8 Subtle Alternate Surface */
-  --secondary-foreground: 218 54% 20%; /* #172B4D */
-  --muted: 214 31% 96%; /* #F1F4F8 */
-  --muted-foreground: 214 15% 47%; /* #66758A Muted Slate */
-  --accent: 214 31% 96%; /* #F1F4F8 */
+  --secondary: 210 40% 96%; /* #F1F5F9 Slate-100 */
+  --secondary-foreground: 222 47% 11%; /* #0F172A */
+  --muted: 210 40% 96%; /* #F1F5F9 */
+  --muted-foreground: 215 16% 47%; /* #64748B Slate-500 */
+  --accent: 210 40% 96%; /* #F1F5F9 */
   --accent-foreground: 221 83% 53%; /* #2563EB */
-  --destructive: 4 77% 40%; /* #B42318 Danger Text */
+  --destructive: 0 84% 60%; /* #EF4444 */
   --destructive-foreground: 0 0% 100%;
-  --border: 213 25% 88%; /* #D9E0E8 Subtle Neutral Border */
-  --input: 213 25% 88%; /* #D9E0E8 */
+  --border: 214 32% 91%; /* #E2E8F0 Clean hair-line border */
+  --input: 214 32% 91%; /* #E2E8F0 */
   --ring: 221 83% 53%; /* #2563EB */
-  --radius: 0.75rem;
+  --radius: 0.875rem; /* Modern rounded-xl */
 
   /* Authoritative 7TIME Design Tokens */
-  --color-7time-bg: #F8F7F2;
+  --color-7time-bg: #F8FAFC;
   --color-7time-surface: #FFFFFF;
-  --color-7time-surface-alt: #F1F4F8;
-  --color-7time-text-primary: #172B4D;
-  --color-7time-text-secondary: #52627A;
-  --color-7time-text-muted: #66758A;
-  --color-7time-border: #D9E0E8;
+  --color-7time-surface-alt: #F1F5F9;
+  --color-7time-text-primary: #0F172A;
+  --color-7time-text-secondary: #475569;
+  --color-7time-text-muted: #64748B;
+  --color-7time-border: #E2E8F0;
   --color-7time-blue: #2563EB;
   --color-7time-blue-hover: #1D4ED8;
-  --color-7time-success-text: #087443;
-  --color-7time-success-surface: #EAF7EF;
-  --color-7time-warning-text: #92400E;
-  --color-7time-warning-surface: #FFF4D6;
-  --color-7time-danger-text: #B42318;
-  --color-7time-danger-surface: #FDECEC;
+  --color-7time-success-text: #047857;
+  --color-7time-success-surface: #ECFDF5;
+  --color-7time-warning-text: #B45309;
+  --color-7time-warning-surface: #FFFBEB;
+  --color-7time-danger-text: #B91C1C;
+  --color-7time-danger-surface: #FEF2F2;
 
-  /* Sidebar Tokens - Clean Light Theme */
+  /* Sidebar Tokens - Sleek White SaaS Theme */
   --color-7time-sidebar-bg: #FFFFFF;
-  --color-7time-sidebar-border: #D9E0E8;
+  --color-7time-sidebar-border: #E2E8F0;
 }
 
 @layer base {
@@ -78,7 +78,8 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground font-sans antialiased;
+    background-color: #F8FAFC;
   }
 
   /* Responsive Touch Targets for Mobile */
@@ -89,48 +90,58 @@
   }
 }
 
-/* 7TIME Master Dashboard CSS Grid Architecture */
-.dashboard-core-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-  align-items: stretch;
-  width: 100%;
+/* Custom Micro-Elevation Shadows */
+.shadow-card {
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
 }
 
-@media (min-width: 640px) and (max-width: 1023px) {
-  .dashboard-core-grid {
+.shadow-card-hover {
+  box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.06), 0 4px 6px -4px rgba(15, 23, 42, 0.04);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* 7TIME Executive Financial Overview CSS Grid Architecture */
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .dashboard-kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: 12px;
   }
 }
 
 @media (min-width: 1024px) {
-  .dashboard-core-grid {
+  .dashboard-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px;
+    gap: 12px;
   }
 }
 
-.dashboard-secondary-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-  align-items: stretch;
-  width: 100%;
-}
-
-@media (min-width: 640px) {
-  .dashboard-secondary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
+@media (min-width: 1366px) {
+  .dashboard-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
   }
-}
-
-.dashboard-domain-card {
-  width: 100%;
-  min-width: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
 }
