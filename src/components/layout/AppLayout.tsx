@@ -85,16 +85,19 @@ interface SidebarContentProps {
 function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProps) {
   return (
     <>
-      <div className="h-16 flex items-center justify-between px-5 border-b border-[#D9E0E8] bg-white shrink-0">
-        <div className="flex items-center gap-2.5">
-          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="7TIME Logo" className="w-8 h-8 rounded-lg shrink-0 object-contain drop-shadow-xs" />
+      {/* Brand Header */}
+      <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200/80 bg-white shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="7TIME Logo" className="w-7 h-7 rounded-lg shrink-0 object-contain" />
+          </div>
           <div className="min-w-0">
-            <span className="text-[#172B4D] font-bold text-base tracking-tight block leading-tight">7TIME MANAGER</span>
-            <span className="text-[10px] text-[#2563EB] font-bold tracking-wider uppercase block">Your All-in-One Hub</span>
+            <span className="text-slate-900 font-black text-sm sm:text-base tracking-tight block leading-tight">7TIME MANAGER</span>
+            <span className="text-[10px] text-blue-600 font-bold tracking-wider uppercase block">Your All-in-One Hub</span>
           </div>
         </div>
         <button 
-          className="lg:hidden text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8] p-1.5 rounded-lg cursor-pointer transition-colors"
+          className="lg:hidden text-slate-500 hover:text-slate-900 hover:bg-slate-100 p-1.5 rounded-lg cursor-pointer transition-colors"
           onClick={onClose}
           aria-label="Close navigation menu"
         >
@@ -102,16 +105,17 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
         </button>
       </div>
       
+      {/* Navigation Groups */}
       <div className="flex-1 py-4 overflow-y-auto bg-white">
-        <nav className="space-y-6 px-3">
+        <nav className="space-y-5 px-3">
           {navGroups.map((group) => (
-            <div key={group.name}>
+            <div key={group.name || "main"}>
               {group.name && (
-                <h3 className="px-3 text-[11px] font-bold text-[#66758A] uppercase tracking-wider mb-2">
+                <h3 className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
                   {group.name}
                 </h3>
               )}
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const isActive = pathname === item.href || 
                     (item.href !== "/" && pathname.startsWith(item.href))
@@ -121,15 +125,15 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
                       key={item.name}
                       to={item.href}
                       className={`
-                        flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all
+                        flex items-center px-3 py-2 text-xs sm:text-sm font-medium rounded-xl transition-all duration-150 group
                         ${isActive
-                          ? "bg-[#EBF2FE] text-[#2563EB] font-semibold border-l-[3px] border-[#2563EB]"
-                          : "text-[#52627A] hover:bg-[#F1F4F8] hover:text-[#172B4D]"
+                          ? "bg-blue-50/90 text-blue-600 font-bold border-l-[3px] border-blue-600 shadow-2xs"
+                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
                         }
                       `}
                     >
-                      <item.icon className={`mr-3 flex-shrink-0 h-4 w-4 ${isActive ? "text-[#2563EB]" : "text-[#66758A]"}`} aria-hidden="true" />
-                      {item.name}
+                      <item.icon className={`mr-3 flex-shrink-0 h-4 w-4 transition-colors ${isActive ? "text-blue-600" : "text-slate-400 group-hover:text-slate-700"}`} aria-hidden="true" />
+                      <span className="truncate">{item.name}</span>
                     </Link>
                   )
                 })}
@@ -139,30 +143,34 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
         </nav>
       </div>
       
-      <div className="p-4 border-t border-[#D9E0E8] bg-[#F8F7F2]/40 shrink-0">
-        <div className="flex items-center text-sm mb-4">
-          <div className="w-8 h-8 rounded-full bg-[#EBF2FE] text-[#2563EB] font-bold border border-[#D9E0E8] flex items-center justify-center mr-3 text-xs">
-            {user?.email?.charAt(0).toUpperCase()}
+      {/* User & Version Footer */}
+      <div className="p-4 border-t border-slate-200/80 bg-slate-50/60 shrink-0 space-y-3">
+        <div className="flex items-center text-sm p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+          <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold border border-blue-200 flex items-center justify-center mr-2.5 text-xs shrink-0">
+            {user?.email?.charAt(0).toUpperCase() || "A"}
           </div>
-          <div className="truncate text-xs font-semibold text-[#172B4D]">{user?.email}</div>
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-bold text-slate-900 leading-tight">{user?.email || "Manager"}</div>
+            <div className="text-[10px] text-slate-500 font-medium">Enterprise Admin</div>
+          </div>
         </div>
         <Button 
           variant="ghost" 
-          className="w-full justify-start text-[#52627A] hover:text-[#B42318] hover:bg-[#FDECEC] rounded-lg transition-colors"
+          className="w-full justify-start text-xs font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors h-9"
           onClick={signOut}
         >
-          <LogOut className="mr-3 h-5 w-5" />
+          <LogOut className="mr-2.5 h-4 w-4" />
           Sign Out
         </Button>
-        <div className="mt-4 pt-3 border-t border-[#D9E0E8] flex items-center justify-between text-xs text-[#66758A] font-medium">
-          <span>v{getCurrentAppVersion()}</span>
+        <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-medium">
+          <span className="text-[11px] font-mono text-slate-400">v{getCurrentAppVersion()}</span>
           <button
             type="button"
             onClick={() => forceAppReload()}
-            className="hover:text-[#172B4D] text-[11px] flex items-center gap-1 transition-colors px-1.5 py-0.5 rounded hover:bg-[#F1F4F8] text-[#52627A]"
+            className="hover:text-slate-900 text-[11px] font-semibold flex items-center gap-1.5 transition-colors px-2 py-1 rounded-md hover:bg-slate-100 text-slate-600 cursor-pointer"
             title="Purge cache and reload latest version"
           >
-            <RefreshCw className="h-3 w-3" />
+            <RefreshCw className="h-3 w-3 text-blue-600" />
             <span>Check Updates</span>
           </button>
         </div>
@@ -214,11 +222,11 @@ export function AppLayout() {
   }, [])
 
   return (
-    <div className="flex h-screen bg-[#F8F7F2] text-[#172B4D] overflow-hidden">
+    <div className="flex h-screen bg-[#F8FAFC] text-slate-900 overflow-hidden">
       {/* Mobile Menu Overlay */}
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-xs lg:hidden transition-opacity"
           onClick={() => setIsMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -227,7 +235,7 @@ export function AppLayout() {
       {/* Sidebar - Desktop (Static) & Mobile (Slide-in) */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-white text-[#172B4D] flex flex-col border-r border-[#D9E0E8] shadow-xs
+          fixed inset-y-0 left-0 z-50 w-64 bg-white text-slate-900 flex flex-col border-r border-slate-200/80 shadow-xs
           transform transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 shrink-0
           ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
         `}
@@ -242,14 +250,14 @@ export function AppLayout() {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F8F7F2]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#F8FAFC]">
         {/* Real-time Update Notification Banner */}
         <UpdateNotificationBanner />
 
         {/* Desktop Header */}
-        <header className="hidden lg:flex items-center justify-between h-16 px-6 bg-white border-b border-[#D9E0E8] shrink-0">
+        <header className="hidden lg:flex items-center justify-between h-16 px-6 bg-white/90 backdrop-blur-xs border-b border-slate-200/80 shrink-0 sticky top-0 z-30">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="text-sm font-bold text-[#0F172A] tracking-tight truncate">
+            <span className="text-sm font-bold text-slate-900 tracking-tight truncate">
               {getPageTitle(location.pathname)}
             </span>
           </div>
@@ -259,23 +267,23 @@ export function AppLayout() {
             <button
               type="button"
               onClick={() => forceAppReload()}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#52627A] hover:text-[#0F172A] hover:bg-[#F1F4F8] bg-white rounded-lg transition-colors border border-[#D9E0E8] shrink-0 cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 bg-white rounded-lg transition-colors border border-slate-200 shrink-0 cursor-pointer shadow-2xs"
               title="Tap to refresh app and clear cached update"
             >
-              <RefreshCw className="h-3 w-3 text-[#2563EB]" />
+              <RefreshCw className="h-3 w-3 text-blue-600" />
               <span>v{getCurrentAppVersion()}</span>
             </button>
 
             {/* User Profile Badge */}
-            <div className="flex items-center gap-2 pl-3 border-l border-[#D9E0E8]">
-              <div className="w-8 h-8 rounded-full bg-[#EFF6FF] text-[#2563EB] font-bold border border-[#BFDBFE] flex items-center justify-center text-xs shrink-0 shadow-2xs">
+            <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
+              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold border border-blue-200 flex items-center justify-center text-xs shrink-0 shadow-2xs">
                 {user?.email?.charAt(0).toUpperCase() || "A"}
               </div>
               <div className="hidden xl:block text-left">
-                <span className="text-xs font-semibold text-[#0F172A] block leading-tight truncate max-w-[150px]">
+                <span className="text-xs font-semibold text-slate-900 block leading-tight truncate max-w-[150px]">
                   {user?.email || "Admin User"}
                 </span>
-                <span className="text-[10px] text-[#64748B] block leading-tight">
+                <span className="text-[10px] text-slate-500 block leading-tight font-medium">
                   Manager
                 </span>
               </div>
@@ -284,10 +292,10 @@ export function AppLayout() {
         </header>
 
         {/* Mobile Header */}
-        <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-[#D9E0E8] shrink-0">
+        <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-slate-200/80 shrink-0 sticky top-0 z-30">
           <div className="flex items-center min-w-0">
             <button
-              className="p-2 -ml-2 mr-2 text-[#172B4D] hover:bg-[#F1F4F8] rounded-md cursor-pointer transition-colors"
+              className="p-2 -ml-2 mr-2 text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
               onClick={() => setIsMobileMenuOpen(true)}
               aria-label="Open mobile navigation menu"
             >
@@ -296,8 +304,8 @@ export function AppLayout() {
             <div className="flex items-center gap-2.5 min-w-0">
               <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="7TIME Logo" className="w-7 h-7 rounded-md shrink-0 object-contain drop-shadow-xs" />
               <div>
-                <span className="font-bold text-base text-[#172B4D] tracking-tight truncate block leading-tight">7TIME MANAGER</span>
-                <span className="text-[9px] text-[#2563EB] font-bold tracking-wider uppercase block">Your All-in-One Hub</span>
+                <span className="font-black text-sm text-slate-900 tracking-tight truncate block leading-tight">7TIME MANAGER</span>
+                <span className="text-[9px] text-blue-600 font-bold tracking-wider uppercase block">Your All-in-One Hub</span>
               </div>
             </div>
           </div>
@@ -306,16 +314,16 @@ export function AppLayout() {
           <button
             type="button"
             onClick={() => forceAppReload()}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-[#172B4D] hover:bg-[#E2E8F0] bg-[#F1F4F8] rounded-md transition-colors border border-[#D9E0E8] shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 bg-slate-50 rounded-lg transition-colors border border-slate-200 shrink-0 cursor-pointer shadow-2xs"
             title="Tap to refresh app and clear cached update"
           >
-            <RefreshCw className="h-3 w-3 text-[#52627A]" />
+            <RefreshCw className="h-3 w-3 text-blue-600" />
             <span>v{getCurrentAppVersion()}</span>
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 bg-[#F8F7F2]">
-          <div className="max-w-[1600px] mx-auto">
+        <main className="flex-1 w-full min-w-0 overflow-y-auto p-3.5 sm:p-5 lg:p-6 bg-[#F8FAFC]">
+          <div className="w-full max-w-[1600px] mx-auto min-w-0">
             <Outlet />
           </div>
         </main>

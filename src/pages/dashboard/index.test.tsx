@@ -18,6 +18,7 @@ const mockStats = {
     outstanding: 300,
     totalPurchases: 23300,
     totalPaid: 23000,
+    totalPaidToDealers: 23000,
     totalPayable: 300,
     paymentsMade: 23000,
     amountPaidAtPurchase: 0,
@@ -31,6 +32,7 @@ const mockStats = {
     profitMargin: 26.7,
     receivables: 5000,
     totalPayable: 300,
+    payables: 300,
     cogs: 33000,
     received: 40000,
     productsSold: 150,
@@ -163,7 +165,7 @@ const mockStats = {
   },
 }
 
-describe("Redesigned 7TIME Dashboard Page", () => {
+describe("Phase 16: Cards-Only 7TIME Dashboard Page", () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
@@ -188,7 +190,7 @@ describe("Redesigned 7TIME Dashboard Page", () => {
     )
   }
 
-  it("renders 7TIME header, live sync badge, mode controls and month navigation", async () => {
+  it("renders 7TIME header, live sync badge, mode controls and subtitle", async () => {
     renderComponent()
 
     expect(await screen.findByText("7TIME Business Management")).toBeDefined()
@@ -198,129 +200,113 @@ describe("Redesigned 7TIME Dashboard Page", () => {
     expect(screen.getByText(/Five clear business sections/i)).toBeDefined()
   })
 
-  it("Section 1: proves purchases, dealer payments, and dealer outstanding balances are distinct and traceable", async () => {
+  it("renders the 5 approved compact business summary cards with live figures", async () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("Total Purchases & Dealer Payments")).toBeDefined()
+      expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
     })
 
-    // Total purchases: ₹23,300.00
-    expect(screen.getByText("₹23,300.00")).toBeDefined()
-    // Total paid to dealers: ₹23,000.00
-    expect(screen.getByText("₹23,000.00")).toBeDefined()
-    // Outstanding amount we owe dealers: ₹300.00
-    expect(screen.getAllByText("₹300.00").length).toBeGreaterThanOrEqual(1)
+    // CARD 1: Purchases & Dealer Payments
+    const card1 = screen.getByRole("region", { name: "Summary Card 1: Purchases & Dealer Payments" })
+    expect(card1).toBeDefined()
+    expect(card1.textContent).toContain("Purchases & Dealers")
+    expect(card1.textContent).toContain("₹23,300.00") // Total Purchases
+    expect(card1.textContent).toContain("Paid to Dealers")
+    expect(card1.textContent).toContain("₹23,000.00")
+    expect(card1.textContent).toContain("Outstanding Payables")
+    expect(card1.textContent).toContain("₹300.00")
 
-    // Traceable dealer in breakdown
-    expect(screen.getByText("Al Infaq")).toBeDefined()
-    expect(screen.getByText("Dealer Payables Breakdown (1)")).toBeDefined()
-    expect(screen.getByText(/Purchases and payments remain distinct concepts/i)).toBeDefined()
+    // CARD 2: Wholesale Business
+    const card2 = screen.getByRole("region", { name: "Summary Card 2: Wholesale Business" })
+    expect(card2).toBeDefined()
+    expect(card2.textContent).toContain("Wholesale Business")
+    expect(card2.textContent).toContain("₹45,000.00") // Wholesale Sales
+    expect(card2.textContent).toContain("Gross Profit (26.7%)")
+    expect(card2.textContent).toContain("₹12,000.00")
+    expect(card2.textContent).toContain("Customer Receivables")
+    expect(card2.textContent).toContain("₹5,000.00")
+    expect(card2.textContent).toContain("Supplier Payables")
+    expect(card2.textContent).toContain("₹300.00")
+
+    // CARD 3: General Delivery
+    const card3 = screen.getByRole("region", { name: "Summary Card 3: General Delivery" })
+    expect(card3).toBeDefined()
+    expect(card3.textContent).toContain("General Delivery")
+    expect(card3.textContent).toContain("₹5,180.00") // Combined Delivery
+    expect(card3.textContent).toContain("Excl. NAEEM")
+    expect(card3.textContent).toContain("₹3,000.00")
+    expect(card3.textContent).toContain("Fuel Expenses")
+    expect(card3.textContent).toContain("₹1,400.00")
+    expect(card3.textContent).toContain("Net Contribution")
+    expect(card3.textContent).toContain("₹3,780.00")
+
+    // CARD 4: NAEEM Delivery
+    const card4 = screen.getByRole("region", { name: "Summary Card 4: NAEEM Delivery" })
+    expect(card4).toBeDefined()
+    expect(card4.textContent).toContain("NAEEM Delivery")
+    expect(card4.textContent).toContain("₹7,700.00") // Total Delivery
+    expect(card4.textContent).toContain("Total Received")
+    expect(card4.textContent).toContain("₹5,000.00")
+    expect(card4.textContent).toContain("Outstanding Balance")
+    expect(card4.textContent).toContain("₹3,200.00")
+
+    // CARD 5: Personal Ledger
+    const card5 = screen.getByRole("region", { name: "Summary Card 5: Personal Ledger" })
+    expect(card5).toBeDefined()
+    expect(card5.textContent).toContain("Personal Ledger")
+    expect(card5.textContent).toContain("Isolated")
+    expect(card5.textContent).toContain("₹6,500.00") // Personal Receivables
+    expect(card5.textContent).toContain("Amount Received")
+    expect(card5.textContent).toContain("₹4,000.00")
+    expect(card5.textContent).toContain("Outstanding Balances")
+    expect(card5.textContent).toContain("₹2,500.00")
   })
 
-  it("Section 2: proves wholesale sales, gross profit, receivables, and payables are independently calculated without offsetting", async () => {
+  it("ensures each compact summary card provides View details link to the correct destination", async () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("Wholesale Business")).toBeDefined()
+      expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
     })
 
-    // Wholesale sales: ₹45,000.00
-    expect(screen.getByText("₹45,000.00")).toBeDefined()
-    // Wholesale gross profit: ₹12,000.00
-    expect(screen.getByText("₹12,000.00")).toBeDefined()
-    // Margin: 26.7% Margin
-    expect(screen.getByText("26.7% Margin")).toBeDefined()
-    // Money customers owe us: ₹5,000.00
-    expect(screen.getAllByText("₹5,000.00").length).toBeGreaterThanOrEqual(1)
-    // Top wholesale trade debtor
-    expect(screen.getByText("Kashmir Traders")).toBeDefined()
-    expect(screen.getByText("Top Wholesale Debtors (1)")).toBeDefined()
-    expect(screen.getByText(/Customer receivables are never counted as sales a second time/i)).toBeDefined()
+    const card1 = screen.getByRole("region", { name: "Summary Card 1: Purchases & Dealer Payments" })
+    expect(card1.querySelector("a[href='/dealers']")).toBeDefined()
+
+    const card2 = screen.getByRole("region", { name: "Summary Card 2: Wholesale Business" })
+    expect(card2.querySelector("a[href='/wholesale']")).toBeDefined()
+
+    const card3 = screen.getByRole("region", { name: "Summary Card 3: General Delivery" })
+    expect(card3.querySelector("a[href='/general-deliveries']")).toBeDefined()
+
+    const card4 = screen.getByRole("region", { name: "Summary Card 4: NAEEM Delivery" })
+    expect(card4.querySelector("a[href='/naeem']")).toBeDefined()
+
+    const card5 = screen.getByRole("region", { name: "Summary Card 5: Personal Ledger" })
+    expect(card5.querySelector("a[href='/local-customers']")).toBeDefined()
   })
 
-  it("Section 3: displays General Delivery excluding NAEEM and verifies exact reconciliation formula", async () => {
+  it("Phase 16 cleanup: verifies Quick Operational Actions and Detailed Ledgers & Audit Reconciliation are completely removed", async () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("General Delivery (including NAEEM)")).toBeDefined()
+      expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
     })
 
-    // Combined delivery: ₹5,180.00
-    expect(screen.getAllByText("₹5,180.00").length).toBeGreaterThanOrEqual(1)
-    // NAEEM included: ₹2,180.00
-    expect(screen.getAllByText("₹2,180.00").length).toBeGreaterThanOrEqual(1)
-    // General delivery excluding NAEEM: ₹3,000.00
-    expect(screen.getAllByText("₹3,000.00").length).toBeGreaterThanOrEqual(1)
-    // Fuel expenses: ₹1,400.00
-    expect(screen.getAllByText("₹1,400.00").length).toBeGreaterThanOrEqual(1)
-    // Net contribution: ₹3,780.00
-    expect(screen.getAllByText("₹3,780.00").length).toBeGreaterThanOrEqual(1)
+    // Quick Operational Actions must NOT be present
+    expect(screen.queryByText("Quick Operational Actions")).toBeNull()
+    expect(screen.queryByText("Record Purchase")).toBeNull()
+    expect(screen.queryByText("Record Wholesale Sale")).toBeNull()
+    expect(screen.queryByText("Record Dealer Payment")).toBeNull()
+    expect(screen.queryByText("Open General Delivery")).toBeNull()
+    expect(screen.queryByText("Open NAEEM Delivery")).toBeNull()
 
-    // Mathematical formula boxes
-    expect(screen.getByText("General Delivery Reconciliation Formula")).toBeDefined()
-    expect(screen.getByText("Formula Reconciled")).toBeDefined()
-    expect(screen.getByText(/Critical Double-Counting Protection:/i)).toBeDefined()
-  })
-
-  it("Section 4: preserves NAEEM independent ledger, opening balances, and trip history", async () => {
-    renderComponent()
-
-    await waitFor(() => {
-      expect(screen.getByText("NAEEM Delivery Ledger")).toBeDefined()
-    })
-
-    // Total NAEEM delivery: ₹7,700.00
-    expect(screen.getByText("₹7,700.00")).toBeDefined()
-    // Total received: ₹5,000.00
-    expect(screen.getAllByText("₹5,000.00").length).toBeGreaterThanOrEqual(1)
-    // Opening balance: ₹500.00
-    expect(screen.getByText("₹500.00")).toBeDefined()
-    // Outstanding: ₹3,200.00 (7700 + 500 - 5000)
-    expect(screen.getByText("₹3,200.00")).toBeDefined()
-    // Trips
-    expect(screen.getByText("22 logged contract trips")).toBeDefined()
-    expect(screen.getByText("Open NAEEM Ledger")).toBeDefined()
-  })
-
-  it("Section 5: strictly isolates Personal Ledger with mandatory isolation guarantee and funding breakdown", async () => {
-    renderComponent()
-
-    await waitFor(() => {
-      expect(screen.getAllByText("Personal Ledger").length).toBeGreaterThanOrEqual(1)
-    })
-
-    // Strictly isolated badge
-    expect(screen.getByText("Strictly Isolated")).toBeDefined()
-    // Personal receivables: ₹6,500.00
-    expect(screen.getByText("₹6,500.00")).toBeDefined()
-    // Personal received: ₹4,000.00
-    expect(screen.getByText("₹4,000.00")).toBeDefined()
-    // Personal outstanding: ₹2,500.00
-    expect(screen.getAllByText("₹2,500.00").length).toBeGreaterThanOrEqual(1)
-
-    // Funding source breakdown
-    expect(screen.getByText("7TIME Funds Disbursed")).toBeDefined()
-    expect(screen.getByText("₹1,500.00")).toBeDefined()
-    expect(screen.getByText("Personal Capital Disbursed")).toBeDefined()
-    expect(screen.getByText("₹1,000.00")).toBeDefined()
-
-    // Individual personal debtor
-    expect(screen.getByText("Personal Debtor 1")).toBeDefined()
-    expect(screen.getByText("MANDATORY ISOLATION POLICY ENFORCED")).toBeDefined()
-  })
-
-  it("renders quick operational actions linking to all 5 core workflows", async () => {
-    renderComponent()
-
-    await waitFor(() => {
-      expect(screen.getByText("Quick Operational Actions")).toBeDefined()
-      expect(screen.getByText("Record Purchase")).toBeDefined()
-      expect(screen.getByText("Record Wholesale Sale")).toBeDefined()
-      expect(screen.getByText("Record Dealer Payment")).toBeDefined()
-      expect(screen.getByText("Open General Delivery")).toBeDefined()
-      expect(screen.getByText("Open NAEEM Delivery")).toBeDefined()
-    })
+    // Detailed Ledgers & Audit Reconciliation drawer must NOT be present
+    expect(screen.queryByText("Detailed Ledgers & Audit Reconciliation")).toBeNull()
+    expect(screen.queryByText("General Delivery Reconciliation Formula")).toBeNull()
+    expect(screen.queryByText("Critical Double-Counting Protection:")).toBeNull()
+    expect(screen.queryByText("Dealer Payables Breakdown (1)")).toBeNull()
+    expect(screen.queryByText("Top Wholesale Debtors (1)")).toBeNull()
   })
 
   it("toggles between Monthly and All Time scopes and calls getDashboardStats with correct boundaries", async () => {
@@ -336,6 +322,14 @@ describe("Redesigned 7TIME Dashboard Page", () => {
 
     await waitFor(() => {
       expect(getDashboardStats).toHaveBeenCalledWith("ALL")
+    })
+
+    // Click back to Monthly
+    const monthlyButton = screen.getByText("Monthly")
+    fireEvent.click(monthlyButton)
+
+    await waitFor(() => {
+      expect(getDashboardStats).toHaveBeenCalledWith("CUSTOM", expect.any(String), expect.any(String))
     })
   })
 
@@ -411,17 +405,12 @@ describe("Redesigned 7TIME Dashboard Page", () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("Total Purchases & Dealer Payments")).toBeDefined()
+      expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
     })
 
-    // Verified empty settlements
-    expect(screen.getByText(/All dealer accounts are fully settled/i)).toBeDefined()
-    expect(screen.getByText(/All wholesale customers are fully paid/i)).toBeDefined()
-    expect(screen.getByText(/All personal credit accounts are fully settled/i)).toBeDefined()
-
-    // Confirm genuine ₹0.00 displays and no fabricated figures
+    // Confirm genuine ₹0.00 displays across all 5 cards
     const zeroDisplays = screen.getAllByText("₹0.00")
-    expect(zeroDisplays.length).toBeGreaterThanOrEqual(5)
+    expect(zeroDisplays.length).toBeGreaterThanOrEqual(10)
     expect(screen.queryByText("₹23,300.00")).toBeNull()
     expect(screen.queryByText("₹45,000.00")).toBeNull()
   })
