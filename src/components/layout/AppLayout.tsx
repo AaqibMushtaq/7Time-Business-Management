@@ -97,7 +97,7 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
           </div>
         </div>
         <button 
-          className="lg:hidden text-slate-500 hover:text-slate-900 hover:bg-slate-100 p-1.5 rounded-lg cursor-pointer transition-colors"
+          className="lg:hidden text-slate-500 hover:text-slate-900 hover:bg-slate-100 p-2 rounded-xl cursor-pointer transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-hidden"
           onClick={onClose}
           aria-label="Close navigation menu"
         >
@@ -124,8 +124,9 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
                     <Link
                       key={item.name}
                       to={item.href}
+                      onClick={onClose}
                       className={`
-                        flex items-center px-3 py-2 text-xs sm:text-sm font-medium rounded-xl transition-all duration-150 group
+                        flex items-center px-3 py-2.5 text-xs sm:text-sm font-medium rounded-xl transition-all duration-150 group min-h-[40px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-hidden
                         ${isActive
                           ? "bg-blue-50/90 text-blue-600 font-bold border-l-[3px] border-blue-600 shadow-2xs"
                           : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium"
@@ -156,7 +157,7 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
         </div>
         <Button 
           variant="ghost" 
-          className="w-full justify-start text-xs font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors h-9"
+          className="w-full justify-start text-xs font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors h-10 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:outline-hidden"
           onClick={signOut}
         >
           <LogOut className="mr-2.5 h-4 w-4" />
@@ -167,7 +168,7 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
           <button
             type="button"
             onClick={() => forceAppReload()}
-            className="hover:text-slate-900 text-[11px] font-semibold flex items-center gap-1.5 transition-colors px-2 py-1 rounded-md hover:bg-slate-100 text-slate-600 cursor-pointer"
+            className="hover:text-slate-900 text-[11px] font-semibold flex items-center gap-1.5 transition-colors px-2 py-1.5 rounded-lg hover:bg-slate-100 text-slate-600 cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-hidden"
             title="Purge cache and reload latest version"
           >
             <RefreshCw className="h-3 w-3 text-blue-600" />
@@ -221,6 +222,30 @@ export function AppLayout() {
     return () => window.removeEventListener("resize", handleResize)
   }, [])
 
+  // Close mobile menu on Escape key press
+  useEffect(() => {
+    if (!isMobileMenuOpen) return
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsMobileMenuOpen(false)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isMobileMenuOpen])
+
+  // Prevent background scrolling when mobile menu drawer is open
+  useEffect(() => {
+    if (isMobileMenuOpen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = ""
+    }
+    return () => {
+      document.body.style.overflow = ""
+    }
+  }, [isMobileMenuOpen])
+
   return (
     <div className="flex h-screen bg-[#F8FAFC] text-slate-900 overflow-hidden">
       {/* Mobile Menu Overlay */}
@@ -234,12 +259,15 @@ export function AppLayout() {
 
       {/* Sidebar - Desktop (Static) & Mobile (Slide-in) */}
       <aside
+        id="application-sidebar"
         className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-white text-slate-900 flex flex-col border-r border-slate-200/80 shadow-xs
+          fixed inset-y-0 left-0 z-50 w-64 sm:w-72 bg-white text-slate-900 flex flex-col border-r border-slate-200/80 shadow-lg lg:shadow-xs
           transform transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 shrink-0
           ${isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"}
         `}
         aria-label="Application sidebar"
+        aria-modal={isMobileMenuOpen ? "true" : undefined}
+        role={isMobileMenuOpen ? "dialog" : undefined}
       >
         <SidebarContent 
           user={user} 
@@ -267,7 +295,7 @@ export function AppLayout() {
             <button
               type="button"
               onClick={() => forceAppReload()}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 bg-white rounded-lg transition-colors border border-slate-200 shrink-0 cursor-pointer shadow-2xs"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 bg-white rounded-lg transition-colors border border-slate-200 shrink-0 cursor-pointer shadow-2xs focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-hidden"
               title="Tap to refresh app and clear cached update"
             >
               <RefreshCw className="h-3 w-3 text-blue-600" />
@@ -292,20 +320,22 @@ export function AppLayout() {
         </header>
 
         {/* Mobile Header */}
-        <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white border-b border-slate-200/80 shrink-0 sticky top-0 z-30">
+        <header className="lg:hidden flex items-center justify-between h-16 px-4 bg-white/95 backdrop-blur-xs border-b border-slate-200/80 shrink-0 sticky top-0 z-30">
           <div className="flex items-center min-w-0">
             <button
-              className="p-2 -ml-2 mr-2 text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+              className="p-2 -ml-2 mr-2 text-slate-700 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-hidden"
               onClick={() => setIsMobileMenuOpen(true)}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="application-sidebar"
               aria-label="Open mobile navigation menu"
             >
               <Menu className="h-6 w-6" />
             </button>
             <div className="flex items-center gap-2.5 min-w-0">
-              <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="7TIME Logo" className="w-7 h-7 rounded-md shrink-0 object-contain drop-shadow-xs" />
-              <div>
+              <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="7TIME Logo" className="w-7 h-7 rounded-lg shrink-0 object-contain drop-shadow-xs" />
+              <div className="min-w-0">
                 <span className="font-black text-sm text-slate-900 tracking-tight truncate block leading-tight">7TIME MANAGER</span>
-                <span className="text-[9px] text-blue-600 font-bold tracking-wider uppercase block">Your All-in-One Hub</span>
+                <span className="text-[9px] text-blue-600 font-bold tracking-wider uppercase block truncate">Your All-in-One Hub</span>
               </div>
             </div>
           </div>
@@ -314,15 +344,15 @@ export function AppLayout() {
           <button
             type="button"
             onClick={() => forceAppReload()}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 bg-slate-50 rounded-lg transition-colors border border-slate-200 shrink-0 cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 bg-slate-50 rounded-lg transition-colors border border-slate-200 shrink-0 cursor-pointer shadow-2xs min-h-[36px] focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-hidden"
             title="Tap to refresh app and clear cached update"
           >
-            <RefreshCw className="h-3 w-3 text-blue-600" />
+            <RefreshCw className="h-3.5 w-3.5 text-blue-600" />
             <span>v{getCurrentAppVersion()}</span>
           </button>
         </header>
 
-        <main className="flex-1 w-full min-w-0 overflow-y-auto p-3.5 sm:p-5 lg:p-6 bg-[#F8FAFC]">
+        <main className="flex-1 w-full min-w-0 overflow-y-auto p-3.5 sm:p-5 lg:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] bg-[#F8FAFC]">
           <div className="w-full max-w-[1600px] mx-auto min-w-0">
             <Outlet />
           </div>

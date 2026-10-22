@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, within } from "@testing-library/react"
 import { DataTable, type DataTableColumn } from "./DataTable"
 
 interface TestItem {
@@ -169,6 +169,121 @@ describe("DataTable Component", () => {
     const nextBtn = screen.getByLabelText("Next Page")
     fireEvent.click(nextBtn)
     expect(handlePageChange).toHaveBeenCalledWith(2)
+  })
+
+  it("supports hidden columns, responsivePriority, and density modes", () => {
+    const columnsWithConfig: DataTableColumn<TestItem>[] = [
+      { id: "name", header: "Name", accessorKey: "name" },
+      { id: "category", header: "Category", accessorKey: "category", hidden: true },
+      { id: "amount", header: "Amount", accessorKey: "amount", responsivePriority: "low" },
+    ]
+
+    render(
+      <DataTable
+        columns={columnsWithConfig}
+        data={mockData}
+        density="comfortable"
+      />
+    )
+
+    expect(screen.getByText("Name")).toBeDefined()
+    expect(screen.queryByText("Category")).toBeNull()
+    const amountHeader = screen.getByText("Amount").closest("th")
+    expect(amountHeader?.className).toContain("hidden lg:table-cell")
+  })
+
+  it("renders table footer with totals when column footer is configured", () => {
+    const columnsWithFooter: DataTableColumn<TestItem>[] = [
+      { id: "name", header: "Name", accessorKey: "name", footer: "Total" },
+      {
+        id: "amount",
+        header: "Amount",
+        accessorKey: "amount",
+        footer: ({ data }) => `₹${data.reduce((sum, item) => sum + item.amount, 0)}`,
+      },
+    ]
+
+    render(
+      <DataTable
+        columns={columnsWithFooter}
+        data={mockData}
+      />
+    )
+
+    expect(screen.getByText("Total")).toBeDefined()
+    expect(screen.getByText("₹4750")).toBeDefined()
+  })
+
+  it("renders structured mobile cards when responsiveMode='cards' is enabled", () => {
+    const mobileColumns: DataTableColumn<TestItem>[] = [
+      {
+        id: "name",
+        header: "Name",
+        accessorKey: "name",
+        mobileLabel: "Product Name",
+        mobileSpan: "full",
+        mobileOrder: 1,
+      },
+      {
+        id: "category",
+        header: "Category",
+        accessorKey: "category",
+        mobilePriority: "hidden",
+      },
+      {
+        id: "amount",
+        header: "Amount",
+        accessorKey: "amount",
+        mobileLabel: "Price",
+        mobileSpan: 1,
+        mobileOrder: 2,
+        mobileCell: ({ value }) => <strong>INR {value as number}</strong>,
+      },
+    ]
+
+    render(
+      <DataTable
+        columns={mobileColumns}
+        data={mockData}
+        getRowId={(r) => r.id}
+        responsiveMode="cards"
+        showFooter
+      />
+    )
+
+    // Mobile card elements should exist
+    expect(screen.getByTestId("mobile-card-1")).toBeDefined()
+    expect(screen.getByTestId("mobile-card-2")).toBeDefined()
+    expect(screen.getByTestId("mobile-card-3")).toBeDefined()
+
+    // Mobile labels should appear in mobile cards
+    expect(screen.getAllByText("Product Name").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("Price").length).toBeGreaterThan(0)
+
+    // Category with mobilePriority="hidden" should not be rendered inside mobile card
+    expect(within(screen.getByTestId("mobile-card-1")).queryByText("Category")).toBeNull()
+
+    // Custom mobile cell renderer should be used
+    expect(screen.getByText("INR 1200")).toBeDefined()
+  })
+
+  it("supports custom renderMobileCard callback", () => {
+    render(
+      <DataTable
+        columns={columns}
+        data={mockData}
+        getRowId={(r) => r.id}
+        responsiveMode="cards"
+        renderMobileCard={({ row }) => (
+          <div data-testid={`custom-card-${row.id}`}>
+            <h3>Custom: {row.name}</h3>
+          </div>
+        )}
+      />
+    )
+
+    expect(screen.getByTestId("custom-card-1")).toBeDefined()
+    expect(screen.getByText("Custom: Premium Widget")).toBeDefined()
   })
 })
 

@@ -61,6 +61,9 @@ export default function InventoryPage() {
         header: "Product",
         accessorKey: "name",
         sortable: true,
+        mobilePriority: "primary",
+        mobileSpan: "full",
+        mobileOrder: 1,
         cell: ({ row }) => (
           <span className="font-semibold text-[#0F172A] whitespace-nowrap">
             {row.name}
@@ -72,6 +75,10 @@ export default function InventoryPage() {
         header: "Dealer",
         accessorFn: (row) => row.dealer?.name || "—",
         sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Supplier",
+        mobileSpan: "half",
+        mobileOrder: 2,
         cell: ({ row }) => (
           <span className="whitespace-nowrap text-[#64748B]">
             {row.dealer?.name || "—"}
@@ -84,6 +91,10 @@ export default function InventoryPage() {
         accessorKey: "stock_quantity",
         align: "right",
         sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Current Stock",
+        mobileSpan: "half",
+        mobileOrder: 3,
         cell: ({ row }) => {
           const stock = row.stock_quantity
           return (
@@ -105,6 +116,10 @@ export default function InventoryPage() {
         id: "status",
         header: "Status",
         align: "center",
+        mobilePriority: "primary",
+        mobileLabel: "Status",
+        mobileSpan: "half",
+        mobileOrder: 4,
         cell: ({ row }) => {
           const stock = row.stock_quantity
           if (stock <= 0) return <StatusBadge status="out_of_stock" label="Out of Stock" />
@@ -118,6 +133,10 @@ export default function InventoryPage() {
         accessorKey: "buying_cost",
         align: "right",
         sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Cost/Unit",
+        mobileSpan: "half",
+        mobileOrder: 6,
         cell: ({ row }) => <CurrencyDisplay amount={row.buying_cost} />,
       },
       {
@@ -125,6 +144,10 @@ export default function InventoryPage() {
         header: "Stock Value",
         align: "right",
         sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Asset Value",
+        mobileSpan: "half",
+        mobileOrder: 5,
         cell: ({ row }) => (
           <CurrencyDisplay
             amount={row.stock_quantity * row.buying_cost}
@@ -138,6 +161,10 @@ export default function InventoryPage() {
         accessorKey: "wholesale_price",
         align: "right",
         sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "W. Price",
+        mobileSpan: "half",
+        mobileOrder: 7,
         cell: ({ row }) => <CurrencyDisplay amount={row.wholesale_price} />,
       },
       {
@@ -145,6 +172,7 @@ export default function InventoryPage() {
         header: "Pot. W. Rev",
         align: "right",
         sortable: true,
+        mobilePriority: "hidden",
         cell: ({ row }) => (
           <CurrencyDisplay
             amount={row.stock_quantity * row.wholesale_price}
@@ -157,6 +185,10 @@ export default function InventoryPage() {
         header: "Pot. W. Profit",
         align: "right",
         sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Pot. W. Profit",
+        mobileSpan: "half",
+        mobileOrder: 8,
         cell: ({ row }) => {
           const potWProfit =
             row.stock_quantity * (row.wholesale_price - row.buying_cost)
@@ -175,6 +207,7 @@ export default function InventoryPage() {
         accessorKey: "retail_price",
         align: "right",
         sortable: true,
+        mobilePriority: "hidden",
         cell: ({ row }) => <CurrencyDisplay amount={row.retail_price} />,
       },
       {
@@ -182,6 +215,7 @@ export default function InventoryPage() {
         header: "Pot. R. Rev",
         align: "right",
         sortable: true,
+        mobilePriority: "hidden",
         cell: ({ row }) => (
           <CurrencyDisplay
             amount={row.stock_quantity * row.retail_price}
@@ -194,6 +228,7 @@ export default function InventoryPage() {
         header: "Pot. R. Profit",
         align: "right",
         sortable: true,
+        mobilePriority: "hidden",
         cell: ({ row }) => {
           const potRProfit =
             row.stock_quantity * (row.retail_price - row.buying_cost)
@@ -275,6 +310,7 @@ export default function InventoryPage() {
         }}
         pagination
         pageSize={15}
+        responsiveMode="cards"
         minWidth={1040}
         getRowId={(p) => p.id}
         emptyState={{

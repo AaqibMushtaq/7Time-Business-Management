@@ -16,7 +16,7 @@ import {
   type DataTableColumn,
   DataTableActionButton,
 } from "@/components/shared"
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react"
+import { Loader2, Plus, Pencil, Trash2, AlertCircle, Package } from "lucide-react"
 import { EditProductModal } from "./EditProductModal"
 
 export default function ProductsPage() {
@@ -28,6 +28,8 @@ export default function ProductsPage() {
   const [buyingCost, setBuyingCost] = useState("")
   const [wholesalePrice, setWholesalePrice] = useState("")
   const [retailPrice, setRetailPrice] = useState("")
+  const [formError, setFormError] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   // Edit product modal state
   const [productToEdit, setProductToEdit] = useState<Product | null>(null)
@@ -45,36 +47,88 @@ export default function ProductsPage() {
     queryFn: getDealers,
   })
 
+  const invalidateProductContext = () => {
+    queryClient.invalidateQueries({ queryKey: ["products"] })
+    queryClient.invalidateQueries({ queryKey: ["inventory_page"] })
+    queryClient.invalidateQueries({ queryKey: ["dealerProducts"] })
+    queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
+  }
+
   const createMutation = useMutation({
     mutationFn: createProduct,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] })
+      invalidateProductContext()
       setName("")
       setBuyingCost("")
       setWholesalePrice("")
       setRetailPrice("")
+      setFormError(null)
+    },
+    onError: (err: any) => {
+      setFormError(err.message || "Failed to add product.")
     },
   })
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] })
+      invalidateProductContext()
       setProductToDelete(null)
+      setDeleteError(null)
+    },
+    onError: (err: any) => {
+      setDeleteError(err.message || "Failed to delete product.")
     },
   })
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !dealerId || !unit) return
+    setFormError(null)
+    if (createMutation.isPending) return
+
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setFormError("Product name is required.")
+      return
+    }
+
+    if (!dealerId) {
+      setFormError("Please select a dealer.")
+      return
+    }
+
+    const trimmedUnit = unit.trim()
+    if (!trimmedUnit) {
+      setFormError("Measurement unit is required.")
+      return
+    }
+
+    const cost = buyingCost !== "" ? parseFloat(buyingCost) : 0
+    const wholesale = wholesalePrice !== "" ? parseFloat(wholesalePrice) : 0
+    const retail = retailPrice !== "" ? parseFloat(retailPrice) : 0
+
+    if (isNaN(cost) || cost < 0) {
+      setFormError("Buying cost must be zero or a positive amount.")
+      return
+    }
+
+    if (isNaN(wholesale) || wholesale < 0) {
+      setFormError("Wholesale price must be zero or a positive amount.")
+      return
+    }
+
+    if (isNaN(retail) || retail < 0) {
+      setFormError("Retail price must be zero or a positive amount.")
+      return
+    }
 
     createMutation.mutate({
-      name,
+      name: trimmedName,
       dealer_id: dealerId,
-      unit,
-      buying_cost: parseFloat(buyingCost) || 0,
-      wholesale_price: parseFloat(wholesalePrice) || 0,
-      retail_price: parseFloat(retailPrice) || 0,
+      unit: trimmedUnit,
+      buying_cost: cost,
+      wholesale_price: wholesale,
+      retail_price: retail,
       stock_quantity: 0,
     })
   }
@@ -86,6 +140,10 @@ export default function ProductsPage() {
         header: "Product",
         accessorKey: "name",
         sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Product",
+        mobileSpan: "full",
+        mobileOrder: 1,
         cell: ({ row }) => (
           <Link
             to={`/products/${row.id}`}
@@ -100,11 +158,29 @@ export default function ProductsPage() {
         header: "Dealer",
         accessorFn: (row) => row.dealer?.name || "—",
         sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Dealer",
+        mobileSpan: 1,
+        mobileOrder: 2,
+        cell: ({ row }) => (
+          <span className="text-[#64748B] font-medium text-xs">
+            {row.dealer?.name || "—"}
+          </span>
+        ),
       },
       {
         id: "unit",
         header: "Unit",
         accessorKey: "unit",
+        mobilePriority: "secondary",
+        mobileLabel: "Unit",
+        mobileSpan: 1,
+        mobileOrder: 3,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-slate-600 font-medium">
+            {row.unit}
+          </span>
+        ),
       },
       {
         id: "stock",
@@ -112,6 +188,21 @@ export default function ProductsPage() {
         accessorKey: "stock_quantity",
         align: "right",
         sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Stock",
+        mobileSpan: 1,
+        mobileOrder: 4,
+        mobileCell: ({ row }) => (
+          <span
+            className={
+              row.stock_quantity <= 0
+                ? "font-mono font-bold text-xs text-[#DC2626]"
+                : "font-mono font-bold text-xs text-[#059669]"
+            }
+          >
+            {row.stock_quantity} {row.unit}
+          </span>
+        ),
         cell: ({ row }) => (
           <span
             className={
@@ -130,6 +221,10 @@ export default function ProductsPage() {
         accessorKey: "buying_cost",
         align: "right",
         sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Buying Cost",
+        mobileSpan: 1,
+        mobileOrder: 5,
         cell: ({ row }) => <CurrencyDisplay amount={row.buying_cost} />,
       },
       {
@@ -138,6 +233,10 @@ export default function ProductsPage() {
         accessorKey: "wholesale_price",
         align: "right",
         sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Wholesale Rate",
+        mobileSpan: 1,
+        mobileOrder: 6,
         cell: ({ row }) => <CurrencyDisplay amount={row.wholesale_price} variant="brand" />,
       },
       {
@@ -146,6 +245,10 @@ export default function ProductsPage() {
         accessorFn: (row) => row.wholesale_price - row.buying_cost,
         align: "right",
         sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "W. Profit",
+        mobileSpan: 1,
+        mobileOrder: 7,
         cell: ({ row }) => {
           const wholesaleProfit = row.wholesale_price - row.buying_cost
           return (
@@ -163,6 +266,10 @@ export default function ProductsPage() {
         accessorKey: "retail_price",
         align: "right",
         sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Retail Rate",
+        mobileSpan: 1,
+        mobileOrder: 8,
         cell: ({ row }) => <CurrencyDisplay amount={row.retail_price} />,
       },
     ],
@@ -183,6 +290,12 @@ export default function ProductsPage() {
         icon={Plus}
         description="Define a new inventory catalog item with dealer association and default pricing."
       >
+        {formError && (
+          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-center gap-2 text-xs font-medium text-rose-700 animate-in fade-in duration-150">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <span>{formError}</span>
+          </div>
+        )}
         <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div className="space-y-1.5">
             <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
@@ -293,6 +406,23 @@ export default function ProductsPage() {
         </form>
       </SectionCard>
 
+      {/* Delete Error Notification Banner */}
+      {deleteError && (
+        <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-3 text-xs font-medium text-rose-800 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2 min-w-0">
+            <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+            <span className="break-words">{deleteError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDeleteError(null)}
+            className="text-rose-600 hover:text-rose-900 font-bold shrink-0 text-xs px-2 py-1 rounded-md hover:bg-rose-100 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Products Directory Table */}
       <DataTable<Product>
         title="Products Directory"
@@ -300,25 +430,36 @@ export default function ProductsPage() {
         columns={productColumns}
         data={products || []}
         loading={isLoadingProducts}
+        responsiveMode="cards"
         searchable
         searchPlaceholder="Search by product, dealer, unit..."
         pagination
         pageSize={15}
-        minWidth={850}
         getRowId={(p) => p.id}
+        emptyState={{
+          icon: Package,
+          title: "No products found",
+          description: "Define your first inventory catalog item using the form above.",
+        }}
         rowActions={(product) => (
           <div className="flex items-center justify-end gap-1">
             <DataTableActionButton
               icon={<Pencil className="h-4 w-4" />}
               label={`Edit ${product.name}`}
               actionVariant="neutral"
-              onClick={() => setProductToEdit(product)}
+              onClick={() => {
+                setDeleteError(null)
+                setProductToEdit(product)
+              }}
             />
             <DataTableActionButton
               icon={<Trash2 className="h-4 w-4" />}
               label={`Delete ${product.name}`}
               actionVariant="destructive"
-              onClick={() => setProductToDelete({ id: product.id, name: product.name })}
+              onClick={() => {
+                setDeleteError(null)
+                setProductToDelete({ id: product.id, name: product.name })
+              }}
             />
           </div>
         )}

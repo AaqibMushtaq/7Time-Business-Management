@@ -6,13 +6,15 @@ import {
   TableRow,
   TableHead,
   TableCell,
+  TableFooter,
 } from "@/components/ui/table"
 import { DataTableToolbar } from "./DataTableToolbar"
 import { DataTablePagination } from "./DataTablePagination"
 import { TableLoadingState } from "./TableLoadingState"
 import { TableEmptyState } from "./TableEmptyState"
 import { TableErrorState } from "./TableErrorState"
-import { ArrowUpDown, ArrowUp, ArrowDown, type LucideIcon } from "lucide-react"
+import { EmptyState } from "./EmptyState"
+import { ArrowUpDown, ArrowUp, ArrowDown, Loader2, type LucideIcon } from "lucide-react"
 
 export interface DataTableColumn<TData> {
   id: string
@@ -26,6 +28,14 @@ export interface DataTableColumn<TData> {
   sortable?: boolean
   className?: string
   headerClassName?: string
+  hidden?: boolean
+  responsivePriority?: "low" | "medium" | "high"
+  footer?: React.ReactNode | ((props: { data: TData[]; column: DataTableColumn<TData> }) => React.ReactNode)
+  mobilePriority?: "primary" | "secondary" | "hidden"
+  mobileLabel?: string
+  mobileSpan?: 1 | 2 | "half" | "full"
+  mobileOrder?: number
+  mobileCell?: (props: { row: TData; value: unknown; index: number }) => React.ReactNode
 }
 
 export interface DataTableProps<TData> {
@@ -81,6 +91,21 @@ export interface DataTableProps<TData> {
   onRowSelect?: (id: string, selected: boolean) => void
   onSelectAll?: (selected: boolean) => void
   alternatingRows?: boolean
+  density?: "compact" | "normal" | "comfortable"
+  showFooter?: boolean
+  footerRow?: React.ReactNode
+  responsiveMode?: "table" | "cards"
+  mobileBreakpoint?: "sm" | "md" | "lg"
+  mobileCardClassName?: string
+  renderMobileCard?: (props: {
+    row: TData
+    index: number
+    columns: DataTableColumn<TData>[]
+    rowActions?: React.ReactNode
+    isSelected?: boolean
+    onRowSelect?: (id: string, selected: boolean) => void
+    rowId: string
+  }) => React.ReactNode
 }
 
 export function DataTable<TData>({
@@ -130,6 +155,13 @@ export function DataTable<TData>({
   onRowSelect,
   onSelectAll,
   alternatingRows = true,
+  density = "normal",
+  showFooter = false,
+  footerRow,
+  responsiveMode = "table",
+  mobileBreakpoint = "md",
+  mobileCardClassName,
+  renderMobileCard,
 }: DataTableProps<TData>) {
   // Determine controlled sorting from either sorting object or sortBy/sortDirection
   const activeSortBy = sorting ? sorting.id : controlledSortBy
@@ -249,9 +281,66 @@ export function DataTable<TData>({
   const effectiveRenderRowActions = rowActions || renderRowActions
   const isSearchEnabled = Boolean(search || searchable || controlledOnSearchChange)
 
+  // Visible columns (filter out hidden columns)
+  const visibleColumns = useMemo(() => {
+    return columns.filter((col) => !col.hidden)
+  }, [columns])
+
+  // Columns for mobile card view:
+  // Show columns unless mobilePriority === "hidden" or (col.hidden && !col.mobilePriority)
+  // Sorted by mobileOrder, falling back to column definition order
+  const cardColumns = useMemo(() => {
+    return columns
+      .filter((col) => {
+        if (col.mobilePriority === "hidden") return false
+        if (col.hidden && !col.mobilePriority) return false
+        return true
+      })
+      .sort((a, b) => {
+        const orderA = a.mobileOrder !== undefined ? a.mobileOrder : 100
+        const orderB = b.mobileOrder !== undefined ? b.mobileOrder : 100
+        return orderA - orderB
+      })
+  }, [columns])
+
+  // Desktop / Mobile visibility classes for responsive card mode
+  const isCardsMode = responsiveMode === "cards"
+  const desktopBreakpointClass =
+    mobileBreakpoint === "sm"
+      ? "hidden sm:block"
+      : mobileBreakpoint === "lg"
+      ? "hidden lg:block"
+      : "hidden md:block"
+  const mobileBreakpointClass =
+    mobileBreakpoint === "sm"
+      ? "block sm:hidden"
+      : mobileBreakpoint === "lg"
+      ? "block lg:hidden"
+      : "block md:hidden"
+
+  const getPriorityClass = (priority?: "low" | "medium" | "high") => {
+    if (priority === "low") return "hidden lg:table-cell"
+    if (priority === "medium") return "hidden md:table-cell"
+    return ""
+  }
+
+  const densityHeaderClass =
+    density === "compact"
+      ? "py-2 px-3 text-[11px]"
+      : density === "comfortable"
+      ? "py-3.5 px-5 text-xs"
+      : "py-3 px-4 text-xs"
+
+  const densityCellClass =
+    density === "compact"
+      ? "py-1.5 px-3 text-xs"
+      : density === "comfortable"
+      ? "py-3.5 px-5 text-sm"
+      : "py-2.5 px-4 text-xs sm:text-sm"
+
   // Total columns count
   const totalColumns =
-    columns.length +
+    visibleColumns.length +
     (effectiveRenderRowActions ? 1 : 0) +
     (onRowSelect ? 1 : 0)
 
@@ -271,6 +360,10 @@ export function DataTable<TData>({
       filters ||
       toolbarActions ||
       (selectedRowIds && selectedRowIds.size > 0)
+  )
+
+  const hasFooter = Boolean(
+    showFooter || footerRow || visibleColumns.some((col) => Boolean(col.footer))
   )
 
   return (
@@ -301,7 +394,7 @@ export function DataTable<TData>({
         />
       )}
 
-      <div className="overflow-x-auto w-full">
+      <div className={`${isCardsMode ? desktopBreakpointClass : ""} overflow-x-auto w-full`}>
         <Table style={minWidth ? { minWidth } : undefined} className={tableClassName}>
           <TableHeader>
             <TableRow>
@@ -319,7 +412,7 @@ export function DataTable<TData>({
                   />
                 </TableHead>
               )}
-              {columns.map((col) => {
+              {visibleColumns.map((col) => {
                 const isSorted = currentSortBy === col.id
                 const alignmentClass =
                   col.align === "right"
@@ -327,17 +420,20 @@ export function DataTable<TData>({
                     : col.align === "center"
                     ? "text-center justify-center"
                     : "text-left justify-start"
+                const priorityClass = getPriorityClass(col.responsivePriority)
 
                 return (
                   <TableHead
                     key={col.id}
+                    scope="col"
                     style={{ width: col.width, minWidth: col.minWidth }}
-                    className={`${col.headerClassName || ""} ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}
+                    className={`${densityHeaderClass} ${col.headerClassName || ""} ${priorityClass} ${col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "text-left"}`}
                   >
                     {col.sortable ? (
                       <button
                         type="button"
                         onClick={() => handleSortClick(col.id)}
+                        aria-label={`Sort by ${typeof col.header === "string" ? col.header : col.id}`}
                         className={`inline-flex items-center gap-1.5 hover:text-[#0F172A] transition-colors focus:outline-hidden ${alignmentClass}`}
                       >
                         <span>
@@ -362,7 +458,7 @@ export function DataTable<TData>({
                 )
               })}
               {effectiveRenderRowActions && (
-                <TableHead className="text-right w-24 px-4 font-semibold text-xs uppercase tracking-wider text-[#64748B]">
+                <TableHead className={`text-right w-24 font-semibold text-xs uppercase tracking-wider text-[#64748B] ${densityHeaderClass}`}>
                   Actions
                 </TableHead>
               )}
@@ -399,7 +495,7 @@ export function DataTable<TData>({
                   >
                     {onRowSelect && (
                       <TableCell
-                        className="w-10 px-4 text-center"
+                        className={`w-10 text-center ${densityCellClass}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <input
@@ -411,15 +507,17 @@ export function DataTable<TData>({
                         />
                       </TableCell>
                     )}
-                    {columns.map((col) => {
+                    {visibleColumns.map((col) => {
                       let cellValue: unknown
                       if (col.accessorFn) cellValue = col.accessorFn(row)
                       else if (col.accessorKey) cellValue = row[col.accessorKey]
 
+                      const priorityClass = getPriorityClass(col.responsivePriority)
+
                       return (
                         <TableCell
                           key={col.id}
-                          className={`${col.className || ""} ${col.align === "right" ? "text-right font-mono tabular-nums" : col.align === "center" ? "text-center" : "text-left"}`}
+                          className={`${densityCellClass} ${col.className || ""} ${priorityClass} ${col.align === "right" ? "text-right font-mono tabular-nums" : col.align === "center" ? "text-center" : "text-left"}`}
                         >
                           {col.cell
                             ? col.cell({ row, value: cellValue, index: rowIndex })
@@ -429,7 +527,7 @@ export function DataTable<TData>({
                     })}
                     {effectiveRenderRowActions && (
                       <TableCell
-                        className="text-right px-4"
+                        className={`text-right ${densityCellClass}`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         {effectiveRenderRowActions(row)}
@@ -440,8 +538,232 @@ export function DataTable<TData>({
               })
             )}
           </TableBody>
+
+          {hasFooter && !loading && !error && (
+            <TableFooter>
+              {footerRow ? (
+                footerRow
+              ) : (
+                <TableRow className="hover:bg-transparent font-semibold border-t-2 border-[#E2E8F0]">
+                  {onRowSelect && <TableCell className={`w-10 ${densityCellClass}`} />}
+                  {visibleColumns.map((col) => {
+                    const priorityClass = getPriorityClass(col.responsivePriority)
+                    const alignmentClass =
+                      col.align === "right"
+                        ? "text-right font-mono tabular-nums"
+                        : col.align === "center"
+                        ? "text-center"
+                        : "text-left"
+
+                    const footerContent =
+                      typeof col.footer === "function"
+                        ? col.footer({ data: filteredData, column: col })
+                        : col.footer
+
+                    return (
+                      <TableCell
+                        key={col.id}
+                        className={`${densityCellClass} ${alignmentClass} ${priorityClass} ${col.className || ""}`}
+                      >
+                        {footerContent ?? null}
+                      </TableCell>
+                    )
+                  })}
+                  {effectiveRenderRowActions && <TableCell className={`w-24 ${densityCellClass}`} />}
+                </TableRow>
+              )}
+            </TableFooter>
+          )}
         </Table>
       </div>
+
+      {isCardsMode && (
+        <div className={`${mobileBreakpointClass} w-full`}>
+          {loading ? (
+            <div className="py-12 text-center flex flex-col items-center justify-center gap-3">
+              <Loader2 className="h-7 w-7 animate-spin text-[#2563EB]" />
+              <span className="text-xs font-semibold text-[#52627A] uppercase tracking-wider">
+                {loadingMessage || "Loading records..."}
+              </span>
+            </div>
+          ) : error ? (
+            <div className="py-12 px-4 text-center flex flex-col items-center justify-center gap-3">
+              <span className="text-sm font-semibold text-rose-600">{error}</span>
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="text-xs font-semibold text-blue-600 underline cursor-pointer"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          ) : paginatedData.length === 0 ? (
+            <div className="py-8 px-4">
+              <EmptyState
+                icon={emptyState?.icon ?? emptyIcon}
+                title={emptyState?.title ?? emptyTitle}
+                description={emptyState?.description ?? emptyState?.message ?? emptyMessage}
+                action={emptyState?.action ?? emptyAction}
+              />
+            </div>
+          ) : (
+            <div className="p-3 sm:p-4 space-y-3 bg-slate-50/50">
+              {paginatedData.map((row, rowIndex) => {
+                const rowId = getRowId(row, rowIndex)
+                const isSelected = selectedRowIds?.has(rowId)
+                const customRowClass = getRowClassName ? getRowClassName(row, rowIndex) : ""
+                const actions = effectiveRenderRowActions ? effectiveRenderRowActions(row) : null
+
+                if (renderMobileCard) {
+                  return (
+                    <React.Fragment key={rowId}>
+                      {renderMobileCard({
+                        row,
+                        index: rowIndex,
+                        columns,
+                        rowActions: actions,
+                        isSelected,
+                        onRowSelect,
+                        rowId,
+                      })}
+                    </React.Fragment>
+                  )
+                }
+
+                return (
+                  <div
+                    key={rowId}
+                    data-testid={`mobile-card-${rowId}`}
+                    data-state={isSelected ? "selected" : undefined}
+                    onClick={() => onRowClick?.(row)}
+                    className={`bg-white rounded-xl border border-slate-200/90 p-4 shadow-2xs transition-shadow ${
+                      onRowClick ? "cursor-pointer hover:border-blue-300" : ""
+                    } ${customRowClass || ""} ${mobileCardClassName || ""}`}
+                  >
+                    {onRowSelect && (
+                      <div
+                        className="flex items-center justify-between pb-2 mb-2.5 border-b border-slate-100"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <label className="text-xs font-semibold text-slate-600 cursor-pointer flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-[#D9E0E8] text-[#2563EB] focus:ring-[#2563EB]"
+                            checked={Boolean(isSelected)}
+                            onChange={(e) => onRowSelect(rowId, e.target.checked)}
+                            aria-label={`Select item ${rowId}`}
+                          />
+                          <span>Select</span>
+                        </label>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-3.5">
+                      {cardColumns.map((col) => {
+                        let cellValue: unknown
+                        if (col.accessorFn) cellValue = col.accessorFn(row)
+                        else if (col.accessorKey) cellValue = row[col.accessorKey]
+
+                        const isFullSpan = col.mobileSpan === 2 || col.mobileSpan === "full"
+                        const spanClass = isFullSpan ? "col-span-2" : "col-span-1"
+                        const label =
+                          col.mobileLabel !== undefined
+                            ? col.mobileLabel
+                            : typeof col.header === "string"
+                            ? col.header
+                            : col.id
+                        const isRight = col.align === "right"
+                        const isCenter = col.align === "center"
+
+                        const renderedValue = col.mobileCell
+                          ? col.mobileCell({ row, value: cellValue, index: rowIndex })
+                          : col.cell
+                          ? col.cell({ row, value: cellValue, index: rowIndex })
+                          : (cellValue as React.ReactNode) ?? "—"
+
+                        return (
+                          <div
+                            key={col.id}
+                            className={`${spanClass} flex flex-col min-w-0 ${
+                              isRight
+                                ? "items-end text-right"
+                                : isCenter
+                                ? "items-center text-center"
+                                : "items-start text-left"
+                            }`}
+                          >
+                            {label && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 select-none">
+                                {label}
+                              </span>
+                            )}
+                            <div
+                              className={`w-full min-w-0 break-words text-xs text-slate-900 font-medium ${
+                                isRight ? "text-right" : isCenter ? "text-center" : "text-left"
+                              }`}
+                            >
+                              {renderedValue}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {actions && (
+                      <div
+                        className="mt-3.5 pt-2.5 border-t border-slate-100 flex items-center justify-end gap-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {actions}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {hasFooter && !loading && !error && (
+                <div className="bg-slate-100/90 rounded-xl p-3 border border-slate-200 text-xs">
+                  {footerRow ? (
+                    footerRow
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 font-semibold text-slate-800">
+                      {visibleColumns
+                        .filter((col) => Boolean(col.footer))
+                        .map((col) => {
+                          const label =
+                            col.mobileLabel !== undefined
+                              ? col.mobileLabel
+                              : typeof col.header === "string"
+                              ? col.header
+                              : col.id
+                          const content =
+                            typeof col.footer === "function"
+                              ? col.footer({ data: filteredData, column: col })
+                              : col.footer
+                          return (
+                            <div
+                              key={col.id}
+                              className={`flex flex-col ${
+                                col.align === "right" ? "items-end text-right" : "items-start text-left"
+                              }`}
+                            >
+                              <span className="text-[10px] uppercase tracking-wider text-slate-500">
+                                {label}
+                              </span>
+                              <div>{content}</div>
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {pagination && !loading && !error && paginatedData.length > 0 && (
         <DataTablePagination

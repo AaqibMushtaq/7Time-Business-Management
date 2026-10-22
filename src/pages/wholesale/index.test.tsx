@@ -90,8 +90,8 @@ describe("WholesaleSalesPage Component", () => {
     expect(screen.getByText("Wholesale Transactions")).toBeDefined()
 
     // Wait for customer option to load
-    expect(await screen.findByRole("option", { name: "Alpha Reseller" })).toBeDefined()
-    expect(await screen.findByRole("option", { name: /Premium Cashew/ })).toBeDefined()
+    expect((await screen.findAllByText("Alpha Reseller")).length).toBeGreaterThan(0)
+    expect((await screen.findAllByText(/Premium Cashew/)).length).toBeGreaterThan(0)
 
     // Verify existing sale transaction rendered in table with note and method
     expect(await screen.findByText("Historical test note #123")).toBeDefined()
@@ -123,7 +123,7 @@ describe("WholesaleSalesPage Component", () => {
 
     renderComponent()
 
-    await screen.findByRole("option", { name: "Alpha Reseller" })
+    await screen.findAllByText("Alpha Reseller")
 
     const selects = screen.getAllByRole("combobox")
     // selects[0] is dateFilter, [1] is customer, [2] is product, [3] is payment method

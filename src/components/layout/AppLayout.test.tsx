@@ -96,6 +96,31 @@ describe("AppLayout Navigation Sidebar", () => {
     // Mobile menu toggle button
     const mobileMenuBtn = screen.getByLabelText(/Open mobile navigation menu/i)
     expect(mobileMenuBtn).toBeDefined()
+    expect(mobileMenuBtn.getAttribute("aria-expanded")).toBe("false")
     fireEvent.click(mobileMenuBtn)
+    expect(mobileMenuBtn.getAttribute("aria-expanded")).toBe("true")
+  })
+
+  it("closes mobile navigation drawer on Escape key and close button", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppLayout />
+      </MemoryRouter>
+    )
+
+    const mobileMenuBtn = screen.getByLabelText(/Open mobile navigation menu/i)
+    fireEvent.click(mobileMenuBtn)
+    expect(mobileMenuBtn.getAttribute("aria-expanded")).toBe("true")
+
+    // Press Escape
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(mobileMenuBtn.getAttribute("aria-expanded")).toBe("false")
+
+    // Reopen and click close button
+    fireEvent.click(mobileMenuBtn)
+    expect(mobileMenuBtn.getAttribute("aria-expanded")).toBe("true")
+    const closeBtn = screen.getByLabelText(/Close navigation menu/i)
+    fireEvent.click(closeBtn)
+    expect(mobileMenuBtn.getAttribute("aria-expanded")).toBe("false")
   })
 })

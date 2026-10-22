@@ -1,10 +1,9 @@
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { getDealers } from "@/services/dealers"
 import { EditProductModal } from "./EditProductModal"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/utils"
 import {
@@ -12,8 +11,9 @@ import {
   SectionCard,
   MetricCard,
   CurrencyDisplay,
-  ResponsiveTable,
   EmptyState,
+  DataTable,
+  type DataTableColumn,
 } from "@/components/shared"
 import { Loader2, ArrowLeft, TrendingUp, Package, History, DollarSign, Pencil } from "lucide-react"
 
@@ -35,23 +35,176 @@ export default function ProductDetailPage() {
     },
   })
 
-  const { data: purchases } = useQuery({
+  const { data: purchases, isLoading: isLoadingPurchases } = useQuery({
     queryKey: ["productPurchases", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("purchases").select("*").eq("product_id", id).order("purchase_date", { ascending: false })
+      const { data, error } = await supabase
+        .from("purchases")
+        .select("*, dealer:dealers(name)")
+        .eq("product_id", id)
+        .order("purchase_date", { ascending: false })
       if (error) throw new Error(error.message)
       return data
     },
   })
 
-  const { data: sales } = useQuery({
+  const { data: sales, isLoading: isLoadingSales } = useQuery({
     queryKey: ["productSales", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("wholesale_sales").select("*, customer:reseller_customers(name)").eq("product_id", id).order("sale_date", { ascending: false })
+      const { data, error } = await supabase
+        .from("wholesale_sales")
+        .select("*, customer:reseller_customers(name)")
+        .eq("product_id", id)
+        .order("sale_date", { ascending: false })
       if (error) throw new Error(error.message)
       return data
     },
   })
+
+  const purchaseColumns: DataTableColumn<any>[] = useMemo(
+    () => [
+      {
+        id: "purchase_date",
+        header: "Date",
+        accessorKey: "purchase_date",
+        sortable: true,
+        mobilePriority: "primary",
+        mobileSpan: "half",
+        mobileOrder: 1,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-[#0F172A] font-medium whitespace-nowrap">
+            {formatDate(row.purchase_date)}
+          </span>
+        ),
+      },
+      {
+        id: "quantity_bought",
+        header: "Qty Added",
+        accessorKey: "quantity_bought",
+        align: "right",
+        sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Quantity",
+        mobileSpan: "half",
+        mobileOrder: 2,
+        cell: ({ row }) => (
+          <span className="text-right text-[#087443] font-bold font-mono whitespace-nowrap">
+            +{row.quantity_bought} {product?.unit}
+          </span>
+        ),
+      },
+      {
+        id: "buying_rate",
+        header: "Unit Cost",
+        accessorKey: "buying_rate",
+        align: "right",
+        sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Cost/Unit",
+        mobileSpan: "half",
+        mobileOrder: 3,
+        cell: ({ row }) => <CurrencyDisplay amount={row.buying_rate} />,
+      },
+      {
+        id: "total_amount",
+        header: "Total Cost",
+        accessorFn: (row) => row.total_amount ?? (row.quantity_bought * row.buying_rate),
+        align: "right",
+        sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Total Cost",
+        mobileSpan: "half",
+        mobileOrder: 4,
+        cell: ({ row }) => (
+          <CurrencyDisplay
+            amount={row.total_amount ?? (row.quantity_bought * row.buying_rate)}
+            bold
+          />
+        ),
+      },
+    ],
+    [product?.unit]
+  )
+
+  const salesColumns: DataTableColumn<any>[] = useMemo(
+    () => [
+      {
+        id: "sale_date",
+        header: "Date",
+        accessorKey: "sale_date",
+        sortable: true,
+        mobilePriority: "primary",
+        mobileSpan: "half",
+        mobileOrder: 1,
+        cell: ({ row }) => (
+          <span className="font-mono text-xs text-[#0F172A] font-medium whitespace-nowrap">
+            {formatDate(row.sale_date)}
+          </span>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Customer",
+        accessorFn: (row) => row.customer?.name || "Direct Customer",
+        sortable: true,
+        mobilePriority: "primary",
+        mobileSpan: "half",
+        mobileOrder: 2,
+        cell: ({ row }) => (
+          <span className="font-semibold text-[#0F172A] whitespace-nowrap">
+            {row.customer?.name || "Direct Customer"}
+          </span>
+        ),
+      },
+      {
+        id: "quantity",
+        header: "Qty Sold",
+        accessorKey: "quantity",
+        align: "right",
+        sortable: true,
+        mobilePriority: "primary",
+        mobileLabel: "Quantity",
+        mobileSpan: "half",
+        mobileOrder: 3,
+        cell: ({ row }) => (
+          <span className="text-right text-[#92400E] font-bold font-mono whitespace-nowrap">
+            -{row.quantity} {product?.unit}
+          </span>
+        ),
+      },
+      {
+        id: "wholesale_price",
+        header: "Sale Rate",
+        accessorKey: "wholesale_price",
+        align: "right",
+        sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Rate",
+        mobileSpan: "half",
+        mobileOrder: 4,
+        cell: ({ row }) => <CurrencyDisplay amount={row.wholesale_price} variant="brand" />,
+      },
+      {
+        id: "profit",
+        header: "Profit",
+        accessorKey: "profit",
+        align: "right",
+        sortable: true,
+        mobilePriority: "secondary",
+        mobileLabel: "Profit",
+        mobileSpan: "half",
+        mobileOrder: 5,
+        cell: ({ row }) => (
+          <CurrencyDisplay
+            amount={row.profit}
+            variant={row.profit >= 0 ? "positive" : "negative"}
+            bold
+          />
+        ),
+      },
+    ],
+    [product?.unit]
+  )
 
   if (isLoadingProduct) {
     return (
@@ -209,129 +362,40 @@ export default function ProductDetailPage() {
         </SectionCard>
 
         {/* Purchase History Table Card */}
-        <SectionCard
+        <DataTable
           title="Stock Additions (Purchases)"
-          icon={History}
-          description="Recent inventory restocks and dealer purchases."
-          noPadding
-        >
-          {purchases?.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                icon={History}
-                title="No purchases recorded"
-                description="No purchase restocks have been logged for this product."
-              />
-            </div>
-          ) : (
-            <ResponsiveTable minWidth={400}>
-              <Table className="border-collapse">
-                <TableHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                  <TableRow className="border-b border-[#E2E8F0] hover:bg-transparent">
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold text-[#64748B] py-3 px-4">
-                      Date
-                    </TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
-                      Qty Added
-                    </TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#64748B] py-3 px-4">
-                      Rate
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {purchases?.map((p: any) => (
-                    <TableRow
-                      key={p.id}
-                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] transition-colors"
-                    >
-                      <TableCell className="text-[#0F172A] font-medium py-2.5 px-4 font-mono text-xs">
-                        {formatDate(p.purchase_date)}
-                      </TableCell>
-                      <TableCell className="text-right text-[#087443] font-bold py-2.5 px-4 font-mono">
-                        +{p.quantity_bought} {product.unit}
-                      </TableCell>
-                      <TableCell className="text-right py-2.5 px-4">
-                        <CurrencyDisplay amount={p.buying_rate} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ResponsiveTable>
-          )}
-        </SectionCard>
+          subtitle="Recent inventory restocks and dealer purchases."
+          columns={purchaseColumns}
+          data={purchases || []}
+          loading={isLoadingPurchases}
+          pagination
+          pageSize={5}
+          responsiveMode="cards"
+          emptyState={{
+            icon: History,
+            title: "No purchases recorded",
+            description: "No purchase restocks have been logged for this product.",
+          }}
+        />
 
         {/* Sales History Table Card */}
-        <SectionCard
-          title="Stock Reductions (Wholesale Sales)"
-          icon={Package}
-          description="Recent wholesale orders reducing this product inventory."
-          className="lg:col-span-2"
-          noPadding
-        >
-          {sales?.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                icon={Package}
-                title="No sales recorded"
-                description="No wholesale orders have been fulfilled with this product yet."
-              />
-            </div>
-          ) : (
-            <ResponsiveTable minWidth={600}>
-              <Table className="border-collapse">
-                <TableHeader className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                  <TableRow className="border-b border-[#E2E8F0] hover:bg-transparent">
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold text-[#64748B] py-3 px-4">
-                      Date
-                    </TableHead>
-                    <TableHead className="text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
-                      Customer
-                    </TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
-                      Qty Sold
-                    </TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
-                      Rate
-                    </TableHead>
-                    <TableHead className="text-right text-xs uppercase tracking-wider font-semibold text-[#0F172A] py-3 px-4">
-                      Profit
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sales?.map((s: any) => (
-                    <TableRow
-                      key={s.id}
-                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] transition-colors"
-                    >
-                      <TableCell className="text-[#0F172A] font-medium py-2.5 px-4 font-mono text-xs">
-                        {formatDate(s.sale_date)}
-                      </TableCell>
-                      <TableCell className="font-semibold text-[#0F172A] py-2.5 px-4">
-                        {s.customer?.name}
-                      </TableCell>
-                      <TableCell className="text-right text-[#92400E] font-bold py-2.5 px-4 font-mono">
-                        -{s.quantity} {product.unit}
-                      </TableCell>
-                      <TableCell className="text-right py-2.5 px-4">
-                        <CurrencyDisplay amount={s.wholesale_price} variant="brand" />
-                      </TableCell>
-                      <TableCell className="text-right py-2.5 px-4">
-                        <CurrencyDisplay
-                          amount={s.profit}
-                          variant={s.profit >= 0 ? "positive" : "negative"}
-                          bold
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </ResponsiveTable>
-          )}
-        </SectionCard>
+        <div className="lg:col-span-2">
+          <DataTable
+            title="Stock Reductions (Wholesale Sales)"
+            subtitle="Recent wholesale orders reducing this product inventory."
+            columns={salesColumns}
+            data={sales || []}
+            loading={isLoadingSales}
+            pagination
+            pageSize={10}
+            responsiveMode="cards"
+            emptyState={{
+              icon: Package,
+              title: "No sales recorded",
+              description: "No wholesale orders have been fulfilled with this product yet.",
+            }}
+          />
+        </div>
       </div>
 
       {/* Edit Product Modal */}
