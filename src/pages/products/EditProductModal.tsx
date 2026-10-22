@@ -66,6 +66,8 @@ function EditProductModalForm({
       queryClient.invalidateQueries({ queryKey: ["products"] })
       queryClient.invalidateQueries({ queryKey: ["product", product.id] })
       queryClient.invalidateQueries({ queryKey: ["inventory_page"] })
+      queryClient.invalidateQueries({ queryKey: ["dealerProducts"] })
+      queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       onSuccess?.()
       onClose()
     },
@@ -99,6 +101,21 @@ function EditProductModalForm({
 
     if (!unit.trim()) {
       setFormError("Measurement unit is required.")
+      return
+    }
+
+    if (isNaN(numBuyingCost) || numBuyingCost < 0) {
+      setFormError("Buying cost must be zero or a positive amount.")
+      return
+    }
+
+    if (isNaN(numWholesalePrice) || numWholesalePrice < 0) {
+      setFormError("Wholesale price must be zero or a positive amount.")
+      return
+    }
+
+    if (isNaN(numRetailPrice) || numRetailPrice < 0) {
+      setFormError("Retail price must be zero or a positive amount.")
       return
     }
 

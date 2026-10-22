@@ -26,29 +26,33 @@ export function DataTableToolbar({
 
   return (
     <div
-      className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-4 border-b border-[#D9E0E8] bg-white rounded-t-2xl ${className || ""}`}
+      className={`flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3.5 sm:p-4 border-b border-[#D9E0E8] bg-white rounded-t-2xl ${className || ""}`}
     >
-      <div className="flex flex-1 flex-wrap items-center gap-2.5">
+      <div className="flex flex-1 flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full">
         {onSearchChange && (
           <div className="w-full sm:w-72">
             <SearchInput
               value={searchValue || ""}
               onChange={onSearchChange}
               placeholder={searchPlaceholder}
-              className="h-9 text-xs"
+              className="h-9 text-xs w-full"
             />
           </div>
         )}
-        {filters}
+        {filters && (
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {filters}
+          </div>
+        )}
         {selectedCount !== undefined && selectedCount > 0 && (
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE]">
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#EFF6FF] text-[#2563EB] border border-[#BFDBFE] self-start sm:self-auto">
             {selectedCount} selected
           </span>
         )}
       </div>
 
       {actions && (
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-stretch sm:justify-end">
           {actions}
         </div>
       )}

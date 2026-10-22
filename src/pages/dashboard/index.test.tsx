@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import DashboardPage from "./index"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Routes, Route } from "react-router-dom"
 import { getDashboardStats } from "@/services/dashboard"
 
 vi.mock("@/services/dashboard", () => ({
@@ -284,6 +284,83 @@ describe("Phase 16: Cards-Only 7TIME Dashboard Page", () => {
 
     const card5 = screen.getByRole("region", { name: "Summary Card 5: Personal Ledger" })
     expect(card5.querySelector("a[href='/local-customers']")).toBeDefined()
+  })
+
+  it("navigates to destination when clicking card surface and supports keyboard Enter navigation", async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/dealers" element={<div data-testid="dest-dealers">Dealers Destination</div>} />
+            <Route path="/wholesale" element={<div data-testid="dest-wholesale">Wholesale Destination</div>} />
+            <Route path="/general-deliveries" element={<div data-testid="dest-deliveries">General Deliveries Destination</div>} />
+            <Route path="/naeem" element={<div data-testid="dest-naeem">NAEEM Destination</div>} />
+            <Route path="/local-customers" element={<div data-testid="dest-personal">Personal Ledger Destination</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
+    })
+
+    // Click card 1 surface
+    const card1 = screen.getByRole("region", { name: "Summary Card 1: Purchases & Dealer Payments" })
+    fireEvent.click(card1)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dest-dealers")).toBeDefined()
+    })
+  })
+
+  it("navigates when pressing Enter key on focused business card", async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/wholesale" element={<div data-testid="dest-wholesale">Wholesale Destination</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
+    })
+
+    const card2 = screen.getByRole("region", { name: "Summary Card 2: Wholesale Business" })
+    fireEvent.keyDown(card2, { key: "Enter" })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dest-wholesale")).toBeDefined()
+    })
+  })
+
+  it("navigates when clicking View details link without bubbling error", async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/"]}>
+          <Routes>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/general-deliveries" element={<div data-testid="dest-deliveries">General Deliveries Destination</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
+    })
+
+    const viewDetailsLink = screen.getByLabelText("View details for General Delivery")
+    fireEvent.click(viewDetailsLink)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dest-deliveries")).toBeDefined()
+    })
   })
 
   it("Phase 16 cleanup: verifies Quick Operational Actions and Detailed Ledgers & Audit Reconciliation are completely removed", async () => {

@@ -109,8 +109,8 @@ describe("ProductsPage and EditProductModal Component", () => {
 
     // Wait for data to load in table
     await waitFor(() => {
-      expect(screen.getByText("California Almonds")).toBeDefined()
-      expect(screen.getByText("Organic Walnuts")).toBeDefined()
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+      expect(screen.getAllByText("Organic Walnuts").length).toBeGreaterThan(0)
     })
 
     // Check dealer badges in table
@@ -163,11 +163,11 @@ describe("ProductsPage and EditProductModal Component", () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("California Almonds")).toBeDefined()
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
     })
 
     // Find and click the edit button for California Almonds
-    const editBtn = screen.getByLabelText("Edit California Almonds")
+    const editBtn = screen.getAllByLabelText("Edit California Almonds")[0]
     expect(editBtn).toBeDefined()
     fireEvent.click(editBtn)
 
@@ -197,10 +197,10 @@ describe("ProductsPage and EditProductModal Component", () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("California Almonds")).toBeDefined()
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
     })
 
-    fireEvent.click(screen.getByLabelText("Edit California Almonds"))
+    fireEvent.click(screen.getAllByLabelText("Edit California Almonds")[0])
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Edit Product" })).toBeDefined()
@@ -237,10 +237,10 @@ describe("ProductsPage and EditProductModal Component", () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("California Almonds")).toBeDefined()
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
     })
 
-    fireEvent.click(screen.getByLabelText("Edit California Almonds"))
+    fireEvent.click(screen.getAllByLabelText("Edit California Almonds")[0])
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Edit Product" })).toBeDefined()
@@ -265,10 +265,10 @@ describe("ProductsPage and EditProductModal Component", () => {
     renderComponent()
 
     await waitFor(() => {
-      expect(screen.getByText("Organic Walnuts")).toBeDefined()
+      expect(screen.getAllByText("Organic Walnuts").length).toBeGreaterThan(0)
     })
 
-    const deleteBtn = screen.getByLabelText("Delete Organic Walnuts")
+    const deleteBtn = screen.getAllByLabelText("Delete Organic Walnuts")[0]
     fireEvent.click(deleteBtn)
 
     // Confirm dialog should open
@@ -282,6 +282,99 @@ describe("ProductsPage and EditProductModal Component", () => {
 
     await waitFor(() => {
       expect(deleteProduct).toHaveBeenCalledWith("prod-2", expect.anything())
+    })
+  })
+
+  it("trims whitespace from product name before submitting creation", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/e\.g\. Sider Honey/i)).toBeDefined()
+    })
+
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Sider Honey/i), {
+      target: { value: "   Kashmiri Saffron   " },
+    })
+
+    const selects = screen.getAllByRole("combobox")
+    fireEvent.change(selects[0], { target: { value: "dealer-1" } })
+    fireEvent.change(selects[1], { target: { value: "Box" } })
+
+    const inputs = screen.getAllByRole("spinbutton")
+    fireEvent.change(inputs[0], { target: { value: "250" } })
+    fireEvent.change(inputs[1], { target: { value: "320" } })
+    fireEvent.change(inputs[2], { target: { value: "400" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Add Product/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(createProduct).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Kashmiri Saffron",
+          unit: "Box",
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("displays an error message when negative prices are entered during creation", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/e\.g\. Sider Honey/i)).toBeDefined()
+    })
+
+    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Sider Honey/i), {
+      target: { value: "Invalid Product" },
+    })
+
+    const selects = screen.getAllByRole("combobox")
+    fireEvent.change(selects[0], { target: { value: "dealer-1" } })
+
+    const inputs = screen.getAllByRole("spinbutton")
+    fireEvent.change(inputs[0], { target: { value: "-100" } })
+    fireEvent.change(inputs[1], { target: { value: "100" } })
+    fireEvent.change(inputs[2], { target: { value: "120" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Add Product/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Buying cost must be zero or a positive amount/i)).toBeDefined()
+    })
+
+    expect(createProduct).not.toHaveBeenCalled()
+  })
+
+  it("displays an explanatory error banner when deletion is rejected due to active references", async () => {
+    ;(deleteProduct as any).mockRejectedValueOnce(
+      new Error(
+        "Cannot delete product because it is referenced by 2 purchase order(s). Deletion is blocked to preserve historical accounting integrity."
+      )
+    )
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Organic Walnuts").length).toBeGreaterThan(0)
+    })
+
+    const deleteBtn = screen.getAllByLabelText("Delete Organic Walnuts")[0]
+    fireEvent.click(deleteBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText(/Are you sure you want to delete "Organic Walnuts"?/i)).toBeDefined()
+    })
+
+    const confirmBtn = screen.getByRole("button", { name: /^Delete Product$/i })
+    fireEvent.click(confirmBtn)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Cannot delete product because it is referenced by 2 purchase order\(s\)/i)
+      ).toBeDefined()
     })
   })
 })
