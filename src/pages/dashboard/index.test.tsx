@@ -31,8 +31,6 @@ const mockStats = {
     profit: 12000,
     profitMargin: 26.7,
     receivables: 5000,
-    totalPayable: 300,
-    payables: 300,
     cogs: 33000,
     received: 40000,
     productsSold: 150,
@@ -226,8 +224,9 @@ describe("Phase 16: Cards-Only 7TIME Dashboard Page", () => {
     expect(card2.textContent).toContain("₹12,000.00")
     expect(card2.textContent).toContain("Customer Receivables")
     expect(card2.textContent).toContain("₹5,000.00")
-    expect(card2.textContent).toContain("Supplier Payables")
-    expect(card2.textContent).toContain("₹300.00")
+    // Supplier Payables belongs exclusively to Purchases & Dealers, NOT Wholesale Business
+    expect(card2.textContent).not.toContain("Supplier Payables")
+    expect(card2.textContent).not.toContain("Outstanding Payables")
 
     // CARD 3: General Delivery
     const card3 = screen.getByRole("region", { name: "Summary Card 3: General Delivery" })
@@ -426,7 +425,6 @@ describe("Phase 16: Cards-Only 7TIME Dashboard Page", () => {
         profit: 0,
         profitMargin: 0,
         receivables: 0,
-        totalPayable: 0,
         debtors: [],
       },
       generalDelivery: {
@@ -501,6 +499,97 @@ describe("Phase 16: Cards-Only 7TIME Dashboard Page", () => {
       expect(screen.getByText("Failed to Load Dashboard Data")).toBeDefined()
       expect(screen.getByText("Supabase connection timeout")).toBeDefined()
       expect(screen.getByText("Try Again")).toBeDefined()
+    })
+  })
+
+  describe("Regression: Supplier Payables strictly separated from Wholesale Business", () => {
+    it("displays supplier payables only in Purchases & Dealers card and never in Wholesale Business", async () => {
+      // Scenario matching user report:
+      // Purchases & Dealers: Total Purchases ₹24,800.00, Paid to Dealers ₹24,350.00, Outstanding Payables ₹450.00
+      // Wholesale Business: Wholesale Sales ₹1,190.00, Gross Profit ₹140.00, Customer Receivables ₹1,620.00
+      const scenarioStats = {
+        ...mockStats,
+        purchases: {
+          ...mockStats.purchases,
+          total: 24800,
+          totalPurchases: 24800,
+          totalPaidToDealers: 24350,
+          paid: 24350,
+          totalPayable: 450,
+          outstanding: 450,
+        },
+        wholesale: {
+          ...mockStats.wholesale,
+          totalSales: 1190,
+          profit: 140,
+          profitMargin: 11.8,
+          receivables: 1620,
+        },
+      }
+
+      ;(getDashboardStats as any).mockResolvedValue(scenarioStats)
+
+      renderComponent()
+
+      await waitFor(() => {
+        expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
+      })
+
+      // 1. Purchases & Dealers card displays Outstanding Payables of ₹450.00
+      const card1 = screen.getByRole("region", { name: "Summary Card 1: Purchases & Dealer Payments" })
+      expect(card1.textContent).toContain("Purchases & Dealers")
+      expect(card1.textContent).toContain("Total Purchases")
+      expect(card1.textContent).toContain("₹24,800.00")
+      expect(card1.textContent).toContain("Paid to Dealers")
+      expect(card1.textContent).toContain("₹24,350.00")
+      expect(card1.textContent).toContain("Outstanding Payables")
+      expect(card1.textContent).toContain("₹450.00")
+
+      // 2. Wholesale Business card displays ONLY wholesale sales, gross profit, and customer receivables
+      const card2 = screen.getByRole("region", { name: "Summary Card 2: Wholesale Business" })
+      expect(card2.textContent).toContain("Wholesale Business")
+      expect(card2.textContent).toContain("Wholesale Sales")
+      expect(card2.textContent).toContain("₹1,190.00")
+      expect(card2.textContent).toContain("Gross Profit (11.8%)")
+      expect(card2.textContent).toContain("₹140.00")
+      expect(card2.textContent).toContain("Customer Receivables")
+      expect(card2.textContent).toContain("₹1,620.00")
+
+      // 3. STRICT ASSERTION: Supplier Payables must NOT appear anywhere in Wholesale Business
+      expect(card2.textContent).not.toContain("Supplier Payables")
+      expect(card2.textContent).not.toContain("450.00")
+      expect(card2.textContent).not.toContain("Outstanding Payables")
+    })
+
+    it("does not render misleading values or supplier payables when wholesale has zero or missing data", async () => {
+      const partialStats = {
+        ...mockStats,
+        purchases: {
+          ...mockStats.purchases,
+          totalPayable: 450,
+        },
+        wholesale: {
+          totalSales: 0,
+          profit: 0,
+          profitMargin: 0,
+          receivables: 0,
+          debtors: [],
+        } as any,
+      }
+
+      ;(getDashboardStats as any).mockResolvedValue(partialStats)
+
+      renderComponent()
+
+      await waitFor(() => {
+        expect(screen.getByRole("region", { name: /Executive Financial Overview/i })).toBeDefined()
+      })
+
+      const card2 = screen.getByRole("region", { name: "Summary Card 2: Wholesale Business" })
+      expect(card2.textContent).not.toContain("Supplier Payables")
+      expect(card2.textContent).not.toContain("450.00")
+      expect(card2.textContent).toContain("Gross Profit")
+      expect(card2.textContent).toContain("Customer Receivables")
     })
   })
 })

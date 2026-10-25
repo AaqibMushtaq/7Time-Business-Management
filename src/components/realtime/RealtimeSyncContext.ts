@@ -6,7 +6,7 @@ export interface RealtimeSyncState {
   refetchAll: () => void
 }
 
-export const defaultRealtimeState: RealtimeSyncState = {
+const defaultRealtimeState: RealtimeSyncState = {
   isConnected: false,
   lastEventTime: null,
   refetchAll: () => {},

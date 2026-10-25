@@ -26,9 +26,3 @@ export const getLocalCustomersWithBalances = getResellersWithBalances
 export const createLocalCustomer = createReseller
 export const updateLocalCustomer = updateReseller
 export const deleteLocalCustomer = deleteReseller
-
-export const getPeople = getResellers
-export const getPeopleWithBalances = getResellersWithBalances
-export const createPerson = createReseller
-export const updatePerson = updateReseller
-export const deletePerson = deleteReseller

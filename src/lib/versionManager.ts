@@ -29,7 +29,7 @@ export function getCurrentBuildTime(): string {
 /**
  * Fetch the latest version.json from the hosting server bypassing all HTTP/browser caches
  */
-export async function fetchServerVersion(): Promise<VersionInfo | null> {
+async function fetchServerVersion(): Promise<VersionInfo | null> {
   try {
     const baseUrl = import.meta.env.BASE_URL || "/"
     const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`

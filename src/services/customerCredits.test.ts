@@ -18,12 +18,32 @@ import { supabase } from "@/lib/supabase"
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     from: vi.fn(),
+    rpc: vi.fn().mockImplementation((fnName: string) => {
+      if (fnName === "auto_allocate_customer_payments_rpc") {
+        return Promise.resolve({
+          data: null,
+          error: { code: "PGRST202", message: "function public.auto_allocate_customer_payments_rpc does not exist" },
+        })
+      }
+      return Promise.resolve({ data: null, error: null })
+    }),
   },
 }))
 
 describe("Customer Credits Service", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    if ((supabase as any).rpc) {
+      ;(supabase as any).rpc.mockImplementation((fnName: string) => {
+        if (fnName === "auto_allocate_customer_payments_rpc") {
+          return Promise.resolve({
+            data: null,
+            error: { code: "PGRST202", message: "function public.auto_allocate_customer_payments_rpc does not exist" },
+          })
+        }
+        return Promise.resolve({ data: null, error: null })
+      })
+    }
   })
 
   describe("Validation & Creation", () => {
@@ -1054,6 +1074,1043 @@ describe("Customer Credits Service", () => {
       expect(summaryAdvance.amountTheyOweMe).toBe(0)
       expect(summaryAdvance.amountIOweThem).toBe(1500)
       expect(summaryAdvance.unallocatedAdvancePayments).toBe(1500)
+    })
+  })
+
+  describe("Opening-Balance Reconciliation & Discrepancy Notice Tests", () => {
+    // Scenario 1: Opening balance ₹430 + payment ₹430 + no individual credit rows: outstanding ₹0 and no false unallocated warning.
+    it("Scenario 1: Opening balance ₹430 + payment ₹430 + no credit rows results in outstanding ₹0 and no false unallocated warning", () => {
+      const summary = calculateCustomerLedgerSummary([], [], [{ amount: 430 }], 430)
+
+      expect(summary.openingBalance).toBe(430)
+      expect(summary.openingBalancePaid).toBe(430)
+      expect(summary.openingBalanceOutstanding).toBe(0)
+      expect(summary.totalCharges).toBe(430)
+      expect(summary.totalPaymentsRecorded).toBe(430)
+      expect(summary.netOutstanding).toBe(0)
+      // Crucial: Must NOT report payment as unallocated when it settled opening balance
+      expect(summary.unallocatedPayments).toBe(0)
+      expect(summary.unallocatedAdvancePayments).toBe(0)
+      expect(summary.amountTheyOweMe).toBe(0)
+      expect(summary.amountIOweThem).toBe(0)
+    })
+
+    // Scenario 2: Opening balance ₹430 + payment ₹200: remaining opening-balance debt ₹230, according to established accounting rules.
+    it("Scenario 2: Opening balance ₹430 + payment ₹200 leaves remaining opening-balance debt of ₹230 with 0 unallocated", () => {
+      const summary = calculateCustomerLedgerSummary([], [], [{ amount: 200 }], 430)
+
+      expect(summary.openingBalance).toBe(430)
+      expect(summary.openingBalancePaid).toBe(200)
+      expect(summary.openingBalanceOutstanding).toBe(230)
+      expect(summary.netOutstanding).toBe(230)
+      expect(summary.unallocatedPayments).toBe(0)
+      expect(summary.amountTheyOweMe).toBe(230)
+      expect(summary.amountIOweThem).toBe(0)
+    })
+
+    // Scenario 3: Outstanding credit row ₹430 + payment ₹430: correct allocation and paid status.
+    it("Scenario 3: Outstanding credit row ₹430 + payment ₹430 reflects correct allocation and paid status", async () => {
+      // 3A: Ledger summary when credit row is already allocated
+      const credit: CustomerCredit = {
+        id: "cred-430",
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        entry_date: "2026-10-10",
+        product_name: "Widget",
+        total_amount: 430,
+        amount_paid: 430,
+        balance: 0,
+        status: "PAID",
+      } as any
+
+      const summary = calculateCustomerLedgerSummary([credit], [], [{ amount: 430 }], 0)
+      expect(summary.productCreditTotal).toBe(430)
+      expect(summary.productCreditPaid).toBe(430)
+      expect(summary.productCreditOutstanding).toBe(0)
+      expect(summary.totalAllocatedToCredits).toBe(430)
+      expect(summary.unallocatedPayments).toBe(0)
+      expect(summary.netOutstanding).toBe(0)
+
+      // 3B: Auto-allocation flow for unallocated payment against outstanding credit row
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 0 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "pay-430",
+                    amount: 430,
+                    payment_date: "2026-10-12",
+                    created_at: "2026-10-12T10:00:00Z",
+                    allocations: []
+                  }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "cred-430",
+                      total_amount: 430,
+                      amount_paid: 0,
+                      balance: 430,
+                      entry_date: "2026-10-10",
+                      created_at: "2026-10-10T10:00:00Z"
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-1")
+      expect(res.allocatedCount).toBe(1)
+      expect(res.totalAllocated).toBe(430)
+      expect(insertAllocMock).toHaveBeenCalledWith([
+        expect.objectContaining({
+          payment_id: "pay-430",
+          credit_id: "cred-430",
+          amount: 430
+        })
+      ])
+    })
+
+    // Scenario 4: Opening balance plus individual credit rows: payments are not counted twice.
+    it("Scenario 4: Opening balance plus individual credit rows prevents double counting of payments", () => {
+      const credit: CustomerCredit = {
+        id: "cred-500",
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        entry_date: "2026-10-10",
+        total_amount: 500,
+        amount_paid: 500,
+        balance: 0,
+        status: "PAID"
+      } as any
+
+      // Payments: 500 (allocated to credit) + 430 (settling opening balance) = 930
+      const payments = [{ amount: 500 }, { amount: 430 }]
+      const summary = calculateCustomerLedgerSummary([credit], [], payments, 430)
+
+      expect(summary.totalCharges).toBe(930) // 430 opening + 500 credit
+      expect(summary.totalPaymentsRecorded).toBe(930)
+      expect(summary.totalAllocatedToCredits).toBe(500)
+      expect(summary.openingBalancePaid).toBe(430)
+      expect(summary.openingBalanceOutstanding).toBe(0)
+      expect(summary.netOutstanding).toBe(0)
+      expect(summary.unallocatedPayments).toBe(0)
+      expect(summary.unallocatedAdvancePayments).toBe(0)
+    })
+
+    // Scenario 5: Genuine unallocated payment with outstanding credit rows: notice and allocation action remain available.
+    it("Scenario 5: Genuine unallocated payment with outstanding credit rows flags unallocated notice with open allocation action", () => {
+      const pendingCredit: CustomerCredit = {
+        id: "cred-1000",
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        entry_date: "2026-10-10",
+        total_amount: 1000,
+        amount_paid: 0,
+        balance: 1000,
+        status: "PENDING"
+      } as any
+
+      // Customer made ₹600 payment not yet allocated to the ₹1000 credit
+      const payments = [{ amount: 600 }]
+      const summary = calculateCustomerLedgerSummary([pendingCredit], [], payments, 0)
+
+      expect(summary.netOutstanding).toBe(400)
+      expect(summary.unallocatedPayments).toBe(600)
+      expect(summary.amountTheyOweMe).toBe(400)
+      // When unallocatedPayments > 0 and credits.some(c => c.balance > 0), notice + auto-allocate button should be active
+      const hasPendingCredits = [pendingCredit].some(c => Number(c.balance || 0) > 0.005)
+      expect(summary.unallocatedPayments > 0 && hasPendingCredits).toBe(true)
+    })
+
+    // Scenario 6: No outstanding rows and a genuinely unexplained payment: report discrepancy accurately without presenting unusable allocation action.
+    it("Scenario 6: Genuinely unallocated payment with no open rows reports account advance without unusable allocation action", () => {
+      // Customer has 0 credits and 0 opening balance, but made ₹300 payment (advance)
+      const summary = calculateCustomerLedgerSummary([], [], [{ amount: 300 }], 0)
+
+      expect(summary.netOutstanding).toBe(-300)
+      expect(summary.unallocatedPayments).toBe(300)
+      expect(summary.unallocatedAdvancePayments).toBe(300)
+      expect(summary.amountTheyOweMe).toBe(0)
+      expect(summary.amountIOweThem).toBe(300)
+
+      // In UI, hasPendingCredits is false, so auto-allocate action is withheld
+      const hasPendingCredits = ([] as CustomerCredit[]).some(c => Number(c.balance || 0) > 0.005)
+      expect(hasPendingCredits).toBe(false)
+    })
+
+    // Scenario 7: Partial payment, multiple payments, and rounding to two decimal places.
+    it("Scenario 7: Handles partial payments, multiple payments, and exact 2 decimal place rounding", () => {
+      const openingBalance = 430.50
+      const payments = [
+        { amount: 150.25 },
+        { amount: 100.10 },
+        { amount: 50.05 }
+      ]
+      // Total paid = 300.40, remaining = 130.10
+      const summary = calculateCustomerLedgerSummary([], [], payments, openingBalance)
+
+      expect(summary.openingBalance).toBe(430.50)
+      expect(summary.totalPaymentsRecorded).toBe(300.40)
+      expect(summary.openingBalancePaid).toBe(300.40)
+      expect(summary.openingBalanceOutstanding).toBe(130.10)
+      expect(summary.netOutstanding).toBe(130.10)
+      expect(summary.unallocatedPayments).toBe(0)
+      expect(summary.amountTheyOweMe).toBe(130.10)
+    })
+
+    it("verifies autoAllocateCustomerPayments preserves chronological FIFO by satisfying opening balance debt first", async () => {
+      // Customer has opening balance of 430, two payments [430, 200], and a credit row of 200
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 430 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "pay-1",
+                    amount: 430,
+                    payment_date: "2026-10-01",
+                    created_at: "2026-10-01T10:00:00Z",
+                    allocations: []
+                  },
+                  {
+                    id: "pay-2",
+                    amount: 200,
+                    payment_date: "2026-10-05",
+                    created_at: "2026-10-05T10:00:00Z",
+                    allocations: []
+                  }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "cred-200",
+                      total_amount: 200,
+                      amount_paid: 0,
+                      balance: 200,
+                      entry_date: "2026-10-03",
+                      created_at: "2026-10-03T10:00:00Z"
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-fifo")
+      // pay-1 (430) satisfies opening balance 430
+      // pay-2 (200) satisfies cred-200
+      expect(res.allocatedCount).toBe(1)
+      expect(res.totalAllocated).toBe(200)
+      expect(insertAllocMock).toHaveBeenCalledWith([
+        expect.objectContaining({
+          payment_id: "pay-2",
+          credit_id: "cred-200",
+          amount: 200
+        })
+      ])
+    })
+
+    it("handles negative opening balance as customer advance/credit without creating artificial debt", () => {
+      // Opening balance of -500 (meaning business owes customer 500)
+      // Customer has a new credit row of 1000
+      const credit: CustomerCredit = {
+        id: "cred-neg",
+        customer_id: "c-neg",
+        entry_type: "PRODUCT_CREDIT",
+        entry_date: "2026-10-01",
+        total_amount: 1000,
+        amount_paid: 0,
+        balance: 1000,
+        status: "PENDING"
+      } as any
+
+      // Customer makes a payment of 200
+      const summary = calculateCustomerLedgerSummary([credit], [], [{ amount: 200 }], -500)
+
+      expect(summary.openingBalance).toBe(-500)
+      expect(summary.openingBalancePaid).toBe(0)
+      expect(summary.openingBalanceOutstanding).toBe(0)
+      // Total charges = -500 + 1000 = 500. Total credits = 200. Net outstanding = 300
+      expect(summary.totalCharges).toBe(500)
+      expect(summary.netOutstanding).toBe(300)
+      expect(summary.amountTheyOweMe).toBe(300)
+      expect(summary.amountIOweThem).toBe(0)
+    })
+
+    it("prevents overlapping concurrent autoAllocateCustomerPayments invocations for the same customer", async () => {
+      let resolveFirstCall: () => void
+      const firstCallPromise = new Promise<{ data: any; error: any }>((resolve) => {
+        resolveFirstCall = () => resolve({ data: { opening_balance: 0 }, error: null })
+      })
+
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockImplementation(() => firstCallPromise)
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({ data: [], error: null })
+            })
+          })
+        })
+      }
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        return {}
+      })
+
+      const call1 = autoAllocateCustomerPayments("cust-concurrent")
+
+      // Second concurrent invocation for the same customer while first is in-flight
+      await expect(autoAllocateCustomerPayments("cust-concurrent")).rejects.toThrow(
+        "An allocation operation is already in progress for this customer"
+      )
+
+      // Allow first call to finish cleanly
+      resolveFirstCall!()
+      const res1 = await call1
+      expect(res1).toEqual({ allocatedCount: 0, totalAllocated: 0 })
+    })
+
+    it("ensures repeated allocation runs cannot reuse funds that settled opening debt when new credit rows are added later", async () => {
+      // Historical opening balance is 430
+      // Payment 1 (430) recorded on 2026-10-01 has 0 allocations because it settled opening balance
+      // Later, on 2026-10-15, a new credit row (cred-new, 500) is created
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 430 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "pay-1",
+                    amount: 430,
+                    payment_date: "2026-10-01",
+                    created_at: "2026-10-01T10:00:00Z",
+                    allocations: [] // No allocations in DB because opening balance has no allocation row
+                  }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "cred-new",
+                      total_amount: 500,
+                      amount_paid: 0,
+                      balance: 500,
+                      entry_date: "2026-10-15",
+                      created_at: "2026-10-15T10:00:00Z"
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock }
+        return {}
+      })
+
+      // Run auto-allocation in the presence of the new credit row
+      const res = await autoAllocateCustomerPayments("cust-persistence")
+
+      // The 430 payment is strictly consumed by the opening balance of 430 in FIFO order
+      // It is NOT reused or diverted to cred-new
+      expect(res.allocatedCount).toBe(0)
+      expect(res.totalAllocated).toBe(0)
+      expect(insertAllocMock).not.toHaveBeenCalled()
+    })
+
+    it("correctly handles partial opening-balance settlement across multiple chronological payments", async () => {
+      // Opening balance = 430
+      // Payment 1 = 200 on 2026-10-01 (leaves 230 opening debt)
+      // Payment 2 = 300 on 2026-10-05 (settles remaining 230 debt, leaving 70 unallocated)
+      // Credit row = 100 on 2026-10-03 (cred-100)
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 430 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "pay-p1",
+                    amount: 200,
+                    payment_date: "2026-10-01",
+                    created_at: "2026-10-01T10:00:00Z",
+                    allocations: []
+                  },
+                  {
+                    id: "pay-p2",
+                    amount: 300,
+                    payment_date: "2026-10-05",
+                    created_at: "2026-10-05T10:00:00Z",
+                    allocations: []
+                  }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "cred-100",
+                      total_amount: 100,
+                      amount_paid: 0,
+                      balance: 100,
+                      entry_date: "2026-10-03",
+                      created_at: "2026-10-03T10:00:00Z"
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-partial")
+
+      // 200 from pay-p1 + 230 from pay-p2 = 430 opening debt settled
+      // Remaining 70 from pay-p2 is allocated to cred-100
+      expect(res.allocatedCount).toBe(1)
+      expect(res.totalAllocated).toBe(70)
+      expect(insertAllocMock).toHaveBeenCalledWith([
+        expect.objectContaining({
+          payment_id: "pay-p2",
+          credit_id: "cred-100",
+          amount: 70
+        })
+      ])
+    })
+
+    it("handles overpayment beyond opening balance and credits as an unallocated customer advance without over-allocating", async () => {
+      // Opening balance = 100
+      // Credit row = 200
+      // Payment = 500 (overpayment by 200)
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 100 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "pay-over",
+                    amount: 500,
+                    payment_date: "2026-10-01",
+                    created_at: "2026-10-01T10:00:00Z",
+                    allocations: []
+                  }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "cred-200",
+                      total_amount: 200,
+                      amount_paid: 0,
+                      balance: 200,
+                      entry_date: "2026-10-02",
+                      created_at: "2026-10-02T10:00:00Z"
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-overpay")
+
+      // 100 satisfies opening balance. 200 allocates to cred-200. Surplus 200 remains unallocated.
+      expect(res.allocatedCount).toBe(1)
+      expect(res.totalAllocated).toBe(200)
+      expect(insertAllocMock).toHaveBeenCalledWith([
+        expect.objectContaining({
+          payment_id: "pay-over",
+          credit_id: "cred-200",
+          amount: 200
+        })
+      ])
+    })
+
+    it("explicitly throws on RPC authorization failure or database errors without silent REST fallback", async () => {
+      // When RPC returns an authorization error (e.g. 42501)
+      ;(supabase as any).rpc.mockResolvedValueOnce({
+        data: null,
+        error: { code: "42501", message: "Authentication required to execute customer auto-allocation" }
+      })
+
+      await expect(autoAllocateCustomerPayments("cust-auth-fail")).rejects.toThrow(
+        "Auto-allocation RPC failed: Authentication required to execute customer auto-allocation"
+      )
+
+      // Verifies it does NOT call REST queries to bypass security
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it("executes transactional RPC successfully when available", async () => {
+      ;(supabase as any).rpc.mockResolvedValueOnce({
+        data: { allocatedCount: 2, totalAllocated: 450.00 },
+        error: null
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-rpc-ok")
+      expect(res).toEqual({ allocatedCount: 2, totalAllocated: 450 })
+      expect(supabase.from).not.toHaveBeenCalled()
+    })
+
+    it("updates existing allocation row instead of inserting duplicate when payment already has an allocation to the credit", async () => {
+      // Payment pay-topup has 200 total, with 50 already allocated to cred-topup
+      // cred-topup total 150, balance 100
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 0 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "pay-topup",
+                    amount: 200,
+                    payment_date: "2026-10-01",
+                    created_at: "2026-10-01T10:00:00Z",
+                    allocations: [
+                      { id: "alloc-existing-1", amount: 50, credit_id: "cred-topup" }
+                    ]
+                  }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    {
+                      id: "cred-topup",
+                      total_amount: 150,
+                      amount_paid: 50,
+                      balance: 100,
+                      entry_date: "2026-10-01",
+                      created_at: "2026-10-01T10:00:00Z"
+                    }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const updateAllocMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock, update: updateAllocMock }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-topup")
+
+      // 100 allocated to cred-topup; since alloc-existing-1 already exists for (pay-topup, cred-topup),
+      // it updates alloc-existing-1 to 50 + 100 = 150, rather than inserting a duplicate
+      expect(res.allocatedCount).toBe(1)
+      expect(res.totalAllocated).toBe(100)
+      expect(updateAllocMock).toHaveBeenCalledWith({ amount: 150 })
+      expect(insertAllocMock).not.toHaveBeenCalled()
+    })
+
+    it("handles zero, negative, and fractional monetary amounts safely without erroneous allocations", async () => {
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 0 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  { id: "pay-zero", amount: 0, payment_date: "2026-10-01", created_at: "2026-10-01T10:00:00Z", allocations: [] },
+                  { id: "pay-neg", amount: -50, payment_date: "2026-10-02", created_at: "2026-10-02T10:00:00Z", allocations: [] },
+                  { id: "pay-frac", amount: 10.555, payment_date: "2026-10-03", created_at: "2026-10-03T10:00:00Z", allocations: [] }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    { id: "cred-zero", total_amount: 100, amount_paid: 100, balance: 0, entry_date: "2026-10-01", created_at: "2026-10-01T10:00:00Z" },
+                    { id: "cred-valid", total_amount: 50, amount_paid: 0, balance: 50, entry_date: "2026-10-02", created_at: "2026-10-02T10:00:00Z" }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-boundary")
+
+      // Only pay-frac (10.56) is eligible to allocate to cred-valid (balance 50)
+      expect(res.allocatedCount).toBe(1)
+      expect(res.totalAllocated).toBe(10.56)
+      expect(insertAllocMock).toHaveBeenCalledWith([
+        expect.objectContaining({
+          payment_id: "pay-frac",
+          credit_id: "cred-valid",
+          amount: 10.56
+        })
+      ])
+    })
+
+    it("verifies idempotency: re-running allocation when all payments are exhausted produces 0 changes", async () => {
+      const mockCustomerSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({ data: { opening_balance: 0 }, error: null })
+          })
+        })
+      }
+
+      const mockPaymentSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            order: vi.fn().mockReturnValue({
+              order: vi.fn().mockResolvedValue({
+                data: [
+                  {
+                    id: "pay-fully-allocated",
+                    amount: 500,
+                    payment_date: "2026-10-01",
+                    created_at: "2026-10-01T10:00:00Z",
+                    allocations: [{ id: "alloc-full", amount: 500, credit_id: "cred-1" }]
+                  }
+                ],
+                error: null
+              })
+            })
+          })
+        })
+      }
+
+      const mockCreditSelect = {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            gt: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockResolvedValue({
+                  data: [
+                    { id: "cred-remaining", total_amount: 1000, amount_paid: 500, balance: 500, entry_date: "2026-10-01", created_at: "2026-10-01T10:00:00Z" }
+                  ],
+                  error: null
+                })
+              })
+            })
+          })
+        })
+      }
+
+      const insertAllocMock = vi.fn().mockResolvedValue({ error: null })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "reseller_customers") return mockCustomerSelect
+        if (table === "reseller_payments") return mockPaymentSelect
+        if (table === "customer_credits") return mockCreditSelect
+        if (table === "customer_payment_allocations") return { insert: insertAllocMock }
+        return {}
+      })
+
+      const res = await autoAllocateCustomerPayments("cust-idempotent")
+
+      expect(res.allocatedCount).toBe(0)
+      expect(res.totalAllocated).toBe(0)
+      expect(insertAllocMock).not.toHaveBeenCalled()
+    })
+
+    it("verifies complete opening-balance conservation through multi-phase chronological lifecycle", async () => {
+      // Phase 1: Customer has opening balance 430 and payment 430 on Day 1 (before any credits exist)
+      const customerState = { opening_balance: 430 }
+      let paymentsState: any[] = [
+        {
+          id: "p1-430",
+          amount: 430,
+          payment_date: "2026-10-01",
+          created_at: "2026-10-01T10:00:00Z",
+          allocations: []
+        }
+      ]
+      let creditsState: any[] = []
+      let allocationsState: any[] = []
+
+      const setupMocks = () => {
+        const mockCustomer = {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: customerState, error: null })
+            })
+          })
+        }
+        const mockPayments = {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                order: vi.fn().mockImplementation(() => Promise.resolve({
+                  data: paymentsState.map(p => ({
+                    ...p,
+                    allocations: allocationsState.filter(a => a.payment_id === p.id)
+                  })),
+                  error: null
+                }))
+              })
+            })
+          })
+        }
+        const mockCredits = {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              gt: vi.fn().mockReturnValue({
+                order: vi.fn().mockReturnValue({
+                  order: vi.fn().mockImplementation(() => Promise.resolve({
+                    data: creditsState.filter(c => c.balance > 0),
+                    error: null
+                  }))
+                })
+              })
+            })
+          })
+        }
+        const mockAllocations = {
+          insert: vi.fn().mockImplementation((rows: any[]) => {
+            allocationsState.push(...rows)
+            return Promise.resolve({ error: null })
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockImplementation(() => {
+              return Promise.resolve({ error: null })
+            })
+          })
+        }
+        ;(supabase.from as any).mockImplementation((table: string) => {
+          if (table === "reseller_customers") return mockCustomer
+          if (table === "reseller_payments") return mockPayments
+          if (table === "customer_credits") return mockCredits
+          if (table === "customer_payment_allocations") return mockAllocations
+          return {}
+        })
+      }
+
+      // Run Phase 1
+      setupMocks()
+      const run1 = await autoAllocateCustomerPayments("cust-lifecycle")
+      // P1 (430) absorbed by opening balance (430); 0 credit allocations created
+      expect(run1.allocatedCount).toBe(0)
+      expect(run1.totalAllocated).toBe(0)
+      expect(allocationsState.length).toBe(0)
+
+      // Phase 2: On Day 5, credit C1 (200) is added
+      creditsState.push({
+        id: "c1-200",
+        entry_type: "PRODUCT_CREDIT",
+        total_amount: 200,
+        amount_paid: 0,
+        balance: 200,
+        entry_date: "2026-10-05",
+        created_at: "2026-10-05T10:00:00Z"
+      })
+
+      // Run Phase 2: P1 was reserved for opening balance, so C1 must NOT receive funds from P1
+      setupMocks()
+      const run2 = await autoAllocateCustomerPayments("cust-lifecycle")
+      expect(run2.allocatedCount).toBe(0)
+      expect(run2.totalAllocated).toBe(0)
+      expect(allocationsState.length).toBe(0)
+
+      // Phase 3: On Day 10, payment P2 (300) is made
+      paymentsState.push({
+        id: "p2-300",
+        amount: 300,
+        payment_date: "2026-10-10",
+        created_at: "2026-10-10T10:00:00Z",
+        allocations: []
+      })
+
+      // Run Phase 3: P2 should allocate 200 to C1, leaving 100 surplus advance
+      setupMocks()
+      const run3 = await autoAllocateCustomerPayments("cust-lifecycle")
+      expect(run3.allocatedCount).toBe(1)
+      expect(run3.totalAllocated).toBe(200)
+      expect(allocationsState.length).toBe(1)
+      expect(allocationsState[0]).toEqual(expect.objectContaining({
+        payment_id: "p2-300",
+        credit_id: "c1-200",
+        amount: 200
+      }))
+
+      // Update credit balance in mock state following allocation
+      creditsState[0].amount_paid = 200
+      creditsState[0].balance = 0
+
+      // Phase 4: On Day 15, credit C2 (150) is added
+      creditsState.push({
+        id: "c2-150",
+        entry_type: "PRODUCT_CREDIT",
+        total_amount: 150,
+        amount_paid: 0,
+        balance: 150,
+        entry_date: "2026-10-15",
+        created_at: "2026-10-15T10:00:00Z"
+      })
+
+      // Run Phase 4: The remaining 100 from P2 should allocate to C2; C2 still has 50 balance
+      setupMocks()
+      const run4 = await autoAllocateCustomerPayments("cust-lifecycle")
+      expect(run4.allocatedCount).toBe(1)
+      expect(run4.totalAllocated).toBe(100)
+      expect(allocationsState.length).toBe(2)
+      expect(allocationsState[1]).toEqual(expect.objectContaining({
+        payment_id: "p2-300",
+        credit_id: "c2-150",
+        amount: 100
+      }))
+
+      // Update credit balance in mock state
+      creditsState[1].amount_paid = 100
+      creditsState[1].balance = 50
+
+      // Phase 5: Re-running auto-allocation with no new transactions produces 0 changes
+      setupMocks()
+      const run5 = await autoAllocateCustomerPayments("cust-lifecycle")
+      expect(run5.allocatedCount).toBe(0)
+      expect(run5.totalAllocated).toBe(0)
+      expect(allocationsState.length).toBe(2)
+
+      // Verify that ledger calculation matches exact double-entry state
+      const summary = calculateCustomerLedgerSummary(
+        creditsState as any,
+        [],
+        paymentsState,
+        customerState.opening_balance
+      )
+      // Total charges = 430 opening + 200 C1 + 150 C2 = 780
+      // Total payments = 430 P1 + 300 P2 = 730
+      // Net outstanding = 780 - 730 = 50 (which matches C2's 50 unpaid balance)
+      expect(summary.totalCharges).toBe(780)
+      expect(summary.totalPaymentsRecorded).toBe(730)
+      expect(summary.netOutstanding).toBe(50)
+      expect(summary.openingBalancePaid).toBe(430)
+      expect(summary.openingBalanceOutstanding).toBe(0)
+      expect(summary.unallocatedPayments).toBe(0)
     })
   })
 })

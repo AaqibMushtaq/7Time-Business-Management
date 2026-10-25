@@ -83,7 +83,6 @@ export default function WholesaleSalesPage() {
     },
     onError: (error) => {
       setFormError(error.message)
-      alert("Failed to create sale: " + error.message)
     }
   })
 
@@ -99,7 +98,6 @@ export default function WholesaleSalesPage() {
     },
     onError: (error) => {
       setEditError(error.message)
-      alert("Failed to update sale: " + error.message)
     }
   })
 
@@ -113,7 +111,7 @@ export default function WholesaleSalesPage() {
       setSaleToDelete(null)
     },
     onError: (error) => {
-      alert("Failed to delete sale: " + error.message)
+      setFormError("Failed to delete sale: " + error.message)
     }
   })
 
@@ -294,9 +292,8 @@ export default function WholesaleSalesPage() {
         cell: ({ row }) =>
           row.notes ? (
             <span
-              className="inline-block max-w-[180px] truncate text-[#64748B] text-xs cursor-pointer hover:text-[#0F172A] hover:underline"
+              className="inline-block max-w-[180px] truncate text-[#64748B] text-xs"
               title={row.notes}
-              onClick={() => alert(`Transaction Note:\n\n${row.notes}`)}
             >
               {row.notes}
             </span>
@@ -313,7 +310,7 @@ export default function WholesaleSalesPage() {
     if (!customerId || !productId || !saleDate || qtyNum <= 0 || !dealerId) return
 
     if (selectedProduct && qtyNum > selectedProduct.stock_quantity) {
-      alert(`Insufficient stock. Available stock: ${selectedProduct.stock_quantity} ${selectedProduct.unit}`)
+      setFormError(`Insufficient stock. Available stock: ${selectedProduct.stock_quantity} ${selectedProduct.unit}`)
       return
     }
 
@@ -361,7 +358,7 @@ export default function WholesaleSalesPage() {
     const availableStock = (selectedEditProduct?.stock_quantity || 0) + originalQty
 
     if (selectedEditProduct && editQtyNum > availableStock) {
-      alert(`Insufficient stock. Available stock: ${availableStock} ${selectedEditProduct.unit}`)
+      setEditError(`Insufficient stock. Available stock: ${availableStock} ${selectedEditProduct.unit}`)
       return
     }
 

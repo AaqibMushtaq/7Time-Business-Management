@@ -982,4 +982,319 @@ describe('Dashboard Stats Calculations', () => {
       'Failed to load accounting data: Database connection terminated unexpectedly'
     )
   })
+
+  // -----------------------------------------------------------------------------------------
+  // Wholesale Customer Receivables: Forensic Investigation & Regression Test Suite
+  // -----------------------------------------------------------------------------------------
+  describe("Wholesale Customer Receivables: Scope, Accounting, and Period Behavior", () => {
+    it("1. Reconciles exact one-transaction scenario: single sale of 1,190 with 0 opening balance yields exactly 1,190 receivables", async () => {
+      // Exactly matching the real UI evidence:
+      // Customer: "naheer bai", Product: "talbeena", Qty: 7, Total: 1,190, Received: 0, Balance: 1,190, Profit: 140
+      const mockSales = [
+        { id: "s1", total_sale: 1190, amount_received: 0, profit: 140, quantity: 7, buying_cost: 150, customer_id: "c-naheer", sale_date: "2026-10-15" }
+      ]
+      const mockResellers = [
+        { id: "c-naheer", name: "naheer bai", opening_balance: 0 }
+      ]
+
+      const fromMock = vi.fn().mockImplementation((table) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null }),
+          limit: vi.fn().mockResolvedValue({ data: [] }),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockResolvedValue({ data: [] }),
+          then: function(resolve: any) { resolve({ data: [] }) }
+        }
+
+        if (table === "app_settings") {
+          qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+        } else if (table === "reseller_customers") {
+          qb.select = vi.fn().mockResolvedValue({ data: mockResellers })
+          qb.then = function(resolve: any) { resolve({ data: mockResellers }) }
+        } else if (table === "wholesale_sales") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.lte = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.then = function(resolve: any) { resolve({ data: mockSales }) }
+        }
+        return qb
+      })
+
+      ;(supabase.from as any) = fromMock
+
+      const stats = await getDashboardStats("THIS_MONTH")
+
+      // Under pure one-transaction scenario with zero opening balance:
+      expect(stats.wholesale.totalSales).toBe(1190)
+      expect(stats.wholesale.profit).toBe(140)
+      expect(stats.wholesale.receivables).toBe(1190)
+      expect(stats.wholesale.debtors).toHaveLength(1)
+      expect(stats.wholesale.debtors[0].name).toBe("naheer bai")
+      expect(stats.wholesale.debtors[0].outstanding).toBe(1190)
+    })
+
+    it("2. Reproduces and fixes the ₹430 discrepancy: an unrelated local customer with ₹430 opening balance and zero wholesale sales does NOT leak into Wholesale Business receivables", async () => {
+      // Re-creates the exact scenario responsible for the ₹1,620 vs ₹1,190 mismatch:
+      // Wholesale transaction: customer "naheer bai", 1 sale of 1,190 (0 received, profit 140, opening balance 0)
+      const mockSales = [
+        { id: "s1", total_sale: 1190, amount_received: 0, profit: 140, quantity: 7, buying_cost: 150, customer_id: "c-naheer", sale_date: "2026-10-15" }
+      ]
+      // Resellers table contains:
+      // - "naheer bai" (wholesale customer, opening balance 0)
+      // - "local person" (personal ledger customer created in Local Customers with opening_balance: 430 and zero wholesale activity)
+      const mockResellers = [
+        { id: "c-naheer", name: "naheer bai", opening_balance: 0 },
+        { id: "c-local", name: "local person", opening_balance: 430 }
+      ]
+
+      const fromMock = vi.fn().mockImplementation((table) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null }),
+          limit: vi.fn().mockResolvedValue({ data: [] }),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockResolvedValue({ data: [] }),
+          then: function(resolve: any) { resolve({ data: [] }) }
+        }
+
+        if (table === "app_settings") {
+          qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+        } else if (table === "reseller_customers") {
+          qb.select = vi.fn().mockResolvedValue({ data: mockResellers })
+          qb.then = function(resolve: any) { resolve({ data: mockResellers }) }
+        } else if (table === "wholesale_sales") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.lte = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.then = function(resolve: any) { resolve({ data: mockSales }) }
+        }
+        return qb
+      })
+
+      ;(supabase.from as any) = fromMock
+
+      const stats = await getDashboardStats("THIS_MONTH")
+
+      // Wholesale Business card on Executive Dashboard strictly matches Wholesale Dashboard (/wholesale):
+      expect(stats.wholesale.totalSales).toBe(1190)
+      expect(stats.wholesale.profit).toBe(140)
+      // The ₹430 is NOT added to wholesale receivables! Receivables is exactly 1,190:
+      expect(stats.wholesale.receivables).toBe(1190)
+      expect(stats.wholesale.debtors).toHaveLength(1)
+      expect(stats.wholesale.debtors[0].name).toBe("naheer bai")
+      expect(stats.wholesale.debtors[0].outstanding).toBe(1190)
+      expect(stats.wholesale.debtors[0].routePath).toBe("/wholesale")
+
+      // The non-wholesale customer's ₹430 opening balance is properly accounted for under Personal Ledger:
+      expect(stats.personalLedger.outstanding).toBe(430)
+      expect(stats.personalLedger.debtors).toHaveLength(1)
+      expect(stats.personalLedger.debtors[0].name).toBe("local person")
+      expect(stats.personalLedger.debtors[0].routePath).toBe("/local-customers/c-local")
+    })
+
+    it("3. Correctly accounts for legitimate trade opening balance when an active wholesale customer has previous trade debt", async () => {
+      // An active wholesale customer with an invoice and a legitimate wholesale opening balance of 500:
+      const mockSales = [
+        { id: "s1", total_sale: 1190, amount_received: 0, profit: 140, quantity: 7, buying_cost: 150, customer_id: "c-ws", sale_date: "2026-10-15" }
+      ]
+      const mockResellers = [
+        { id: "c-ws", name: "wholesale client", opening_balance: 500 }
+      ]
+
+      const fromMock = vi.fn().mockImplementation((table) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null }),
+          limit: vi.fn().mockResolvedValue({ data: [] }),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockResolvedValue({ data: [] }),
+          then: function(resolve: any) { resolve({ data: [] }) }
+        }
+
+        if (table === "app_settings") {
+          qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+        } else if (table === "reseller_customers") {
+          qb.select = vi.fn().mockResolvedValue({ data: mockResellers })
+          qb.then = function(resolve: any) { resolve({ data: mockResellers }) }
+        } else if (table === "wholesale_sales") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.lte = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.then = function(resolve: any) { resolve({ data: mockSales }) }
+        }
+        return qb
+      })
+
+      ;(supabase.from as any) = fromMock
+
+      const stats = await getDashboardStats("THIS_MONTH")
+
+      // For an active wholesale client, legitimate trade opening balance is retained: 500 + 1,190 = 1,690
+      expect(stats.wholesale.totalSales).toBe(1190)
+      expect(stats.wholesale.profit).toBe(140)
+      expect(stats.wholesale.receivables).toBe(1690)
+      expect(stats.wholesale.debtors[0].outstanding).toBe(1690)
+    })
+
+    it("4. Correctly calculates multiple wholesale transactions and subsequent customer payments", async () => {
+      // Customer has 2 wholesale sales: 5,000 (2,000 paid at sale) + 3,000 (0 paid at sale) = 8,000 sales, 2,000 down-payment
+      const mockSales = [
+        { id: "s1", total_sale: 5000, amount_received: 2000, profit: 1000, customer_id: "c1", sale_date: "2026-10-02" },
+        { id: "s2", total_sale: 3000, amount_received: 0, profit: 600, customer_id: "c1", sale_date: "2026-10-10" }
+      ]
+      // Customer later made a separate payment on account of 2,500
+      const mockPayments = [
+        { id: "p1", customer_id: "c1", amount: 2500, payment_date: "2026-10-12" }
+      ]
+      const mockResellers = [
+        { id: "c1", name: "Active Wholesale Client", opening_balance: 0 }
+      ]
+
+      const fromMock = vi.fn().mockImplementation((table) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null }),
+          limit: vi.fn().mockResolvedValue({ data: [] }),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockResolvedValue({ data: [] }),
+          then: function(resolve: any) { resolve({ data: [] }) }
+        }
+
+        if (table === "app_settings") {
+          qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+        } else if (table === "reseller_customers") {
+          qb.select = vi.fn().mockResolvedValue({ data: mockResellers })
+          qb.then = function(resolve: any) { resolve({ data: mockResellers }) }
+        } else if (table === "wholesale_sales") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.lte = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.then = function(resolve: any) { resolve({ data: mockSales }) }
+        } else if (table === "reseller_payments") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockPayments })
+          qb.lte = vi.fn().mockResolvedValue({ data: mockPayments })
+          qb.then = function(resolve: any) { resolve({ data: mockPayments }) }
+        }
+        return qb
+      })
+
+      ;(supabase.from as any) = fromMock
+
+      const stats = await getDashboardStats("THIS_MONTH")
+
+      // Total Sales: 5,000 + 3,000 = 8,000
+      expect(stats.wholesale.totalSales).toBe(8000)
+      // Total Profit: 1,000 + 600 = 1,600
+      expect(stats.wholesale.profit).toBe(1600)
+      // Net Receivables: (8,000 sales - 2,000 cash at sale) - 2,500 separate payment = 3,500
+      expect(stats.wholesale.receivables).toBe(3500)
+      expect(stats.wholesale.debtors[0].outstanding).toBe(3500)
+    })
+
+    it("5. Accurately segregates payment allocations between wholesale debt and personal ledger credits", async () => {
+      // Customer has wholesale sale of 4,000 (0 received at sale)
+      const mockSales = [
+        { id: "s1", total_sale: 4000, amount_received: 0, profit: 800, customer_id: "c-hybrid", sale_date: "2026-10-05" }
+      ]
+      // Customer also has a personal credit of 1,500 in customer_credits
+      const mockCredits = [
+        { id: "cr1", customer_id: "c-hybrid", total_amount: 1500, amount_paid: 1500, balance: 0, entry_type: "CASH_LOAN", funding_source: "PERSONAL_FUNDS" }
+      ]
+      // Customer made a total payment of 2,000 in reseller_payments (1,500 allocated to personal credit, 500 unallocated for trade debt)
+      const mockPayments = [
+        { id: "p1", customer_id: "c-hybrid", amount: 2000, payment_date: "2026-10-10" }
+      ]
+      const mockResellers = [
+        { id: "c-hybrid", name: "Hybrid Customer", opening_balance: 0 }
+      ]
+
+      const fromMock = vi.fn().mockImplementation((table) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null }),
+          limit: vi.fn().mockResolvedValue({ data: [] }),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockResolvedValue({ data: [] }),
+          then: function(resolve: any) { resolve({ data: [] }) }
+        }
+
+        if (table === "app_settings") {
+          qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+        } else if (table === "reseller_customers") {
+          qb.select = vi.fn().mockResolvedValue({ data: mockResellers })
+          qb.then = function(resolve: any) { resolve({ data: mockResellers }) }
+        } else if (table === "wholesale_sales") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.lte = vi.fn().mockResolvedValue({ data: mockSales })
+          qb.then = function(resolve: any) { resolve({ data: mockSales }) }
+        } else if (table === "customer_credits") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockCredits })
+          qb.then = function(resolve: any) { resolve({ data: mockCredits }) }
+        } else if (table === "reseller_payments") {
+          qb.limit = vi.fn().mockResolvedValue({ data: mockPayments })
+          qb.lte = vi.fn().mockResolvedValue({ data: mockPayments })
+          qb.then = function(resolve: any) { resolve({ data: mockPayments }) }
+        }
+        return qb
+      })
+
+      ;(supabase.from as any) = fromMock
+
+      const stats = await getDashboardStats("THIS_MONTH")
+
+      // Wholesale payments = max(0, totalPayments (2000) - personalPaid (1500)) = 500
+      // Wholesale receivables = 4000 - 500 = 3500
+      expect(stats.wholesale.receivables).toBe(3500)
+      // Personal ledger outstanding = 0 (1,500 loan - 1,500 paid)
+      expect(stats.personalLedger.outstanding).toBe(0)
+    })
+
+    it("6. Demonstrates consistent behavior between dashboard period filters and cumulative balance carry-forwards", async () => {
+      // Prior-month sale (September): 2,000 total, 500 received at sale (net 1,500 carried forward)
+      const priorMonthSale = {
+        id: "s-prev", total_sale: 2000, amount_received: 500, profit: 300, quantity: 4, buying_cost: 375, customer_id: "c1", sale_date: "2026-09-15"
+      }
+      // Current-month sale (October): 1,190 total, 0 received at sale, profit 140
+      const currentMonthSale = {
+        id: "s-curr", total_sale: 1190, amount_received: 0, profit: 140, quantity: 7, buying_cost: 150, customer_id: "c1", sale_date: "2026-10-15"
+      }
+      const allSales = [priorMonthSale, currentMonthSale]
+      const currentMonthSales = [currentMonthSale]
+
+      const mockResellers = [
+        { id: "c1", name: "Continuing Client", opening_balance: 0 }
+      ]
+
+      const fromMock = vi.fn().mockImplementation((table) => {
+        const qb: any = {
+          select: vi.fn().mockReturnThis(),
+          single: vi.fn().mockResolvedValue({ data: null }),
+          limit: vi.fn().mockResolvedValue({ data: [] }),
+          gte: vi.fn().mockReturnThis(),
+          lte: vi.fn().mockResolvedValue({ data: [] }),
+          then: function(resolve: any) { resolve({ data: [] }) }
+        }
+
+        if (table === "app_settings") {
+          qb.single = vi.fn().mockResolvedValue({ data: { low_stock_threshold: 2 } })
+        } else if (table === "reseller_customers") {
+          qb.select = vi.fn().mockResolvedValue({ data: mockResellers })
+          qb.then = function(resolve: any) { resolve({ data: mockResellers }) }
+        } else if (table === "wholesale_sales") {
+          qb.limit = vi.fn().mockResolvedValue({ data: allSales })
+          qb.lte = vi.fn().mockResolvedValue({ data: currentMonthSales })
+          qb.then = function(resolve: any) { resolve({ data: allSales }) }
+        }
+        return qb
+      })
+
+      ;(supabase.from as any) = fromMock
+
+      const stats = await getDashboardStats("THIS_MONTH")
+
+      // 1. Period flow metrics reflect strictly current month activity:
+      expect(stats.wholesale.totalSales).toBe(1190)
+      expect(stats.wholesale.profit).toBe(140)
+
+      // 2. Balance sheet metric carries forward prior month's 1,500 unpaid debt + 1,190 = 2,690:
+      expect(stats.wholesale.receivables).toBe(2690)
+    })
+  })
 })

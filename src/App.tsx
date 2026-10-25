@@ -14,6 +14,7 @@ import { Login } from "./pages/auth/Login"
 const DashboardPage = lazy(() => import("./pages/dashboard"))
 const ProductsPage = lazy(() => import("./pages/products"))
 const ProductDetailPage = lazy(() => import("./pages/products/ProductDetailPage"))
+const ProductCalculatorPage = lazy(() => import("./pages/calculator"))
 const InventoryPage = lazy(() => import("./pages/inventory"))
 const PurchasesPage = lazy(() => import("./pages/purchases"))
 const DealersPage = lazy(() => import("./pages/dealers"))
@@ -72,6 +73,7 @@ function App() {
                   <Route path="assistant" element={<AIAssistantPage />} />
                   <Route path="products" element={<ProductsPage />} />
                   <Route path="products/:id" element={<ProductDetailPage />} />
+                  <Route path="calculator" element={<ProductCalculatorPage />} />
                   <Route path="inventory" element={<InventoryPage />} />
                   <Route path="purchases" element={<PurchasesPage />} />
                   <Route path="dealers" element={<DealersPage />} />

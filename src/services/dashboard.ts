@@ -119,7 +119,7 @@ export interface WholesaleSectionData {
   cogs: number
   profitMargin: number
   receivables: number
-  payables: number
+  payables?: number
   totalPayable?: number
   transactions: number
   productsSold: number
@@ -498,6 +498,20 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     topPayables: topPayablesList
   }
 
+  const allSales = allSalesRes?.data
+  const allResellerPayments = allResellerPaymentsRes?.data
+
+  // Pure wholesale customer sales by customer ID
+  const allSalesByCustomer: Record<string, { totalSale: number, amountReceived: number }> = {}
+  allSales?.forEach((s: any) => {
+    if (!s.customer_id) return
+    if (!allSalesByCustomer[s.customer_id]) {
+      allSalesByCustomer[s.customer_id] = { totalSale: 0, amountReceived: 0 }
+    }
+    allSalesByCustomer[s.customer_id].totalSale += Number(s.total_sale || 0)
+    allSalesByCustomer[s.customer_id].amountReceived += Number(s.amount_received || 0)
+  })
+
   // --- SECTION 5: PERSONAL LEDGER (STRICTLY ISOLATED) ---
   const allCustomerCredits = allCustomerCreditsRes?.data || []
   let personalTotalReceivables = 0
@@ -563,6 +577,34 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     }
   })
 
+  // Non-wholesale customers with opening balances belong strictly to Personal Ledger
+  resellersMasterRes?.data?.forEach((r: any) => {
+    const salesInfo = allSalesByCustomer[r.id]
+    const hasWholesaleSales = Boolean(salesInfo && salesInfo.totalSale > 0)
+    const openingBal = Number(r.opening_balance || 0)
+
+    if (!hasWholesaleSales && openingBal > 0) {
+      personalTotalReceivables += openingBal
+      personalTotalOutstanding += openingBal
+      fundsUnallocatedOutstanding += openingBal
+
+      if (!personalDebtorsMap[r.id]) {
+        personalDebtorsMap[r.id] = {
+          id: r.id,
+          name: r.name || resellersMap[r.id] || "Unknown",
+          phone: r.phone || resellerPhoneMap[r.id] || null,
+          outstanding: 0,
+          funds7Time: 0,
+          fundsPersonal: 0,
+          fundsUnallocated: 0,
+          routePath: `/local-customers/${r.id}`
+        }
+      }
+      personalDebtorsMap[r.id].outstanding += openingBal
+      personalDebtorsMap[r.id].fundsUnallocated += openingBal
+    }
+  })
+
   const personalDebtors = Object.values(personalDebtorsMap)
     .filter(d => d.outstanding > 0)
     .sort((a, b) => b.outstanding - a.outstanding)
@@ -580,9 +622,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
 
   // --- SECTION 2: WHOLESALE BUSINESS ---
   const sales = salesRes?.data
-  const allSales = allSalesRes?.data
   const resellerPayments = resellerPaymentsRes?.data
-  const allResellerPayments = allResellerPaymentsRes?.data
 
   const totalSales = sales?.reduce((acc: number, s: any) => acc + Number(s.total_sale || 0), 0) || 0
   const totalSalesReceived = sales?.reduce((acc: number, s: any) => acc + Number(s.amount_received || 0), 0) || 0
@@ -591,17 +631,6 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
   const totalCogs = sales?.reduce((acc: number, s: any) => acc + (Number(s.buying_cost || 0) * Number(s.quantity || 0)), 0) || 0
   const profitMargin = totalSales > 0 ? (totalProfit / totalSales) * 100 : 0
   const totalResellerPayments = resellerPayments?.reduce((acc: number, p: any) => acc + Number(p.amount || 0), 0) || 0
-
-  // Pure wholesale customer balances (strictly trade sales and trade payments, 0 personal credits)
-  const allSalesByCustomer: Record<string, { totalSale: number, amountReceived: number }> = {}
-  allSales?.forEach((s: any) => {
-    if (!s.customer_id) return
-    if (!allSalesByCustomer[s.customer_id]) {
-      allSalesByCustomer[s.customer_id] = { totalSale: 0, amountReceived: 0 }
-    }
-    allSalesByCustomer[s.customer_id].totalSale += Number(s.total_sale || 0)
-    allSalesByCustomer[s.customer_id].amountReceived += Number(s.amount_received || 0)
-  })
 
   const allPaymentsByCustomer: Record<string, number> = {}
   allResellerPayments?.forEach((p: any) => {
@@ -642,8 +671,8 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     const hasWholesaleSales = Boolean(salesInfo && salesInfo.totalSale > 0)
     const openingBal = Number(r.opening_balance || 0)
 
-    // Include customer if they have wholesale sales OR an opening balance
-    if (hasWholesaleSales || openingBal > 0) {
+    // Include customer only if they have actual wholesale trade activity
+    if (hasWholesaleSales) {
       const wholesaleSales = salesInfo?.totalSale || 0
       const wholesaleCashReceived = salesInfo?.amountReceived || 0
       const totalPayments = allPaymentsByCustomer[r.id] || 0
@@ -717,8 +746,6 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     cogs: totalCogs,
     profitMargin,
     receivables: totalWholesaleReceivables,
-    payables: totalPayable,
-    totalPayable,
     transactions: sales?.length || 0,
     productsSold: totalProductsSold,
     customersCount: wholesaleDebtors.length,

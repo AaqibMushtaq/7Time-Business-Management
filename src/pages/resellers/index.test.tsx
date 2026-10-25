@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { MemoryRouter, Routes, Route, Navigate } from "react-router-dom"
 import ResellersPage from "./index"
+import ResellerDetailPage from "./ResellerDetailPage"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { 
   getResellersWithBalances,
@@ -200,12 +201,21 @@ describe("Personal Ledger (ResellersPage Component)", () => {
     })
   })
 
-  it("renders page title, summary cards distinguishing Expense on Behalf and Qard Hasan, and people list", async () => {
-    render(
+  const renderResellersApp = (initialRoute = "/local-customers") => {
+    return render(
       <QueryClientProvider client={queryClient}>
-        <ResellersPage />
+        <MemoryRouter initialEntries={[initialRoute]}>
+          <Routes>
+            <Route path="/local-customers" element={<ResellersPage />} />
+            <Route path="/local-customers/:id" element={<ResellerDetailPage />} />
+          </Routes>
+        </MemoryRouter>
       </QueryClientProvider>
     )
+  }
+
+  it("renders page title, summary cards distinguishing Expense on Behalf and Qard Hasan, and people list", async () => {
+    renderResellersApp()
 
     // Page title and subtitle
     expect(await screen.findByText("Personal Ledger")).toBeDefined()
@@ -225,11 +235,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
   })
 
   it("opens Create Entry modal with Expense on Behalf type when + Record Expense on Behalf is clicked", async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Ishfaq ATM")
 
@@ -243,11 +249,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
   })
 
   it("opens Qard Hasan modal when + Give Qard Hasan is clicked", async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Ishfaq ATM")
 
@@ -263,11 +265,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
   })
 
   it("opens Record Settlement modal with multi-entry allocation support and submits settlement", async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Ishfaq ATM")
 
@@ -308,11 +306,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
   })
 
   it("opens Personal Ledger panel displaying Expense on Behalf, Qard Hasan, and Settlement History", async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Ishfaq ATM")
 
@@ -334,11 +328,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
   })
 
   it("filters people directory by Has Outstanding, Has Expense on Behalf, and Has Qard Hasan", async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Ishfaq ATM")
     expect(screen.getByText("Tariq Wholesale")).toBeDefined()
@@ -374,11 +364,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
       notes: "Preferred customer with prompt settlements"
     })
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Ishfaq ATM")
 
@@ -429,11 +415,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
       notes: "Increased by 1 tin"
     })
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Ishfaq ATM")
 
@@ -492,11 +474,7 @@ describe("Personal Ledger (ResellersPage Component)", () => {
     ]
     ;(getResellersWithBalances as any).mockResolvedValue(customersWithAdvance)
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ResellersPage />
-      </QueryClientProvider>
-    )
+    renderResellersApp()
 
     await screen.findByText("Adil Advance Payee")
 
@@ -507,6 +485,26 @@ describe("Personal Ledger (ResellersPage Component)", () => {
     // Only Adil Advance Payee has credit balance
     expect(screen.getByText("Adil Advance Payee")).toBeDefined()
     expect(screen.queryByText("Ishfaq ATM")).toBeNull()
+  })
+
+  it("navigates to person ledger page when View person details & ledger button is clicked", async () => {
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={["/local-customers"]}>
+          <Routes>
+            <Route path="/local-customers" element={<ResellersPage />} />
+            <Route path="/local-customers/:id" element={<div>Target Person Ledger Destination</div>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+
+    await screen.findByText("Ishfaq ATM")
+    const viewButtons = screen.getAllByTitle("View person details & ledger")
+    expect(viewButtons.length).toBeGreaterThan(0)
+    fireEvent.click(viewButtons[0])
+
+    expect(await screen.findByText("Target Person Ledger Destination")).toBeDefined()
   })
 
   it("renders Local Customers page under /local-customers route preserving /resellers alias", () => {

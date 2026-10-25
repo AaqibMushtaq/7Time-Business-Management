@@ -31,17 +31,21 @@ export default function ReportsPage() {
       let csvContent = ""
 
       if (type === "PURCHASES") {
-        const { data: res } = await supabase.from("purchases").select("*, dealer:dealers(name)").limit(999999)
+        const { data: res } = await supabase.from("purchases").select("*, dealer:dealers(name), product:products(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Dealer,Product,Quantity,Cost,Total Amount,Paid,Balance,Status"]
-          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.purchase_date)},${escapeCSV(r.dealer?.name)},${escapeCSV(r.product_id)},${escapeCSV(r.quantity_bought)},${escapeCSV(r.unit_cost)},${escapeCSV(r.total_amount)},${escapeCSV(r.amount_paid)},${escapeCSV(r.balance)},${escapeCSV(r.status)}`))
+          .concat(data.map(r => {
+            const cost = r.buying_rate ?? r.unit_cost ?? 0
+            const status = r.status || (Number(r.amount_paid || 0) >= Number(r.total_amount || 0) ? "PAID" : Number(r.amount_paid || 0) > 0 ? "PARTIAL" : "UNPAID")
+            return `${escapeCSV(r.id)},${escapeCSV(r.purchase_date)},${escapeCSV(r.dealer?.name)},${escapeCSV(r.product?.name || r.product_id)},${escapeCSV(r.quantity_bought)},${escapeCSV(cost)},${escapeCSV(r.total_amount)},${escapeCSV(r.amount_paid)},${escapeCSV(r.balance)},${escapeCSV(status)}`
+          }))
           .join("\n")
       } 
       else if (type === "WHOLESALE_SALES") {
-        const { data: res } = await supabase.from("wholesale_sales").select("*, customer:reseller_customers(name)").limit(999999)
+        const { data: res } = await supabase.from("wholesale_sales").select("*, customer:reseller_customers(name), product:products(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Wholesale Customer,Product,Quantity,Buying Cost,Wholesale Price,Total Sale,Received,Balance,Profit,Status,Payment Method"]
-          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.sale_date)},${escapeCSV(r.customer?.name)},${escapeCSV(r.product_id)},${escapeCSV(r.quantity)},${escapeCSV(r.buying_cost)},${escapeCSV(r.wholesale_price)},${escapeCSV(r.total_sale)},${escapeCSV(r.amount_received)},${escapeCSV(r.balance)},${escapeCSV(r.profit)},${escapeCSV(r.payment_status)},${escapeCSV(r.payment_method)}`))
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.sale_date)},${escapeCSV(r.customer?.name)},${escapeCSV(r.product?.name || r.product_id)},${escapeCSV(r.quantity)},${escapeCSV(r.buying_cost)},${escapeCSV(r.wholesale_price)},${escapeCSV(r.total_sale)},${escapeCSV(r.amount_received)},${escapeCSV(r.balance)},${escapeCSV(r.profit)},${escapeCSV(r.payment_status)},${escapeCSV(r.payment_method)}`))
           .join("\n")
       }
       else if (type === "INVENTORY") {
@@ -52,17 +56,17 @@ export default function ReportsPage() {
           .join("\n")
       }
       else if (type === "DEALER_PAYMENTS") {
-        const { data: res } = await supabase.from("dealer_payments").select("*").limit(999999)
+        const { data: res } = await supabase.from("dealer_payments").select("*, dealer:dealers(name)").limit(999999)
         data = res || []
-        csvContent = ["ID,Date,Dealer ID,Amount,Method,Reference,Notes"]
-          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.payment_date)},${escapeCSV(r.dealer_id)},${escapeCSV(r.amount)},${escapeCSV(r.payment_method)},${escapeCSV(r.reference)},${escapeCSV(r.notes)}`))
+        csvContent = ["ID,Date,Dealer,Amount,Method,Reference,Notes"]
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.payment_date)},${escapeCSV(r.dealer?.name || r.dealer_id)},${escapeCSV(r.amount)},${escapeCSV(r.payment_method)},${escapeCSV(r.reference)},${escapeCSV(r.notes)}`))
           .join("\n")
       }
       else if (type === "RESELLER_PAYMENTS") {
-        const { data: res } = await supabase.from("reseller_payments").select("*").limit(999999)
+        const { data: res } = await supabase.from("reseller_payments").select("*, customer:reseller_customers(name)").limit(999999)
         data = res || []
-        csvContent = ["ID,Date,Person/Customer ID,Amount,Method,Reference,Notes"]
-          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.payment_date)},${escapeCSV(r.customer_id)},${escapeCSV(r.amount)},${escapeCSV(r.payment_method)},${escapeCSV(r.reference)},${escapeCSV(r.notes)}`))
+        csvContent = ["ID,Date,Person/Customer,Amount,Method,Reference,Notes"]
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.payment_date)},${escapeCSV(r.customer?.name || r.customer_id)},${escapeCSV(r.amount)},${escapeCSV(r.payment_method)},${escapeCSV(r.reference)},${escapeCSV(r.notes)}`))
           .join("\n")
       }
       else if (type === "PERSONAL_LEDGER") {

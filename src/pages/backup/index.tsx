@@ -20,10 +20,14 @@ export default function BackupPage() {
         { data: resellers },
         { data: wholesale_sales },
         { data: reseller_payments },
+        { data: customer_credits },
         { data: general_daily_records },
         { data: general_delivery_entries },
         { data: naeem_routes },
-        { data: naeem_records }
+        { data: naeem_records },
+        { data: naeem_payments },
+        { data: naeem_monthly_balances },
+        { data: app_settings }
       ] = await Promise.all([
         supabase.from("products").select("*"),
         supabase.from("dealers").select("*"),
@@ -32,15 +36,19 @@ export default function BackupPage() {
         supabase.from("reseller_customers").select("*"),
         supabase.from("wholesale_sales").select("*"),
         supabase.from("reseller_payments").select("*"),
+        supabase.from("customer_credits").select("*"),
         supabase.from("general_daily_records").select("*"),
         supabase.from("general_delivery_entries").select("*"),
         supabase.from("naeem_routes").select("*"),
-        supabase.from("naeem_daily_records").select("*")
+        supabase.from("naeem_daily_records").select("*"),
+        supabase.from("naeem_payments").select("*"),
+        supabase.from("naeem_monthly_balances").select("*"),
+        supabase.from("app_settings").select("*")
       ])
 
       const backupData = {
         timestamp: new Date().toISOString(),
-        version: "1.0",
+        version: "1.1",
         data: {
           products,
           dealers,
@@ -49,10 +57,14 @@ export default function BackupPage() {
           resellers,
           wholesale_sales,
           reseller_payments,
+          customer_credits,
           general_daily_records,
           general_delivery_entries,
           naeem_routes,
-          naeem_records
+          naeem_records,
+          naeem_payments,
+          naeem_monthly_balances,
+          app_settings
         }
       }
 

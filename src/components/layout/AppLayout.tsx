@@ -16,7 +16,8 @@ import {
   Menu,
   X,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  Calculator
 } from "lucide-react"
 import { Button } from "../ui/button"
 import { UpdateNotificationBanner } from "../common/UpdateNotificationBanner"
@@ -35,6 +36,7 @@ const navGroups = [
     items: [
       { name: "Dealers", href: "/dealers", icon: Users },
       { name: "Products", href: "/products", icon: Package },
+      { name: "Price Calculator", href: "/calculator", icon: Calculator },
       { name: "Purchases", href: "/purchases", icon: ShoppingCart },
       { name: "Dealer Payments", href: "/dealer-payments", icon: Wallet },
       { name: "Inventory", href: "/inventory", icon: Package },

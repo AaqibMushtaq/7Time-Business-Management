@@ -202,7 +202,7 @@ export async function sendAssistantMessage(
  * Ensures user-facing error messages are clean, safe, and actionable.
  * Never exposes raw provider internals, API keys, or stack traces.
  */
-export function sanitizeAssistantError(err: AssistantError, httpStatus?: number): AssistantError {
+function sanitizeAssistantError(err: AssistantError, httpStatus?: number): AssistantError {
   let code = err.code || "UNKNOWN_ERROR"
   let message = err.message || ""
   let retryable = err.retryable

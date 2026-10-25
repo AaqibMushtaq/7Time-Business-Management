@@ -68,7 +68,6 @@ import EditResellerPaymentModal from "./EditResellerPaymentModal"
 interface ResellerDetailPanelProps {
   id: string
   onClose: () => void
-  onRecordPayment?: (reseller: ResellerCustomer) => void
 }
 
 type TabType = "all_credits" | "product_credit" | "cash_loan" | "other_credit" | "sales" | "payments"
@@ -267,7 +266,11 @@ export default function ResellerDetailPanel({
       queryClient.invalidateQueries({ queryKey: ["reseller", id] })
       queryClient.invalidateQueries({ queryKey: ["resellers"] })
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
-      setAutoAllocateMessage(`Successfully allocated ${formatMoney(res.totalAllocated)} across ${res.allocatedCount} credit entries!`)
+      if (res.allocatedCount === 0) {
+        setAutoAllocateMessage("No pending credit entries require allocation.")
+      } else {
+        setAutoAllocateMessage(`Successfully allocated ${formatMoney(res.totalAllocated)} across ${res.allocatedCount} credit entries!`)
+      }
       setTimeout(() => setAutoAllocateMessage(null), 6000)
     } catch (err: any) {
       alert("Auto-allocation failed: " + err.message)
@@ -422,7 +425,7 @@ export default function ResellerDetailPanel({
   }
 
   return (
-    <div className="flex flex-col h-full bg-[#F8F7F2] rounded-xl">
+    <div className="flex flex-col bg-[#F8F7F2] rounded-xl">
       {/* Edit Customer Profile Modal */}
       {isEditProfileOpen && (
         <EditCustomerProfileModal
@@ -562,7 +565,7 @@ export default function ResellerDetailPanel({
       )}
 
       {/* Sticky Top Header */}
-      <div className="sticky top-0 z-10 bg-[#FFFFFF] border-b border-[#D9E0E8] p-5 sm:p-6 space-y-5 rounded-t-2xl shadow-xs">
+      <div className="sticky top-0 z-10 bg-[#FFFFFF] border-b border-[#D9E0E8] p-5 sm:p-6 space-y-5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="h-14 w-14 rounded-2xl flex items-center justify-center bg-[#EBF2FE] border border-[#BFDBFE] text-[#2563EB] font-bold uppercase shrink-0 text-xl shadow-xs">
@@ -606,6 +609,16 @@ export default function ResellerDetailPanel({
                 {reseller.created_at && (
                   <span className="text-[#66758A]">
                     Since: {formatDate(reseller.created_at)}
+                  </span>
+                )}
+                {Number(reseller.opening_balance || 0) > 0 && (
+                  <span className="flex items-center gap-1 text-[#52627A] bg-[#F1F4F8] px-2 py-0.5 rounded border border-[#D9E0E8]">
+                    <span>Opening Bal: {formatMoney(Number(reseller.opening_balance))}</span>
+                    {ledgerSummary.openingBalanceOutstanding <= 0 ? (
+                      <span className="text-[#087443] font-semibold">(Settled)</span>
+                    ) : (
+                      <span className="text-[#B42318] font-semibold">({formatMoney(ledgerSummary.openingBalanceOutstanding)} due)</span>
+                    )}
                   </span>
                 )}
               </div>
@@ -809,30 +822,45 @@ export default function ResellerDetailPanel({
         })()}
 
         {/* Discrepancy Reconciliation Alert Banner */}
-        {ledgerSummary.unallocatedPayments > 0 && (
-          <div className="p-3.5 bg-[#EBF2FE] border border-[#BFDBFE] text-[#172B4D] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-            <div className="flex items-start gap-2.5">
-              <Info className="h-4 w-4 text-[#2563EB] shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-[#172B4D]">
-                  Unallocated Settlement Reconciliation Notice
-                </p>
-                <p className="text-[#52627A] mt-0.5">
-                  Person has <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements that have not yet been mapped to specific ledger rows. Total Net Outstanding is accurately calculated as <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.netOutstanding)}</span>.
-                </p>
+        {ledgerSummary.unallocatedPayments > 0 && (() => {
+          const hasPendingCredits = customerCredits.some(c => Number(c.balance || 0) > 0.005)
+          return (
+            <div className="p-3.5 bg-[#EBF2FE] border border-[#BFDBFE] text-[#172B4D] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-start gap-2.5">
+                <Info className="h-4 w-4 text-[#2563EB] shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-[#172B4D]">
+                    {hasPendingCredits
+                      ? "Unallocated Settlement Reconciliation Notice"
+                      : "Unallocated Settlement Notice (Account Advance)"}
+                  </p>
+                  <p className="text-[#52627A] mt-0.5">
+                    {hasPendingCredits ? (
+                      <>
+                        Person has <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements that have not yet been mapped to specific ledger rows. Total Net Outstanding is accurately calculated as <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.netOutstanding)}</span>.
+                      </>
+                    ) : (
+                      <>
+                        Person has <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements with no outstanding ledger entries available for allocation (surplus / advance payment). Total Net Outstanding is accurately calculated as <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.netOutstanding)}</span>.
+                      </>
+                    )}
+                  </p>
+                </div>
               </div>
+              {hasPendingCredits && (
+                <Button
+                  size="sm"
+                  onClick={handleAutoAllocate}
+                  disabled={isAutoAllocating}
+                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs shrink-0 shadow-xs cursor-pointer"
+                >
+                  {isAutoAllocating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Wand2 className="h-3.5 w-3.5 mr-1.5" />}
+                  Auto-Allocate to Oldest Entries
+                </Button>
+              )}
             </div>
-            <Button
-              size="sm"
-              onClick={handleAutoAllocate}
-              disabled={isAutoAllocating}
-              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs shrink-0 shadow-xs cursor-pointer"
-            >
-              {isAutoAllocating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Wand2 className="h-3.5 w-3.5 mr-1.5" />}
-              Auto-Allocate to Oldest Entries
-            </Button>
-          </div>
-        )}
+          )
+        })()}
 
         {autoAllocateMessage && (
           <div className="p-3 bg-[#EAF7EF] border border-[#A6F4C5] text-[#087443] rounded-xl text-xs flex items-center gap-2">
@@ -949,7 +977,7 @@ export default function ResellerDetailPanel({
       </div>
 
       {/* Main Tab Content */}
-      <div className="p-5 sm:p-6 flex-1 overflow-y-auto">
+      <div className="p-5 sm:p-6">
         {/* TAB 1: ALL CREDITS / PRODUCT CREDITS / CASH LOANS / OTHER CREDITS */}
         {["all_credits", "product_credit", "cash_loan", "other_credit"].includes(activeTab) && (
           <div className="space-y-4">

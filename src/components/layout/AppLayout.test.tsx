@@ -93,6 +93,11 @@ describe("AppLayout Navigation Sidebar", () => {
     expect(screen.getByRole("heading", { name: /REPORTS/i })).toBeDefined()
     expect(screen.getByRole("heading", { name: /SYSTEM/i })).toBeDefined()
 
+    // Price Calculator link is present with /calculator
+    const calcLinks = screen.getAllByRole("link", { name: /Price Calculator/i })
+    expect(calcLinks.length).toBeGreaterThan(0)
+    expect(calcLinks[0].getAttribute("href")).toBe("/calculator")
+
     // Mobile menu toggle button
     const mobileMenuBtn = screen.getByLabelText(/Open mobile navigation menu/i)
     expect(mobileMenuBtn).toBeDefined()

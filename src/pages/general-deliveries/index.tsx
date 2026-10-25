@@ -21,7 +21,9 @@ import {
   LayoutGrid,
   Table as TableIcon
 } from "lucide-react"
-import { DeliveriesAnalyticsChart } from "./DeliveriesAnalyticsChart"
+const DeliveriesAnalyticsChart = React.lazy(() =>
+  import("./DeliveriesAnalyticsChart").then((m) => ({ default: m.DeliveriesAnalyticsChart }))
+)
 import { DeliveriesTableView } from "./DeliveriesTableView"
 import { DeliveriesCardsView } from "./DeliveriesCardsView"
 import { DailyEditModal } from "./DailyEditModal"
@@ -580,12 +582,23 @@ export default function GeneralDeliveriesPage() {
       </div>
 
       {/* OPTIONAL ANALYTICS CHART */}
-      <DeliveriesAnalyticsChart
-        showChart={showChart && !isError}
-        displayMonthLabel={displayMonthLabel}
-        chartData={chartData}
-        onClose={() => setShowChart(false)}
-      />
+      {showChart && !isError && (
+        <React.Suspense
+          fallback={
+            <div className="p-8 text-center text-xs text-[#52627A] flex items-center justify-center gap-2 bg-white rounded-xl border border-[#D9E0E8]">
+              <Loader2 className="h-4 w-4 animate-spin text-[#2563EB]" />
+              <span>Loading trend analytics...</span>
+            </div>
+          }
+        >
+          <DeliveriesAnalyticsChart
+            showChart={true}
+            displayMonthLabel={displayMonthLabel}
+            chartData={chartData}
+            onClose={() => setShowChart(false)}
+          />
+        </React.Suspense>
+      )}
 
       {/* PHASE 3 — DAILY OPERATIONS TABLE & CARD PRESENTATIONS */}
       <div className="bg-white rounded-xl border border-[#D9E0E8] shadow-xs overflow-hidden">

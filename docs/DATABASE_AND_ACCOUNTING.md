@@ -60,6 +60,9 @@ The database consists of 14 core business tables organized by domain:
 
 ## 2. Authoritative Accounting Formulas & Rules
 
+> **Bookkeeping Paradigm — Manual Ledger Recording Only:**
+> This software is a private management and bookkeeping ledger, NOT a payment processing system. All transactions (goods delivered, stock purchases, settlements received, disbursements made) occur outside the application in real-world commerce. The application never moves funds, processes cards, executes bank transfers, or interfaces with payment gateways (no UPI, Razorpay, Stripe, or webhooks). Payment entries are purely manual bookkeeping records. The UI strictly distinguishes recording from processing: "Record Payment" saves a ledger entry, "Outstanding Balance" is the ledger-calculated balance due, and "Unallocated Advance" represents funds recorded but not yet matched to debit items.
+
 ### Rule 1: We Owe Dealers (Cumulative Payable Liability)
 - **Formula:**
   $$\text{Balance}_{\text{dealer}} = \text{Opening Balance} + \sum (\text{purchases.total\_amount} - \text{purchases.amount\_paid}) - \sum \text{dealer\_payments.amount}$$
