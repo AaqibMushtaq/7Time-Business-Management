@@ -3,8 +3,11 @@ import { useQuery } from "@tanstack/react-query"
 import { getProducts, type Product } from "@/services/products"
 import {
   isContinuousUnit,
+  normalizeUnit,
+  getCompatibleUnits,
   calculateMoneyToQuantity,
-  calculateQuantityToPrice
+  calculateQuantityToPrice,
+  type UnitDefinition
 } from "@/lib/productCalculator"
 import { formatMoney } from "@/lib/utils"
 import {
@@ -30,7 +33,8 @@ import {
   Package,
   Info,
   Layers,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Sparkles
 } from "lucide-react"
 
 type CalculationMode = "MONEY_TO_QTY" | "QTY_TO_PRICE"
@@ -53,6 +57,9 @@ export default function ProductCalculatorPage() {
   const [priceTier, setPriceTier] = useState<PriceTier>("WHOLESALE")
   const [customPriceInput, setCustomPriceInput] = useState<string>("")
 
+  // Selected measurement unit (defaults to product base unit)
+  const [selectedUnitCode, setSelectedUnitCode] = useState<string>("")
+
   // Calculation mode
   const [mode, setMode] = useState<CalculationMode>("MONEY_TO_QTY")
 
@@ -62,7 +69,7 @@ export default function ProductCalculatorPage() {
   // Mode B input: Quantity required
   const [quantityInput, setQuantityInput] = useState<string>("")
 
-  // Unit fractional toggle
+  // Unit fractional override
   const [allowFractional, setAllowFractional] = useState<boolean>(false)
 
   // Copy feedback
@@ -74,7 +81,21 @@ export default function ProductCalculatorPage() {
     return products.find((p) => p.id === selectedProductId) || null
   }, [products, selectedProductId])
 
-  // Determine effective unit selling price
+  // Compatible units list for selected product
+  const compatibleUnits = useMemo<UnitDefinition[]>(() => {
+    if (!selectedProduct?.unit) return []
+    return getCompatibleUnits(selectedProduct.unit)
+  }, [selectedProduct])
+
+  // Active unit definition (defaults to product's normalized unit if selected is invalid)
+  const activeUnitDef = useMemo<UnitDefinition | null>(() => {
+    if (!selectedProduct?.unit) return null
+    const matched = compatibleUnits.find((u) => u.code === selectedUnitCode)
+    if (matched) return matched
+    return normalizeUnit(selectedProduct.unit)
+  }, [selectedProduct, selectedUnitCode, compatibleUnits])
+
+  // Determine effective unit selling price (per product base unit)
   const effectiveUnitPrice = useMemo<number>(() => {
     if (!selectedProduct) return 0
     if (priceTier === "CUSTOM") {
@@ -91,37 +112,69 @@ export default function ProductCalculatorPage() {
     return Number(selectedProduct.retail_price || 0)
   }, [selectedProduct, priceTier, customPriceInput])
 
-  // Mode A Calculation Result
+  // Equivalent price in the actively selected unit (e.g. ₹0.20/g if base is ₹200/kg)
+  const equivalentUnitPrice = useMemo<number>(() => {
+    if (!activeUnitDef || effectiveUnitPrice <= 0) return effectiveUnitPrice
+    return effectiveUnitPrice * activeUnitDef.conversionToBase
+  }, [activeUnitDef, effectiveUnitPrice])
+
+  // Mode A Calculation Result (Cash -> Quantity)
   const moneyToQuantityResult = useMemo(() => {
     const amount = parseFloat(cashAmountInput)
     return calculateMoneyToQuantity({
       amount,
       unitPrice: effectiveUnitPrice,
+      productUnit: selectedProduct?.unit,
+      displayUnit: activeUnitDef?.code,
       allowFractional,
-      decimalPlaces: 3,
+      decimalPlaces: activeUnitDef?.decimalPrecision ?? 3,
       availableStock: selectedProduct?.stock_quantity
     })
-  }, [cashAmountInput, effectiveUnitPrice, allowFractional, selectedProduct?.stock_quantity])
+  }, [
+    cashAmountInput,
+    effectiveUnitPrice,
+    selectedProduct?.unit,
+    activeUnitDef,
+    allowFractional,
+    selectedProduct?.stock_quantity
+  ])
 
-  // Mode B Calculation Result
+  // Mode B Calculation Result (Quantity -> Price)
   const quantityToPriceResult = useMemo(() => {
     const qty = parseFloat(quantityInput)
     return calculateQuantityToPrice({
       quantity: qty,
       unitPrice: effectiveUnitPrice,
+      productUnit: selectedProduct?.unit,
+      inputUnit: activeUnitDef?.code || selectedProduct?.unit,
       allowFractional,
       availableStock: selectedProduct?.stock_quantity
     })
-  }, [quantityInput, effectiveUnitPrice, allowFractional, selectedProduct?.stock_quantity])
+  }, [
+    quantityInput,
+    effectiveUnitPrice,
+    selectedProduct?.unit,
+    activeUnitDef,
+    allowFractional,
+    selectedProduct?.stock_quantity
+  ])
 
   // Quick cash buttons for Mode A
   const quickCashOptions = [50, 100, 200, 500, 1000, 2000]
 
-  // Quick quantity buttons for Mode B
-  const isContinuous = selectedProduct ? isContinuousUnit(selectedProduct.unit) : false
-  const quickQtyOptions = isContinuous ? [0.5, 1, 2, 5, 10] : [1, 2, 5, 10, 20]
+  // Dynamic quick quantity options for Mode B based on active unit
+  const quickQtyOptions = useMemo(() => {
+    if (!activeUnitDef) return [1, 2, 5, 10, 20]
+    if (activeUnitDef.code === "g" || activeUnitDef.code === "ml") {
+      return [100, 250, 500, 750, 1000]
+    }
+    if (activeUnitDef.isFractional) {
+      return [0.5, 1, 2, 2.5, 5]
+    }
+    return [1, 2, 5, 10, 20]
+  }, [activeUnitDef])
 
-  // Reset form
+  // Reset form inputs
   const handleReset = () => {
     setCashAmountInput("")
     setQuantityInput("")
@@ -133,8 +186,24 @@ export default function ProductCalculatorPage() {
   const handleFullReset = () => {
     handleReset()
     setSelectedProductId("")
+    setSelectedUnitCode("")
     setPriceTier("WHOLESALE")
     setAllowFractional(false)
+  }
+
+  // Product change handler
+  const handleProductChange = (productId: string) => {
+    setSelectedProductId(productId)
+    const prod = products.find((p) => p.id === productId)
+    if (prod) {
+      const normalized = normalizeUnit(prod.unit)
+      setSelectedUnitCode(normalized?.code || prod.unit)
+      setAllowFractional(normalized ? normalized.isFractional : isContinuousUnit(prod.unit))
+    } else {
+      setSelectedUnitCode("")
+      setAllowFractional(false)
+    }
+    handleReset()
   }
 
   // Copy summary to clipboard
@@ -145,17 +214,18 @@ export default function ProductCalculatorPage() {
     if (mode === "MONEY_TO_QTY") {
       summaryText = `7TIME Calculator Summary
 Product: ${selectedProduct.name}
-Unit Rate: ${formatMoney(effectiveUnitPrice)} / ${selectedProduct.unit}
+Base Unit Rate: ${formatMoney(effectiveUnitPrice)} / ${selectedProduct.unit}
 Cash Provided: ${formatMoney(moneyToQuantityResult.amount)}
-Sellable Quantity: ${moneyToQuantityResult.practicalQuantity} ${selectedProduct.unit}
+Sellable Quantity: ${moneyToQuantityResult.practicalQuantity} ${moneyToQuantityResult.displayUnit}
+Convenient Display: ${moneyToQuantityResult.convenientQuantity.primary}
 Value of Goods: ${formatMoney(moneyToQuantityResult.practicalValue)}
 Change / Return: ${formatMoney(moneyToQuantityResult.remainingMoney)}
-(Exact Math Quantity: ${moneyToQuantityResult.exactQuantity} ${selectedProduct.unit})`
+(Exact Math Quantity: ${moneyToQuantityResult.exactQuantity} ${moneyToQuantityResult.displayUnit})`
     } else {
       summaryText = `7TIME Calculator Summary
 Product: ${selectedProduct.name}
-Unit Rate: ${formatMoney(effectiveUnitPrice)} / ${selectedProduct.unit}
-Requested Quantity: ${quantityToPriceResult.quantity} ${selectedProduct.unit}
+Base Unit Rate: ${formatMoney(effectiveUnitPrice)} / ${selectedProduct.unit}
+Requested Quantity: ${quantityToPriceResult.quantity} ${quantityToPriceResult.inputUnit} (= ${quantityToPriceResult.baseQuantity} ${quantityToPriceResult.productBaseUnit})
 Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
     }
 
@@ -193,7 +263,7 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
       {/* Page Header */}
       <PageHeader
         title="Product Price & Quantity Calculator"
-        description="Dynamic pricing, sellable quantity estimation, and order total calculation tool."
+        description="Instant live pricing, metric conversions, sellable quantity estimation, and order total calculation."
         actions={
           (cashAmountInput || quantityInput || selectedProductId) && (
             <Button
@@ -216,7 +286,7 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
             Preview & Estimation Tool
           </p>
           <p className="text-[#52627A] mt-0.5">
-            Calculations performed here are for pricing estimation and customer change calculation. They do not deduct inventory stock, create sales entries, or record transactions in any bookkeeping ledger.
+            Calculations performed here are for pricing estimation, metric conversions, and customer change calculation. They do not deduct inventory stock, create sales entries, or record transactions in any bookkeeping ledger.
           </p>
         </div>
       </div>
@@ -228,7 +298,7 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
           <SectionCard
             title="1. Select Product & Selling Rate"
             icon={Package}
-            description="Choose a catalog product to dynamically load its current rates and inventory."
+            description="Choose a catalog product to dynamically load its base unit, metric conversions, and rates."
           >
             <div className="space-y-4">
               {/* Product Selector Dropdown */}
@@ -240,18 +310,13 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                   id="calculator-product-select"
                   aria-label="Select Product"
                   value={selectedProductId}
-                  onChange={(e) => {
-                    const prodId = e.target.value
-                    setSelectedProductId(prodId)
-                    const prod = products.find((p) => p.id === prodId)
-                    setAllowFractional(prod ? isContinuousUnit(prod.unit) : false)
-                  }}
+                  onChange={(e) => handleProductChange(e.target.value)}
                   className="flex h-11 w-full rounded-xl border border-[#D9E0E8] bg-white px-3.5 py-2 text-sm text-[#172B4D] shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] cursor-pointer"
                 >
                   <option value="">-- Choose a Product from Catalog --</option>
                   {products.map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} ({p.unit}) — Wholesale: {formatMoney(p.wholesale_price || 0)} | Retail: {formatMoney(p.retail_price || 0)}
+                      {p.name} ({p.unit || "No Unit"}) — Wholesale: {formatMoney(p.wholesale_price || 0)} | Retail: {formatMoney(p.retail_price || 0)}
                     </option>
                   ))}
                 </select>
@@ -263,9 +328,16 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2.5">
                     <div>
                       <h4 className="font-bold text-sm text-[#172B4D]">{selectedProduct.name}</h4>
-                      <span className="text-xs text-[#52627A]">
-                        Measurement Unit: <span className="font-semibold text-[#172B4D]">{selectedProduct.unit}</span>
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <span className="text-xs text-[#52627A]">
+                          Base Selling Unit: <span className="font-semibold text-[#172B4D]">{selectedProduct.unit || "None"}</span>
+                        </span>
+                        {activeUnitDef && (
+                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#E2E8F0] text-[#172B4D] font-medium">
+                            Category: {activeUnitDef.category}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusBadge
@@ -282,11 +354,32 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                     </div>
                   </div>
 
+                  {/* Missing Unit Warning */}
+                  {(!selectedProduct.unit || !selectedProduct.unit.trim()) && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-bold">Missing Measurement Unit</p>
+                        <p className="mt-0.5">
+                          This product has no measurement unit defined in catalog records. Please configure a unit (e.g. kg, L, pcs) to enable accurate calculations.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Selling Price Tier Selection */}
                   <div className="space-y-2">
-                    <Label className="text-xs font-semibold text-[#52627A] uppercase tracking-wider block">
-                      Active Selling Rate
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold text-[#52627A] uppercase tracking-wider block">
+                        Active Selling Rate Basis
+                      </Label>
+                      {effectiveUnitPrice > 0 && selectedProduct.unit && (
+                        <span className="text-xs font-bold text-[#2563EB]">
+                          {formatMoney(effectiveUnitPrice)} / {selectedProduct.unit}
+                        </span>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
@@ -334,11 +427,11 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                       </button>
                     </div>
 
-                    {/* Custom Price Input (if chosen) */}
+                    {/* Custom Price Input */}
                     {priceTier === "CUSTOM" && (
                       <div className="pt-2">
                         <Label htmlFor="custom-rate-input" className="text-xs font-semibold text-[#172B4D]">
-                          Custom Rate per {selectedProduct.unit} (₹)
+                          Custom Rate per {selectedProduct.unit || "Unit"} (₹)
                         </Label>
                         <Input
                           id="custom-rate-input"
@@ -353,6 +446,28 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                       </div>
                     )}
                   </div>
+
+                  {/* Equivalent Metric Rates Banner (e.g. ₹200/kg is ₹0.20/g) */}
+                  {effectiveUnitPrice > 0 && compatibleUnits.length > 1 && (
+                    <div className="pt-2 border-t border-[#E2E8F0] flex flex-wrap items-center gap-2 text-xs text-[#52627A]">
+                      <span className="font-semibold text-[#172B4D]">Equivalent Rates:</span>
+                      {compatibleUnits.map((u) => {
+                        const eqRate = effectiveUnitPrice * u.conversionToBase
+                        return (
+                          <span key={u.code} className="px-2 py-0.5 rounded-md bg-white border border-[#D9E0E8] font-mono text-[11px]">
+                            {formatMoney(eqRate)} / {u.symbol}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Packaging Note for packaged items */}
+                  {activeUnitDef?.category === "PACKAGING" && (
+                    <div className="pt-2 border-t border-[#E2E8F0] text-[11px] text-[#52627A] italic">
+                      Note: This product is priced per individual {activeUnitDef.symbol}. Package price is distinct from bulk volume or weight.
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-4 bg-[#F8F7F2] border border-dashed border-[#D9E0E8] rounded-xl text-center text-xs text-[#52627A]">
@@ -396,6 +511,39 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                   Mode B: Quantity to Price
                 </button>
               </div>
+
+              {/* Compatible Metric Unit Selector (When product has multiple units like kg/g or L/mL) */}
+              {compatibleUnits.length > 1 && (
+                <div className="p-3 bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#172B4D]">
+                      {mode === "MONEY_TO_QTY" ? "Quantity Display Unit" : "Input Quantity Unit"}
+                    </span>
+                    <span className="text-[11px] text-[#52627A]">
+                      Select metric unit ({compatibleUnits.map((u) => u.symbol).join(" / ")})
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {compatibleUnits.map((u) => {
+                      const isSelected = (activeUnitDef?.code || selectedProduct?.unit) === u.code
+                      return (
+                        <button
+                          key={u.code}
+                          type="button"
+                          onClick={() => setSelectedUnitCode(u.code)}
+                          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                            isSelected
+                              ? "bg-white border-[#2563EB] text-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-xs"
+                              : "bg-white/60 border-[#D9E0E8] text-[#52627A] hover:bg-white"
+                          }`}
+                        >
+                          {u.name} ({u.symbol})
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* MODE A INPUT: Cash Amount */}
               {mode === "MONEY_TO_QTY" ? (
@@ -449,8 +597,8 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                         </span>
                         <span className="text-[11px] text-[#52627A]">
                           {allowFractional
-                            ? `Fractional quantities permitted (up to 3 decimal places for ${selectedProduct?.unit || "units"}).`
-                            : `Whole discrete units only (floored to integer pieces for ${selectedProduct?.unit || "units"}).`}
+                            ? `Fractional quantities permitted (up to ${activeUnitDef?.decimalPrecision ?? 3} decimal places for ${activeUnitDef?.symbol || selectedProduct?.unit || "units"}).`
+                            : `Whole discrete units only (floored to integer pieces for ${activeUnitDef?.symbol || selectedProduct?.unit || "units"}).`}
                         </span>
                       </div>
                       <Button
@@ -470,15 +618,28 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                 /* MODE B INPUT: Quantity */
                 <div className="space-y-3.5">
                   <div className="space-y-1.5">
-                    <Label htmlFor="calculator-qty-input" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                      Required Quantity ({selectedProduct?.unit || "Units"}) <span className="text-rose-600">*</span>
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="calculator-qty-input" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                        Required Quantity ({activeUnitDef?.symbol || selectedProduct?.unit || "Units"}) <span className="text-rose-600">*</span>
+                      </Label>
+                      {activeUnitDef && activeUnitDef.code !== selectedProduct?.unit && (
+                        <span className="text-[11px] text-[#2563EB] font-medium">
+                          Converts to {selectedProduct?.unit} base
+                        </span>
+                      )}
+                    </div>
                     <Input
                       id="calculator-qty-input"
                       type="number"
                       step={allowFractional ? "0.001" : "1"}
                       min="0"
-                      placeholder={allowFractional ? "e.g. 2.500" : "e.g. 5"}
+                      placeholder={
+                        activeUnitDef?.code === "g" || activeUnitDef?.code === "ml"
+                          ? "e.g. 750"
+                          : allowFractional
+                          ? "e.g. 2.500"
+                          : "e.g. 5"
+                      }
                       value={quantityInput}
                       onChange={(e) => setQuantityInput(e.target.value)}
                       className="h-11 bg-white border-[#D9E0E8] text-[#172B4D] font-mono text-base font-bold rounded-xl focus:border-[#2563EB]"
@@ -488,7 +649,7 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                   {/* Quick Quantity Presets */}
                   <div className="space-y-1.5">
                     <span className="text-[11px] font-semibold text-[#52627A] uppercase tracking-wider block">
-                      Quick Quantity Adjustments
+                      Quick Quantity Adjustments ({activeUnitDef?.symbol || selectedProduct?.unit || "units"})
                     </span>
                     <div className="flex flex-wrap gap-1.5">
                       {quickQtyOptions.map((q) => (
@@ -498,7 +659,7 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                           onClick={() => setQuantityInput(String(q))}
                           className="px-3 py-1.5 bg-white border border-[#D9E0E8] hover:border-[#2563EB] hover:text-[#2563EB] text-[#172B4D] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
                         >
-                          {q} {selectedProduct?.unit || "units"}
+                          {q} {activeUnitDef?.symbol || selectedProduct?.unit || "units"}
                         </button>
                       ))}
                     </div>
@@ -542,6 +703,16 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                 <p className="font-semibold text-[#172B4D]">No Product Selected</p>
                 <p>Select a product from the catalog on the left to see calculated outputs.</p>
               </div>
+            ) : (!selectedProduct.unit || !selectedProduct.unit.trim()) ? (
+              <div className="p-6 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2.5">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Missing Product Measurement Unit</p>
+                  <p className="mt-0.5">
+                    This product has no measurement unit defined in catalog records. Please specify a unit in the product catalog before calculating.
+                  </p>
+                </div>
+              </div>
             ) : effectiveUnitPrice <= 0 ? (
               <div className="p-6 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2.5">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -565,24 +736,33 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                       <div className="text-3xl sm:text-4xl font-extrabold text-[#172B4D] font-mono tracking-tight">
                         {moneyToQuantityResult.practicalQuantity}{" "}
                         <span className="text-lg font-semibold text-[#2563EB]">
-                          {selectedProduct.unit}
+                          {moneyToQuantityResult.displayUnit}
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#52627A]">
+                      {/* Convenient Metric Highlight (e.g. 500 g) */}
+                      {moneyToQuantityResult.convenientQuantity.primary && (
+                        <div className="pt-1.5 flex items-center justify-center gap-1.5">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#2563EB]/10 text-[#2563EB] border border-[#2563EB]/20">
+                            <Sparkles className="h-3 w-3" />
+                            Convenient Metric: {moneyToQuantityResult.convenientQuantity.primary}
+                          </span>
+                        </div>
+                      )}
+                      <p className="text-[11px] text-[#52627A] pt-1">
                         {allowFractional
                           ? "Fractional decimal quantity supported."
                           : "Rounded down to whole sellable pieces."}
                       </p>
                     </div>
 
-                    {/* Stock Deficit Warning (if any) */}
+                    {/* Stock Deficit Warning */}
                     {moneyToQuantityResult.hasStockDeficit && (
                       <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                         <div>
                           <p className="font-bold">Inventory Deficit Warning</p>
                           <p className="mt-0.5">
-                            Practical quantity ({moneyToQuantityResult.practicalQuantity} {selectedProduct.unit}) exceeds available stock ({moneyToQuantityResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{moneyToQuantityResult.stockDeficit} {selectedProduct.unit}</span>.
+                            Practical quantity ({moneyToQuantityResult.practicalQuantityBase} {selectedProduct.unit}) exceeds available stock ({moneyToQuantityResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{moneyToQuantityResult.stockDeficit} {moneyToQuantityResult.displayUnit}</span>.
                           </p>
                         </div>
                       </div>
@@ -595,15 +775,25 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                         <CurrencyDisplay amount={moneyToQuantityResult.amount} bold />
                       </div>
                       <div className="p-3 flex justify-between items-center">
-                        <span className="text-[#52627A] font-medium">Selling Rate</span>
+                        <span className="text-[#52627A] font-medium">Selling Rate Basis</span>
                         <span className="font-mono text-[#172B4D] font-semibold">
                           {formatMoney(moneyToQuantityResult.unitPrice)} / {selectedProduct.unit}
+                          {activeUnitDef && activeUnitDef.code !== selectedProduct.unit && (
+                            <span className="text-[#52627A] font-normal text-[11px] block text-right">
+                              (= {formatMoney(equivalentUnitPrice)} / {activeUnitDef.symbol})
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="p-3 flex justify-between items-center">
                         <span className="text-[#52627A] font-medium">Exact Calculated Math</span>
                         <span className="font-mono text-[#52627A]">
-                          {moneyToQuantityResult.exactQuantity} {selectedProduct.unit}
+                          {moneyToQuantityResult.exactQuantity} {moneyToQuantityResult.displayUnit}
+                          {moneyToQuantityResult.displayUnit !== selectedProduct.unit && (
+                            <span className="text-[11px] text-[#52627A] block text-right">
+                              ({moneyToQuantityResult.exactQuantityBase} {selectedProduct.unit})
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="p-3 flex justify-between items-center bg-[#F8F7F2]/60">
@@ -616,7 +806,7 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                             Change to Return
                           </span>
                           <span className="text-[10px] text-[#087443]/80">
-                            Cash remaining from customer
+                            Cash remaining for customer
                           </span>
                         </div>
                         <CurrencyDisplay
@@ -649,18 +839,22 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                         {formatMoney(quantityToPriceResult.totalPrice)}
                       </div>
                       <p className="text-[11px] text-[#52627A]">
-                        {quantityToPriceResult.quantity} {selectedProduct.unit} @ {formatMoney(quantityToPriceResult.unitPrice)}
+                        {quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit}
+                        {quantityToPriceResult.inputUnit !== selectedProduct.unit && (
+                          <span> (= {quantityToPriceResult.baseQuantity} {selectedProduct.unit})</span>
+                        )}{" "}
+                        @ {formatMoney(quantityToPriceResult.unitPrice)}/{selectedProduct.unit}
                       </p>
                     </div>
 
-                    {/* Stock Deficit Warning (if any) */}
+                    {/* Stock Deficit Warning */}
                     {quantityToPriceResult.hasStockDeficit && (
                       <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
                         <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
                         <div>
                           <p className="font-bold">Inventory Deficit Warning</p>
                           <p className="mt-0.5">
-                            Requested quantity ({quantityToPriceResult.quantity} {selectedProduct.unit}) exceeds available stock ({quantityToPriceResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{quantityToPriceResult.stockDeficit} {selectedProduct.unit}</span>.
+                            Requested quantity ({quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit} = {quantityToPriceResult.baseQuantity} {selectedProduct.unit}) exceeds available stock ({quantityToPriceResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{quantityToPriceResult.stockDeficit} {quantityToPriceResult.inputUnit} ({quantityToPriceResult.stockDeficitBase} {selectedProduct.unit})</span>.
                           </p>
                         </div>
                       </div>
@@ -673,15 +867,25 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                         <span className="font-semibold text-[#172B4D]">{selectedProduct.name}</span>
                       </div>
                       <div className="p-3 flex justify-between items-center">
-                        <span className="text-[#52627A] font-medium">Selling Rate</span>
+                        <span className="text-[#52627A] font-medium">Base Selling Rate</span>
                         <span className="font-mono text-[#172B4D] font-semibold">
                           {formatMoney(quantityToPriceResult.unitPrice)} / {selectedProduct.unit}
+                          {quantityToPriceResult.inputUnit !== selectedProduct.unit && (
+                            <span className="text-[#52627A] font-normal text-[11px] block text-right">
+                              (= {formatMoney(quantityToPriceResult.equivalentUnitPrice)} / {quantityToPriceResult.inputUnit})
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="p-3 flex justify-between items-center">
                         <span className="text-[#52627A] font-medium">Requested Quantity</span>
                         <span className="font-mono text-[#172B4D] font-bold">
-                          {quantityToPriceResult.quantity} {selectedProduct.unit}
+                          {quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit}
+                          {quantityToPriceResult.inputUnit !== selectedProduct.unit && (
+                            <span className="text-[11px] text-[#52627A] block text-right font-normal">
+                              (= {quantityToPriceResult.baseQuantity} {selectedProduct.unit})
+                            </span>
+                          )}
                         </span>
                       </div>
                       <div className="p-3.5 flex justify-between items-center bg-[#EAF7EF] border-t border-[#A6F4C5]">
