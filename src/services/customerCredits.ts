@@ -133,6 +133,8 @@ export interface CustomerLedgerSummary {
 
   // Opening Balance
   openingBalance: number
+  openingBalancePaid: number
+  openingBalanceOutstanding: number
 
   // Payments & Advances
   totalPaymentsRecorded: number
@@ -689,32 +691,42 @@ export function calculateCustomerLedgerSummary(
     }
   })
 
+  const round2 = (num: number) => Math.round((num + Number.EPSILON) * 100) / 100
+
   // Wholesale Sales
-  const wholesaleSalesTotal = sales.reduce((sum, s) => sum + Number(s.total_sale || 0), 0)
-  const wholesaleSalesPaid = sales.reduce((sum, s) => sum + Number(s.amount_received || 0), 0)
-  const wholesaleSalesOutstanding = wholesaleSalesTotal - wholesaleSalesPaid
+  const wholesaleSalesTotal = round2(sales.reduce((sum, s) => sum + Number(s.total_sale || 0), 0))
+  const wholesaleSalesPaid = round2(sales.reduce((sum, s) => sum + Number(s.amount_received || 0), 0))
+  const wholesaleSalesOutstanding = round2(wholesaleSalesTotal - wholesaleSalesPaid)
 
   // Separate Customer Payments
-  const totalSeparatePayments = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0)
-  const totalPaymentsRecorded = wholesaleSalesPaid + totalSeparatePayments
+  const totalSeparatePayments = round2(payments.reduce((sum, p) => sum + Number(p.amount || 0), 0))
+  const totalPaymentsRecorded = round2(wholesaleSalesPaid + totalSeparatePayments)
 
   // Allocations to customer credits
-  const totalAllocatedToCredits = productCreditPaid + cashLoanPaid + otherCreditPaid
+  const totalAllocatedToCredits = round2(productCreditPaid + cashLoanPaid + otherCreditPaid)
 
   // Debits & Credits
-  const opening = Number(openingBalance || 0)
-  const totalCharges = opening + wholesaleSalesTotal + productCreditTotal + cashLoanTotal + otherCreditTotal
+  const opening = round2(Number(openingBalance || 0))
+  const totalCharges = round2(opening + wholesaleSalesTotal + productCreditTotal + cashLoanTotal + otherCreditTotal)
 
   // Net outstanding
   const totalCredits = totalPaymentsRecorded
-  const netOutstanding = totalCharges - totalCredits
+  const netOutstanding = round2(totalCharges - totalCredits)
 
-  // Unallocated payments on account: payments made by customer that have not yet been assigned to individual credit entries
-  const unallocatedPayments = Math.max(0, totalSeparatePayments - totalAllocatedToCredits)
+  // Separate payments not yet explicitly allocated to credit entries
+  const unallocatedStandalonePayments = round2(Math.max(0, totalSeparatePayments - totalAllocatedToCredits))
+
+  // Historical opening balance debt is satisfied by unallocated standalone payments first
+  const openingBalanceDebt = Math.max(0, opening)
+  const openingBalancePaid = round2(Math.min(openingBalanceDebt, unallocatedStandalonePayments))
+  const openingBalanceOutstanding = round2(Math.max(0, openingBalanceDebt - openingBalancePaid))
+
+  // Unallocated payments on account: payments made by customer that have not yet been assigned to individual credit entries OR opening balance
+  const unallocatedPayments = round2(Math.max(0, unallocatedStandalonePayments - openingBalancePaid))
 
   // Unallocated advance payments
-  // An advance exists when total separate payments exceed what was allocated to credits and wholesale sales
-  const unallocatedAdvancePayments = Math.max(0, -netOutstanding)
+  // An advance exists when total separate payments exceed what was allocated to credits, wholesale sales, and opening balance
+  const unallocatedAdvancePayments = round2(Math.max(0, -netOutstanding))
 
   return {
     productCreditTotal,
@@ -752,6 +764,8 @@ export function calculateCustomerLedgerSummary(
     wholesaleSalesOutstanding,
 
     openingBalance: opening,
+    openingBalancePaid,
+    openingBalanceOutstanding,
 
     totalPaymentsRecorded,
     totalAllocatedToCredits,
@@ -766,87 +780,192 @@ export function calculateCustomerLedgerSummary(
   }
 }
 
+const inFlightCustomerAllocations = new Set<string>()
+
 /**
  * Automatically allocates any unallocated payments for a customer across their pending credits
  * in chronological order (FIFO / oldest entries first).
+ *
+ * Attempts transactional PostgreSQL RPC execution first. If the RPC migration is pending
+ * in the target database, safely falls back to single-session client-side REST allocation.
+ * Any non-missing RPC errors (e.g. authorization, transaction abort) are thrown explicitly.
  */
 export async function autoAllocateCustomerPayments(customerId: string): Promise<{ allocatedCount: number; totalAllocated: number }> {
   if (!customerId) throw new Error("Customer ID is required.")
 
-  // 1. Fetch customer's payments and their existing allocations
-  const { data: payments, error: payError } = await supabase
-    .from("reseller_payments")
-    .select(`
-      id,
-      amount,
-      payment_date,
-      created_at,
-      allocations:customer_payment_allocations(id, amount)
-    `)
-    .eq("customer_id", customerId)
-    .order("payment_date", { ascending: true })
-    .order("created_at", { ascending: true })
+  if (inFlightCustomerAllocations.has(customerId)) {
+    throw new Error("An allocation operation is already in progress for this customer. Please wait for it to complete.")
+  }
+  inFlightCustomerAllocations.add(customerId)
 
-  if (payError) throw new Error(payError.message)
-  if (!payments || payments.length === 0) return { allocatedCount: 0, totalAllocated: 0 }
+  try {
+    // 1. Attempt transactional RPC auto-allocation first if supported by the database
+    if (typeof (supabase as any)?.rpc === "function") {
+      const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
+        "auto_allocate_customer_payments_rpc",
+        { p_customer_id: customerId }
+      )
 
-  // 2. Fetch customer's pending credits
-  const { data: credits, error: credError } = await supabase
-    .from("customer_credits")
-    .select("id, total_amount, amount_paid, balance, entry_date, created_at")
-    .eq("customer_id", customerId)
-    .gt("balance", 0)
-    .order("entry_date", { ascending: true })
-    .order("created_at", { ascending: true })
+      if (!rpcError) {
+        const result = rpcData as { allocatedCount?: number; totalAllocated?: number } | null
+        return {
+          allocatedCount: Number(result?.allocatedCount || 0),
+          totalAllocated: Number(result?.totalAllocated || 0),
+        }
+      }
 
-  if (credError) throw new Error(credError.message)
-  if (!credits || credits.length === 0) return { allocatedCount: 0, totalAllocated: 0 }
+      // Check if error is strictly that the RPC function has not yet been applied to the database schema
+      const isRpcMissing =
+        rpcError.code === "PGRST202" || // PostgREST function not found
+        rpcError.code === "42883" || // PostgreSQL undefined function
+        Boolean(
+          rpcError.message && (
+            rpcError.message.includes("function") && rpcError.message.includes("does not exist") ||
+            rpcError.message.includes("Could not find the function")
+          )
+        )
 
-  const creditRemainingMap: Record<string, number> = {}
-  credits.forEach(c => {
-    creditRemainingMap[c.id] = Number(c.balance || 0)
-  })
-
-  const newAllocations: Array<{ payment_id: string; credit_id: string; amount: number; notes: string }> = []
-  let totalAllocatedSum = 0
-
-  for (const payment of payments) {
-    const existingAllocSum = (payment.allocations || []).reduce((s: number, a: any) => s + Number(a.amount || 0), 0)
-    let paymentUnallocated = Math.max(0, Number(payment.amount || 0) - existingAllocSum)
-
-    if (paymentUnallocated <= 0.001) continue
-
-    for (const credit of credits) {
-      if (paymentUnallocated <= 0.001) break
-      const remainingCredBal = creditRemainingMap[credit.id] || 0
-      if (remainingCredBal <= 0.001) continue
-
-      const allocAmt = Math.min(paymentUnallocated, remainingCredBal)
-      if (allocAmt > 0) {
-        newAllocations.push({
-          payment_id: payment.id,
-          credit_id: credit.id,
-          amount: Math.round(allocAmt * 100) / 100,
-          notes: "Auto-allocated payment"
-        })
-        paymentUnallocated -= allocAmt
-        creditRemainingMap[credit.id] -= allocAmt
-        totalAllocatedSum += allocAmt
+      if (!isRpcMissing) {
+        // Any other database error (authorization 42501, check constraints, lock timeout, etc.)
+        // MUST NOT be silently swallowed or bypassed with an unsafe fallback!
+        throw new Error(`Auto-allocation RPC failed: ${rpcError.message}`)
       }
     }
-  }
 
-  if (newAllocations.length > 0) {
-    const { error: insError } = await supabase
-      .from("customer_payment_allocations")
-      .insert(newAllocations)
+    // 2. Fallback: REST client-side allocation (only used when RPC migration is not yet applied)
+    // Fetch customer opening balance to ensure historical opening debt is accounted for
+    let remainingOpeningDebt = 0
+    const custQuery = supabase.from("reseller_customers")
+    if (custQuery && typeof custQuery.select === "function") {
+      try {
+        const { data: customer } = await custQuery
+          .select("opening_balance")
+          .eq("id", customerId)
+          .single()
+        if (customer?.opening_balance) {
+          remainingOpeningDebt = Math.max(0, Number(customer.opening_balance))
+        }
+      } catch {
+        remainingOpeningDebt = 0
+      }
+    }
 
-    if (insError) throw new Error(insError.message)
-  }
+    // Fetch customer's payments and their existing allocations
+    const { data: payments, error: payError } = await supabase
+      .from("reseller_payments")
+      .select(`
+        id,
+        amount,
+        payment_date,
+        created_at,
+        allocations:customer_payment_allocations(id, amount, credit_id)
+      `)
+      .eq("customer_id", customerId)
+      .order("payment_date", { ascending: true })
+      .order("created_at", { ascending: true })
 
-  return {
-    allocatedCount: newAllocations.length,
-    totalAllocated: totalAllocatedSum
+    if (payError) throw new Error(payError.message)
+    if (!payments || payments.length === 0) return { allocatedCount: 0, totalAllocated: 0 }
+
+    // Fetch customer's pending credits
+    const { data: credits, error: credError } = await supabase
+      .from("customer_credits")
+      .select("id, total_amount, amount_paid, balance, entry_date, created_at")
+      .eq("customer_id", customerId)
+      .gt("balance", 0)
+      .order("entry_date", { ascending: true })
+      .order("created_at", { ascending: true })
+
+    if (credError) throw new Error(credError.message)
+    if (!credits || credits.length === 0) return { allocatedCount: 0, totalAllocated: 0 }
+
+    const creditRemainingMap: Record<string, number> = {}
+    credits.forEach(c => {
+      creditRemainingMap[c.id] = Number(c.balance || 0)
+    })
+
+    const newAllocations: Array<{ payment_id: string; credit_id: string; amount: number; notes: string }> = []
+    const updatedAllocations: Array<{ id: string; amount: number }> = []
+    let totalAllocatedSum = 0
+
+    for (const payment of payments) {
+      const existingAllocations = (payment.allocations || []) as Array<{ id: string; amount: number; credit_id?: string }>
+      const existingAllocSum = existingAllocations.reduce((s, a) => s + Number(a.amount || 0), 0)
+      let paymentUnallocated = Math.max(0, Number(payment.amount || 0) - existingAllocSum)
+
+      if (paymentUnallocated <= 0.001) continue
+
+      // Standalone payments first satisfy historical opening balance debt in FIFO chronological order
+      if (remainingOpeningDebt > 0.005) {
+        const usedForOpening = Math.min(remainingOpeningDebt, paymentUnallocated)
+        paymentUnallocated -= usedForOpening
+        remainingOpeningDebt -= usedForOpening
+      }
+
+      if (paymentUnallocated <= 0.001) continue
+
+      for (const credit of credits) {
+        if (paymentUnallocated <= 0.001) break
+        const remainingCredBal = creditRemainingMap[credit.id] || 0
+        if (remainingCredBal <= 0.001) continue
+
+        const allocAmt = Math.min(paymentUnallocated, remainingCredBal)
+        if (allocAmt > 0) {
+          const roundedAlloc = Math.round(allocAmt * 100) / 100
+
+          const existingPair = existingAllocations.find(a => a.credit_id === credit.id)
+          if (existingPair) {
+            const oldAmount = Number(existingPair.amount || 0)
+            const targetAmount = Math.round((oldAmount + roundedAlloc) * 100) / 100
+            const actualDelta = Math.round((targetAmount - oldAmount) * 100) / 100
+
+            if (actualDelta > 0) {
+              updatedAllocations.push({
+                id: existingPair.id,
+                amount: targetAmount
+              })
+              paymentUnallocated -= actualDelta
+              creditRemainingMap[credit.id] -= actualDelta
+              totalAllocatedSum += actualDelta
+            }
+          } else {
+            newAllocations.push({
+              payment_id: payment.id,
+              credit_id: credit.id,
+              amount: roundedAlloc,
+              notes: "Auto-allocated payment"
+            })
+            paymentUnallocated -= roundedAlloc
+            creditRemainingMap[credit.id] -= roundedAlloc
+            totalAllocatedSum += roundedAlloc
+          }
+        }
+      }
+    }
+
+    if (newAllocations.length > 0) {
+      const { error: insError } = await supabase
+        .from("customer_payment_allocations")
+        .insert(newAllocations)
+
+      if (insError) throw new Error(insError.message)
+    }
+
+    for (const upd of updatedAllocations) {
+      const { error: updError } = await supabase
+        .from("customer_payment_allocations")
+        .update({ amount: upd.amount })
+        .eq("id", upd.id)
+
+      if (updError) throw new Error(updError.message)
+    }
+
+    return {
+      allocatedCount: newAllocations.length + updatedAllocations.length,
+      totalAllocated: Math.round(totalAllocatedSum * 100) / 100
+    }
+  } finally {
+    inFlightCustomerAllocations.delete(customerId)
   }
 }
 

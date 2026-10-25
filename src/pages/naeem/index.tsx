@@ -18,12 +18,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DatabaseErrorBanner } from "@/components/common/DatabaseErrorBanner"
 import { DeleteConfirmDialog } from "@/components/common/DeleteConfirmDialog"
-import { EmptyState } from "@/components/common/EmptyState"
 import { NaeemMonthPickerModal } from "./NaeemMonthPickerModal"
 import { NaeemBalanceModal } from "./NaeemBalanceModal"
 import { NaeemPaymentModal } from "./NaeemPaymentModal"
 import { formatMoney, formatDate } from "@/lib/utils"
-import { ResponsiveTable, CurrencyDisplay } from "@/components/shared"
+import { ResponsiveTable, CurrencyDisplay, EmptyState } from "@/components/shared"
 import { 
   Loader2, Plus, Trash2, CreditCard, 
   ChevronLeft, ChevronRight, FileText, Truck, Wallet,

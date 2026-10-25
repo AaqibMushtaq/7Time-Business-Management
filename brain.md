@@ -33,7 +33,7 @@
 1. **Aesthetics Never Compromise Business Logic:** Visual or layout refactoring must never alter or bypass financial calculations.
 2. **Authoritative Numbers Only:** All balances, debts, and margins must derive from database records and pure mathematical functions. Never hardcode financial numbers.
 3. **No Silent Data Mutation:** Never reset, truncate, or fabricate financial records. Production migrations must be strictly additive and idempotent.
-4. **No Online Payment Gateways:** Online payment gateways, webhooks, or automated merchant processing are excluded from current scope. All payments are verified offline entries (Cash, Bank Transfer, Cheque).
+4. **Ledger-Only Bookkeeping Model (No Payment Gateways or Money Movement):** This application is a private business management and bookkeeping ledger, NOT a payment processor. Transactions (goods sold, purchases, settlements received, payments made) occur outside the application in the real world. The system never moves funds, processes cards, executes bank transfers, or interfaces with payment gateways (strictly no Razorpay, Stripe, PayPal, UPI checkout, or webhooks). All payment and settlement entries are manual bookkeeping records. The UI strictly distinguishes recording from processing: "Record Payment" creates a ledger entry, "Outstanding Balance" is the ledger-calculated debt, and "Unallocated Advance" represents recorded funds not yet matched to debit items.
 5. **No Service Role Keys in Frontend:** The Supabase `service_role` key must never be used in client code or committed to git.
 6. **Double-Counting Prevention:** Inflows from point-of-sale cash (`amount_received`) are tracked separately from post-sale debt settlements (`reseller_payments`). Down payments (`amount_paid`) are separate from subsequent dealer payments.
 
@@ -73,7 +73,7 @@ These documents are the active source of truth. Always refer to these for curren
 - **[`docs/DESIGN.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DESIGN.md):** Brand colors, typography, touch targets, and responsive breakpoint matrix.
 - **[`docs/DATABASE_AND_ACCOUNTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DATABASE_AND_ACCOUNTING.md):** 14 database tables, triggers, constraints, accounting formulas, and reconciliation rules.
 - **[`docs/SECURITY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/SECURITY.md):** Auth session flows, RLS policies, arithmetic parser safety, and secret handling.
-- **[`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md):** Test frameworks, verified evidence (195 tests), financial reconciliation tests, and known limitations.
+- **[`docs/TESTING.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/TESTING.md):** Test frameworks, verified evidence (371 tests across 37 files), financial reconciliation tests, and known limitations.
 - **[`docs/BUGS_AND_DECISIONS.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/BUGS_AND_DECISIONS.md):** Confirmed historical bugs, verified root causes, approved decisions (ADRs), and open questions.
 - **[`docs/PERFORMANCE.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/PERFORMANCE.md):** Production bundle chunk breakdown, query parallelization, and free-tier limits.
 - **[`docs/DEPLOYMENT_AND_RECOVERY.md`](file:///c:/Users/Aaqib/7Time%20Business%20%20Management/docs/DEPLOYMENT_AND_RECOVERY.md):** GitHub Pages hosting, CI/CD workflows, migrations, and frontend rollback.

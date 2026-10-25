@@ -7,6 +7,7 @@ import { MemoryRouter, Routes, Route } from "react-router-dom"
 import { supabase } from "@/lib/supabase"
 import { updateDealer } from "@/services/dealers"
 import { createPurchase } from "@/services/purchases"
+import { createProduct } from "@/services/products"
 import { createDealerPayment } from "@/services/dealerPayments"
 import { formatMoney } from "@/lib/utils"
 
@@ -22,6 +23,10 @@ vi.mock("@/services/dealers", () => ({
 
 vi.mock("@/services/purchases", () => ({
   createPurchase: vi.fn(),
+}))
+
+vi.mock("@/services/products", () => ({
+  createProduct: vi.fn(),
 }))
 
 vi.mock("@/services/dealerPayments", () => ({
@@ -358,6 +363,242 @@ describe("DealerDetailPage Component", () => {
         quantity_bought: 25,
         buying_rate: 60,
         total_amount: 1500
+      }))
+    })
+  })
+
+  it("allows creating a new product from Add Purchase modal, automatically selects it, and saves purchase", async () => {
+    const mockNewProduct = {
+      id: "prod-new-1",
+      dealer_id: "dealer-1",
+      name: "Saffron Syrup 500ml",
+      unit: "Bottle",
+      buying_cost: 150,
+      wholesale_price: 200,
+      retail_price: 250,
+      stock_quantity: 0
+    }
+    ;(createProduct as any).mockResolvedValue(mockNewProduct)
+    ;(createPurchase as any).mockResolvedValue({ id: "purch-new-1" })
+
+    renderComponent()
+    await screen.findByRole("heading", { name: "Al Infaq Traders" })
+
+    // Open Add Purchase modal
+    const addPurchaseBtn = screen.getByRole("button", { name: /add purchase/i })
+    fireEvent.click(addPurchaseBtn)
+    expect(screen.getByText("Record Stock Purchase")).toBeDefined()
+
+    // Switch to Add New Product
+    const addNewProductBtn = screen.getByRole("button", { name: /add new product/i })
+    fireEvent.click(addNewProductBtn)
+
+    expect(screen.getByText("New Product Form")).toBeDefined()
+
+    // Fill in product details
+    const nameInput = screen.getByLabelText("New Product Name")
+    fireEvent.change(nameInput, { target: { value: "Saffron Syrup 500ml" } })
+
+    const unitSelect = screen.getByLabelText("Measurement Unit")
+    fireEvent.change(unitSelect, { target: { value: "Bottle" } })
+
+    const costInput = screen.getByLabelText("New Product Buying Cost")
+    fireEvent.change(costInput, { target: { value: "150" } })
+
+    const wholesaleInput = screen.getByLabelText("New Product Wholesale Price")
+    fireEvent.change(wholesaleInput, { target: { value: "200" } })
+
+    const retailInput = screen.getByLabelText("New Product Retail Price")
+    fireEvent.change(retailInput, { target: { value: "250" } })
+
+    // Click "Save & Select Product"
+    const saveProductBtn = screen.getByRole("button", { name: /save & select product/i })
+    fireEvent.click(saveProductBtn)
+
+    await waitFor(() => {
+      expect(createProduct).toHaveBeenCalledWith({
+        dealer_id: "dealer-1",
+        name: "Saffron Syrup 500ml",
+        unit: "Bottle",
+        buying_cost: 150,
+        wholesale_price: 200,
+        retail_price: 250,
+        stock_quantity: 0
+      })
+    })
+
+    // Verify product is now selected in existing product selector
+    await waitFor(() => {
+      const productSelect = screen.getByRole("combobox", { name: /product/i }) as HTMLSelectElement
+      expect(productSelect.value).toBe("prod-new-1")
+    })
+
+    // Buying rate should be pre-populated with 150
+    const rateInput = screen.getByPlaceholderText("0.00") as HTMLInputElement
+    expect(rateInput.value).toBe("150")
+
+    // Enter purchase quantity and payment
+    const qtyInput = screen.getByPlaceholderText("0")
+    fireEvent.change(qtyInput, { target: { value: "10" } })
+
+    const amountPaidInput = screen.getByPlaceholderText(/0\.00 \(optional down payment\)/i)
+    fireEvent.change(amountPaidInput, { target: { value: "500" } })
+
+    // Total: 10 * 150 = 1500, Balance: 1500 - 500 = 1000
+    expect(screen.getByText(formatMoney(1500))).toBeDefined()
+    expect(screen.getByText(formatMoney(1000))).toBeDefined()
+
+    // Save purchase
+    const savePurchaseBtn = screen.getByRole("button", { name: /save purchase/i })
+    fireEvent.click(savePurchaseBtn)
+
+    await waitFor(() => {
+      expect(createPurchase).toHaveBeenCalledWith(expect.objectContaining({
+        dealer_id: "dealer-1",
+        product_id: "prod-new-1",
+        quantity_bought: 10,
+        buying_rate: 150,
+        total_amount: 1500,
+        amount_paid: 500,
+        balance: 1000
+      }))
+    })
+  })
+
+  it("validates required fields, non-negative numbers, and duplicates when creating product", async () => {
+    renderComponent()
+    await screen.findByRole("heading", { name: "Al Infaq Traders" })
+
+    // Open Add Purchase modal
+    fireEvent.click(screen.getByRole("button", { name: /add purchase/i }))
+
+    // Switch to Add New Product
+    fireEvent.click(screen.getByRole("button", { name: /add new product/i }))
+
+    // 1. Try to save without name
+    fireEvent.click(screen.getByRole("button", { name: /save & select product/i }))
+    expect(screen.getByText("Product name is required.")).toBeDefined()
+    expect(createProduct).not.toHaveBeenCalled()
+
+    // 2. Duplicate product name check (mockProducts has "Apple Juice 1L")
+    const nameInput = screen.getByLabelText("New Product Name")
+    fireEvent.change(nameInput, { target: { value: "apple juice 1l" } })
+    fireEvent.click(screen.getByRole("button", { name: /save & select product/i }))
+    expect(screen.getByText(/already exists for this supplier/i)).toBeDefined()
+    expect(createProduct).not.toHaveBeenCalled()
+
+    // 3. Negative price check
+    fireEvent.change(nameInput, { target: { value: "Organic Honey" } })
+    const costInput = screen.getByLabelText("New Product Buying Cost")
+    fireEvent.change(costInput, { target: { value: "-20" } })
+    fireEvent.click(screen.getByRole("button", { name: /save & select product/i }))
+    expect(screen.getByText("Buying cost must be zero or a positive amount.")).toBeDefined()
+    expect(createProduct).not.toHaveBeenCalled()
+  })
+
+  it("handles failed purchase save after product creation without creating duplicate products", async () => {
+    const mockNewProduct = {
+      id: "prod-fail-test",
+      dealer_id: "dealer-1",
+      name: "Special Tea",
+      unit: "Box",
+      buying_cost: 100,
+      wholesale_price: 120,
+      retail_price: 150,
+      stock_quantity: 0
+    }
+    ;(createProduct as any).mockResolvedValue(mockNewProduct)
+    ;(createPurchase as any).mockRejectedValueOnce(new Error("Supabase purchase insert failed"))
+
+    renderComponent()
+    await screen.findByRole("heading", { name: "Al Infaq Traders" })
+
+    // Open Add Purchase modal
+    fireEvent.click(screen.getByRole("button", { name: /add purchase/i }))
+
+    // Switch to Add New Product
+    fireEvent.click(screen.getByRole("button", { name: /add new product/i }))
+
+    // Fill in product details
+    fireEvent.change(screen.getByLabelText("New Product Name"), { target: { value: "Special Tea" } })
+    fireEvent.change(screen.getByLabelText("New Product Buying Cost"), { target: { value: "100" } })
+
+    // Click "Save & Select Product"
+    fireEvent.click(screen.getByRole("button", { name: /save & select product/i }))
+
+    await waitFor(() => {
+      expect(createProduct).toHaveBeenCalledTimes(1)
+    })
+
+    // Now product is selected, fill purchase details
+    fireEvent.change(screen.getByPlaceholderText("0"), { target: { value: "5" } })
+
+    // Submit purchase - which fails
+    fireEvent.click(screen.getByRole("button", { name: /save purchase/i }))
+
+    // Error message should clearly communicate that product was saved, but purchase failed
+    await screen.findByText(/Product was saved, but recording the purchase failed/i)
+
+    // Now mock purchase success for retry
+    ;(createPurchase as any).mockResolvedValueOnce({ id: "purch-retry-success" })
+
+    // User retries clicking Save Purchase
+    fireEvent.click(screen.getByRole("button", { name: /save purchase/i }))
+
+    await waitFor(() => {
+      expect(createPurchase).toHaveBeenCalledTimes(2)
+      // IMPORTANT: createProduct MUST NOT have been called a second time
+      expect(createProduct).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it("supports direct purchase submission while in new product mode", async () => {
+    const mockNewProduct = {
+      id: "prod-direct-1",
+      dealer_id: "dealer-1",
+      name: "Walnut Kernels 250g",
+      unit: "Pkt",
+      buying_cost: 300,
+      wholesale_price: 350,
+      retail_price: 400,
+      stock_quantity: 0
+    }
+    ;(createProduct as any).mockResolvedValue(mockNewProduct)
+    ;(createPurchase as any).mockResolvedValue({ id: "purch-direct-1" })
+
+    renderComponent()
+    await screen.findByRole("heading", { name: "Al Infaq Traders" })
+
+    // Open Add Purchase modal
+    fireEvent.click(screen.getByRole("button", { name: /add purchase/i }))
+
+    // Switch to Add New Product
+    fireEvent.click(screen.getByRole("button", { name: /add new product/i }))
+
+    // Fill new product form
+    fireEvent.change(screen.getByLabelText("New Product Name"), { target: { value: "Walnut Kernels 250g" } })
+    fireEvent.change(screen.getByLabelText("Measurement Unit"), { target: { value: "Pkt" } })
+    fireEvent.change(screen.getByLabelText("New Product Buying Cost"), { target: { value: "300" } })
+
+    // Also fill purchase form fields directly
+    fireEvent.change(screen.getByLabelText("Quantity Bought"), { target: { value: "20" } })
+    fireEvent.change(screen.getByLabelText("Buying Rate"), { target: { value: "300" } })
+
+    // Click "Save Purchase" directly without separate "Save & Select Product"
+    fireEvent.click(screen.getByRole("button", { name: /save purchase/i }))
+
+    await waitFor(() => {
+      expect(createProduct).toHaveBeenCalledWith(expect.objectContaining({
+        name: "Walnut Kernels 250g",
+        unit: "Pkt",
+        buying_cost: 300
+      }))
+      expect(createPurchase).toHaveBeenCalledWith(expect.objectContaining({
+        dealer_id: "dealer-1",
+        product_id: "prod-direct-1",
+        quantity_bought: 20,
+        buying_rate: 300,
+        total_amount: 6000
       }))
     })
   })

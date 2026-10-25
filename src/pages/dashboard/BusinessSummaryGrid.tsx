@@ -37,11 +37,6 @@ export const BusinessSummaryGrid = memo(function BusinessSummaryGrid({
         data.wholesale?.profitMargin ?? (data.wholesale as any)?.marginPercent ?? 0
       const wholesaleReceivables =
         data.wholesale?.receivables ?? (data.wholesale as any)?.totalReceivable ?? 0
-      const wholesalePayables =
-        data.wholesale?.payables ??
-        data.wholesale?.totalPayable ??
-        (data.wholesale as any)?.supplierPayables ??
-        0
 
       // 3. General Delivery
       const deliveryCombined = data.generalDelivery?.combinedTotal ?? 0
@@ -112,11 +107,6 @@ export const BusinessSummaryGrid = memo(function BusinessSummaryGrid({
               variant: "muted",
             },
           ],
-          footerFigure: {
-            label: "Supplier Payables",
-            amount: wholesalePayables,
-            variant: wholesalePayables > 0 ? "warning" : "positive",
-          },
         },
         {
           id: "compact-card-general-delivery",

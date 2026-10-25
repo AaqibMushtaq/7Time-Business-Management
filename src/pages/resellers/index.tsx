@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react"
+import { useNavigate } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { 
   getResellersWithBalances, 
@@ -9,7 +10,6 @@ import {
 } from "@/services/resellers"
 import type { CustomerCreditType } from "@/services/customerCredits"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,18 +32,18 @@ import {
   Building2,
   UserCheck
 } from "lucide-react"
-import ResellerDetailPanel from "@/components/resellers/ResellerDetailPanel"
 import RecordResellerPaymentModal from "@/components/resellers/RecordResellerPaymentModal"
 import CreateCustomerCreditModal from "@/components/resellers/CreateCustomerCreditModal"
-import { ConfirmDialog, ResponsiveTable } from "@/components/shared"
+import { ConfirmDialog, DataTable } from "@/components/shared"
+import type { DataTableColumn } from "@/components/shared/DataTable"
 
 type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_CREDIT_BALANCE" | "HAS_PRODUCT_CREDIT" | "HAS_CASH_LOAN"
 
 export default function ResellersPage() {
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState<CustomerFilterType>("ALL")
-  const [selectedResellerId, setSelectedResellerId] = useState<string | null>(null)
   
   // Payment modal state
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false)
@@ -103,9 +103,6 @@ export default function ResellersPage() {
     mutationFn: deleteReseller,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resellers"] })
-      if (selectedResellerId) {
-        setSelectedResellerId(null)
-      }
       setCustomerToDelete(null)
     },
   })
@@ -154,12 +151,8 @@ export default function ResellersPage() {
       notes: customerFormData.notes.trim() || null
     }
 
-    if (customerFormData.opening_balance) {
-      const ob = parseFloat(customerFormData.opening_balance)
-      if (!isNaN(ob)) {
-        payload.opening_balance = ob
-      }
-    }
+    const obTrimmed = customerFormData.opening_balance.trim()
+    payload.opening_balance = obTrimmed !== "" && !isNaN(Number(obTrimmed)) ? Number(obTrimmed) : 0
 
     if (editingCustomer) {
       updateMutation.mutate({ id: editingCustomer.id, data: payload })
@@ -207,10 +200,8 @@ export default function ResellersPage() {
   }, [resellers, searchQuery, filterType])
 
   // Overall Financial Metric Aggregations
-  // Card 1: Total Local Contacts
   const totalResellersCount = resellers.length
 
-  // Outstanding amounts for Product Credit and Cash Loans
   const totalProductCreditDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.product_credit_outstanding || 0), 0)
   }, [resellers])
@@ -223,7 +214,6 @@ export default function ResellersPage() {
     return resellers.reduce((sum, r) => sum + Number(r.other_credit_outstanding || 0), 0)
   }, [resellers])
 
-  // Card 2: Total Receivables (Amount They Owe Me)
   const totalReceivables = useMemo(() => {
     return resellers.reduce((sum, r) => {
       const owed = Number(r.amount_they_owe_me !== undefined ? r.amount_they_owe_me : (Number(r.total_owed) || 0))
@@ -231,7 +221,6 @@ export default function ResellersPage() {
     }, 0)
   }, [resellers])
 
-  // Card 3: Total Payables (Amount I Owe Them / Customer Advances)
   const totalPayables = useMemo(() => {
     return resellers.reduce((sum, r) => {
       const adv = Number(r.amount_i_owe_them !== undefined ? r.amount_i_owe_them : (r.outstanding && r.outstanding < 0 ? Math.abs(r.outstanding) : 0))
@@ -239,38 +228,226 @@ export default function ResellersPage() {
     }, 0)
   }, [resellers])
 
-  // Card 4: 7TIME Funds Outstanding
   const total7TimeFundsDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.funds_7time_outstanding || 0), 0)
   }, [resellers])
 
-  // Card 5: Personal Funds Outstanding
   const totalPersonalFundsDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.funds_personal_outstanding || 0), 0)
   }, [resellers])
 
-  // Unallocated Historical Funds (where funding_source is not recorded)
   const totalUnallocatedFundsDue = useMemo(() => {
     return resellers.reduce((sum, r) => sum + Number(r.funds_unallocated_outstanding || 0), 0)
   }, [resellers])
 
-  return (
-    <div className="space-y-6">
-      {/* Reseller Details Modal / Panel */}
-      {selectedResellerId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-3 sm:p-6 overflow-hidden">
-          <div className="relative w-full max-w-[1280px] md:w-[94vw] h-full md:h-[90vh] max-h-[90vh] bg-white shadow-xl rounded-2xl border border-[#D9E0E8] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex-1 overflow-y-auto">
-              <ResellerDetailPanel 
-                id={selectedResellerId} 
-                onClose={() => setSelectedResellerId(null)}
-                onRecordPayment={(customer) => openRecordPayment(customer)}
-              />
+  // Directory table column definitions
+  const columns = useMemo((): DataTableColumn<ResellerCustomer>[] => [
+    {
+      id: "person",
+      header: "Person Details",
+      accessorFn: (row) => row.name,
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB] font-bold uppercase text-xs shrink-0">
+            {row.name.substring(0, 2)}
+          </div>
+          <div>
+            <div className="font-bold text-[#172B4D] text-sm hover:text-[#2563EB] transition-colors">
+              {row.name}
             </div>
+            <span className="text-[11px] text-[#66758A]">Click to open personal account ledger</span>
           </div>
         </div>
-      )}
+      ),
+    },
+    {
+      id: "contact",
+      header: "Contact Info",
+      accessorFn: (row) => row.phone || "",
+      cell: ({ row }) => (
+        <div className="space-y-0.5 text-xs">
+          {row.phone ? (
+            <div className="flex items-center gap-1.5 text-[#172B4D] font-medium">
+              <Phone className="h-3 w-3 text-[#66758A]" />
+              <span>{row.phone}</span>
+            </div>
+          ) : (
+            <span className="text-[#66758A] italic">No phone</span>
+          )}
+          {row.address && (
+            <div className="flex items-center gap-1.5 text-[#52627A] max-w-[180px] truncate" title={row.address}>
+              <MapPin className="h-3 w-3 text-[#66758A] shrink-0" />
+              <span className="truncate">{row.address}</span>
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "expense",
+      header: "Expense on Behalf",
+      accessorFn: (row) => Number(row.product_credit_outstanding || 0),
+      align: "right",
+      cell: ({ value }) => {
+        const v = value as number
+        return v > 0 ? (
+          <span className="font-bold text-sm font-mono text-[#087443]">{formatMoney(v)}</span>
+        ) : (
+          <span className="text-[#66758A] text-sm">-</span>
+        )
+      },
+    },
+    {
+      id: "qard",
+      header: "Qard Hasan",
+      accessorFn: (row) => Number(row.cash_loan_outstanding || 0),
+      align: "right",
+      cell: ({ value }) => {
+        const v = value as number
+        return v > 0 ? (
+          <span className="font-bold text-sm font-mono text-[#92400E]">{formatMoney(v)}</span>
+        ) : (
+          <span className="text-[#66758A] text-sm">-</span>
+        )
+      },
+    },
+    {
+      id: "receivable",
+      header: "Receivable",
+      accessorFn: (row) => {
+        const prod = Number(row.product_credit_outstanding || 0)
+        const cash = Number(row.cash_loan_outstanding || 0)
+        const other = Number(row.other_credit_outstanding || 0)
+        return Number(row.amount_they_owe_me !== undefined ? row.amount_they_owe_me : (Number(row.total_owed) || prod + cash + other))
+      },
+      align: "right",
+      cell: ({ value }) => {
+        const v = value as number
+        return v > 0 ? (
+          <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-[#FDECEC] text-[#B42318] border border-red-200">
+            {formatMoney(v)}
+          </span>
+        ) : (
+          <span className="text-xs text-[#66758A] font-medium">-</span>
+        )
+      },
+    },
+    {
+      id: "payable",
+      header: "Payable",
+      accessorFn: (row) => {
+        return Number(row.amount_i_owe_them !== undefined ? row.amount_i_owe_them : (row.outstanding && row.outstanding < 0 ? Math.abs(row.outstanding) : 0))
+      },
+      align: "right",
+      cell: ({ value }) => {
+        const v = value as number
+        return v > 0 ? (
+          <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-[#2563EB] border border-blue-200" title="Advance balance / Payable">
+            {formatMoney(v)}
+          </span>
+        ) : (
+          <span className="text-xs text-[#66758A] font-medium">-</span>
+        )
+      },
+    },
+    {
+      id: "funding",
+      header: "Funding Source",
+      accessorFn: (row) => row.name,
+      align: "center",
+      cell: ({ row }) => (
+        <div className="flex flex-wrap items-center justify-center gap-1 max-w-[180px] mx-auto font-mono">
+          {Number(row.funds_7time_outstanding) > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#EAF7EF] text-[#087443] border border-emerald-200 px-1.5 py-0.5 rounded">
+              <Building2 className="h-2.5 w-2.5" /> 7T: {formatMoney(Number(row.funds_7time_outstanding))}
+            </span>
+          )}
+          {Number(row.funds_personal_outstanding) > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">
+              <UserCheck className="h-2.5 w-2.5" /> Pers: {formatMoney(Number(row.funds_personal_outstanding))}
+            </span>
+          )}
+          {Number(row.funds_unallocated_outstanding) > 0 && (
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#F1F4F8] text-[#52627A] border border-[#D9E0E8] px-1.5 py-0.5 rounded" title="Historical unallocated">
+              Unalloc: {formatMoney(Number(row.funds_unallocated_outstanding))}
+            </span>
+          )}
+          {Number(row.amount_they_owe_me) <= 0 && Number(row.amount_i_owe_them) <= 0 && (
+            <span className="text-[11px] text-[#52627A] font-medium font-sans">Settled</span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      accessorFn: (row) => row.name,
+      align: "right",
+      cell: ({ row }) => (
+        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-8 px-2 text-xs font-semibold shadow-2xs"
+            title={`Record settlement for ${row.name}`}
+            onClick={(e) => openRecordPayment(row, e)}
+          >
+            <Wallet className="h-3.5 w-3.5 mr-1" /> Settlement
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-2 text-[#087443] hover:bg-[#EAF7EF] border-emerald-200"
+            title="Record Expense on Behalf"
+            onClick={(e) => openCreateCredit("PRODUCT_CREDIT", row, e)}
+          >
+            <Package className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8 px-2 text-[#92400E] hover:bg-[#FFF4D6] border-amber-200"
+            title="Give Qard Hasan (Interest-Free Assistance)"
+            onClick={(e) => openCreateCredit("CASH_LOAN", row, e)}
+          >
+            <Coins className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 px-2 text-[#172B4D] border-[#D9E0E8] hover:bg-[#F1F4F8]"
+            title="View person details & ledger"
+            onClick={(e) => { e.stopPropagation(); navigate(`/local-customers/${row.id}`) }}
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-[#52627A] hover:bg-[#F1F4F8] hover:text-[#172B4D]"
+            title="Edit person details"
+            onClick={(e) => openEditCustomer(row, e)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-[#B42318] hover:text-[#B42318] hover:bg-[#FDECEC]"
+            title="Delete person"
+            onClick={(e) => {
+              e.stopPropagation()
+              setCustomerToDelete({ id: row.id, name: row.name })
+            }}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  ], [navigate])
 
+  return (
+    <div className="space-y-6">
       {/* Record Payment Modal */}
       <RecordResellerPaymentModal
         isOpen={isPaymentModalOpen}
@@ -364,6 +541,7 @@ export default function ResellersPage() {
                   Personal Notes (Optional)
                 </Label>
                 <textarea
+                  aria-label="personal ledger notes"
                   className="flex min-h-[60px] w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] shadow-2xs placeholder:text-[#66758A] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
                   placeholder="Notes about dealings, agreed terms, or relationship"
                   value={customerFormData.notes}
@@ -424,7 +602,6 @@ export default function ResellersPage() {
 
         {/* Global Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* + Record Expense on Behalf */}
           <Button 
             onClick={() => openCreateCredit("PRODUCT_CREDIT")}
             className="bg-[#087443] hover:bg-emerald-700 text-white font-semibold shadow-xs"
@@ -432,7 +609,6 @@ export default function ResellersPage() {
             <Package className="mr-1.5 h-4 w-4" /> + Record Expense on Behalf
           </Button>
 
-          {/* + Give Qard Hasan */}
           <Button 
             onClick={() => openCreateCredit("CASH_LOAN")}
             className="bg-[#92400E] hover:bg-amber-800 text-white font-semibold shadow-xs"
@@ -440,7 +616,6 @@ export default function ResellersPage() {
             <Coins className="mr-1.5 h-4 w-4" /> + Give Qard Hasan
           </Button>
 
-          {/* Record Settlement Button */}
           <Button 
             onClick={() => openRecordPayment(null)}
             className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs font-semibold"
@@ -448,7 +623,6 @@ export default function ResellersPage() {
             <Wallet className="mr-1.5 h-4 w-4" /> Record Settlement
           </Button>
 
-          {/* Add Person Button */}
           <Button 
             onClick={openAddCustomer}
             variant="outline"
@@ -574,7 +748,7 @@ export default function ResellersPage() {
         </div>
       )}
 
-      {/* Directory Search & List Card */}
+      {/* Directory Card with DataTable */}
       <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
         <CardHeader className="pb-3 border-b border-[#D9E0E8] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -614,232 +788,25 @@ export default function ResellersPage() {
         </CardHeader>
 
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex justify-center p-12">
-              <Loader2 className="h-8 w-8 animate-spin text-[#2563EB]" />
-            </div>
-          ) : resellersError ? (
-            <div className="p-8 text-center text-[#B42318]">
-              <AlertCircle className="h-8 w-8 mx-auto mb-2 text-[#B42318]" />
-              <p className="font-semibold text-sm">Failed to load personal ledger accounts</p>
-              <p className="text-xs text-[#52627A] mt-1">
-                {resellersError instanceof Error ? resellersError.message : "Error connecting to Supabase"}
-              </p>
-            </div>
-          ) : filteredResellers.length === 0 ? (
-            <div className="p-12 text-center text-[#52627A]">
-              <Users className="h-10 w-10 mx-auto mb-2 opacity-30 text-slate-400" />
-              <p className="text-base font-semibold text-[#172B4D]">
-                {searchQuery ? "No matching people found" : "No people found for this filter"}
-              </p>
-              <p className="text-xs mt-1 text-[#52627A]">
-                {searchQuery ? "Try a different search term or clear the filter." : "Click '+ Add Person' to create a personal account."}
-              </p>
-            </div>
-          ) : (
-            <ResponsiveTable minWidth={1040}>
-            <Table className="border-collapse">
-              <TableHeader>
-                <TableRow className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                  <TableHead className="font-semibold text-xs text-[#0F172A] uppercase tracking-wider py-3.5 px-4">Person Details</TableHead>
-                  <TableHead className="font-semibold text-xs text-[#64748B] uppercase tracking-wider py-3.5 px-4">Contact Info</TableHead>
-                  <TableHead className="text-right font-semibold text-xs text-[#0F172A] uppercase tracking-wider py-3.5 px-4">Expense on Behalf</TableHead>
-                  <TableHead className="text-right font-semibold text-xs text-[#0F172A] uppercase tracking-wider py-3.5 px-4">Qard Hasan</TableHead>
-                  <TableHead className="text-right font-semibold text-xs text-[#0F172A] uppercase tracking-wider py-3.5 px-4">Receivable</TableHead>
-                  <TableHead className="text-right font-semibold text-xs text-[#0F172A] uppercase tracking-wider py-3.5 px-4">Payable</TableHead>
-                  <TableHead className="text-center font-semibold text-xs text-[#64748B] uppercase tracking-wider py-3.5 px-3">Funding Source</TableHead>
-                  <TableHead className="text-right font-semibold text-xs text-[#64748B] uppercase tracking-wider py-3.5 px-4">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredResellers.map((customer) => {
-                  const prodCredit = Number(customer.product_credit_outstanding || 0)
-                  const cashLoan = Number(customer.cash_loan_outstanding || 0)
-                  const otherCredit = Number(customer.other_credit_outstanding || 0)
-                  const theyOweMe = Number(customer.amount_they_owe_me !== undefined ? customer.amount_they_owe_me : (Number(customer.total_owed) || (prodCredit + cashLoan + otherCredit)))
-                  const iOweThem = Number(customer.amount_i_owe_them !== undefined ? customer.amount_i_owe_them : (customer.outstanding && customer.outstanding < 0 ? Math.abs(customer.outstanding) : 0))
-                  const f7Time = Number(customer.funds_7time_outstanding || 0)
-                  const fPersonal = Number(customer.funds_personal_outstanding || 0)
-                  const fUnallocated = Number(customer.funds_unallocated_outstanding || 0)
-
-                  return (
-                    <TableRow
-                      key={customer.id}
-                      className="border-b border-[#E2E8F0] hover:bg-[#EEF4FF] cursor-pointer transition-colors"
-                      onClick={() => setSelectedResellerId(customer.id)}
-                    >
-                        {/* Name & Initials Avatar */}
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB] font-bold uppercase text-xs shrink-0">
-                              {customer.name.substring(0, 2)}
-                            </div>
-                            <div>
-                              <div className="font-bold text-[#172B4D] text-sm hover:text-[#2563EB] transition-colors">
-                                {customer.name}
-                              </div>
-                              <span className="text-[11px] text-[#66758A]">
-                                Click to open personal account ledger
-                              </span>
-                            </div>
-                          </div>
-                        </TableCell>
-
-                        {/* Contact details */}
-                        <TableCell>
-                          <div className="space-y-0.5 text-xs">
-                            {customer.phone ? (
-                              <div className="flex items-center gap-1.5 text-[#172B4D] font-medium">
-                                <Phone className="h-3 w-3 text-[#66758A]" />
-                                <span>{customer.phone}</span>
-                              </div>
-                            ) : (
-                              <span className="text-[#66758A] italic">No phone</span>
-                            )}
-                            {customer.address && (
-                              <div className="flex items-center gap-1.5 text-[#52627A] max-w-[180px] truncate" title={customer.address}>
-                                <MapPin className="h-3 w-3 text-[#66758A] shrink-0" />
-                                <span className="truncate">{customer.address}</span>
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Expense on Behalf (Product Credit) Owed */}
-                        <TableCell className="text-right font-bold text-sm font-mono text-[#087443]">
-                          {prodCredit > 0 ? formatMoney(prodCredit) : "-"}
-                        </TableCell>
-
-                        {/* Qard Hasan Owed */}
-                        <TableCell className="text-right font-bold text-sm font-mono text-[#92400E]">
-                          {cashLoan > 0 ? formatMoney(cashLoan) : "-"}
-                        </TableCell>
-
-                        {/* Amount They Owe Me (Receivable) */}
-                        <TableCell className="text-right font-mono">
-                          {theyOweMe > 0 ? (
-                            <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-[#FDECEC] text-[#B42318] border border-red-200">
-                              {formatMoney(theyOweMe)}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-[#66758A] font-medium">-</span>
-                          )}
-                        </TableCell>
-
-                        {/* Amount I Owe Them (Payable) */}
-                        <TableCell className="text-right font-mono">
-                          {iOweThem > 0 ? (
-                            <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-[#2563EB] border border-blue-200" title="Advance balance / Payable">
-                              {formatMoney(iOweThem)}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-[#66758A] font-medium">-</span>
-                          )}
-                        </TableCell>
-
-                        {/* Funding Source Breakdown */}
-                        <TableCell className="text-center">
-                          <div className="flex flex-wrap items-center justify-center gap-1 max-w-[180px] mx-auto font-mono">
-                            {f7Time > 0 && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#EAF7EF] text-[#087443] border border-emerald-200 px-1.5 py-0.5 rounded">
-                                <Building2 className="h-2.5 w-2.5" /> 7T: {formatMoney(f7Time)}
-                              </span>
-                            )}
-                            {fPersonal > 0 && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">
-                                <UserCheck className="h-2.5 w-2.5" /> Pers: {formatMoney(fPersonal)}
-                              </span>
-                            )}
-                            {fUnallocated > 0 && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#F1F4F8] text-[#52627A] border border-[#D9E0E8] px-1.5 py-0.5 rounded" title="Historical unallocated">
-                                Unalloc: {formatMoney(fUnallocated)}
-                              </span>
-                            )}
-                            {theyOweMe <= 0 && iOweThem <= 0 && (
-                              <span className="text-[11px] text-[#52627A] font-medium font-sans">Settled</span>
-                            )}
-                          </div>
-                        </TableCell>
-
-                        {/* Row Actions */}
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-end gap-1.5">
-                            {/* Record Settlement Button */}
-                            <Button
-                              size="sm"
-                              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-8 px-2.5 text-xs font-semibold shadow-2xs"
-                              title={`Record settlement for ${customer.name}`}
-                              onClick={(e) => openRecordPayment(customer, e)}
-                            >
-                              <Wallet className="h-3.5 w-3.5 mr-1" /> Settlement
-                            </Button>
-
-                            {/* + Expense on Behalf quick button */}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2 text-[#087443] hover:bg-[#EAF7EF] border-emerald-200"
-                              title="Record Expense on Behalf"
-                              onClick={(e) => openCreateCredit("PRODUCT_CREDIT", customer, e)}
-                            >
-                              <Package className="h-3.5 w-3.5" />
-                            </Button>
-
-                            {/* + Qard Hasan quick button */}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-2 text-[#92400E] hover:bg-[#FFF4D6] border-amber-200"
-                              title="Give Qard Hasan (Interest-Free Assistance)"
-                              onClick={(e) => openCreateCredit("CASH_LOAN", customer, e)}
-                            >
-                              <Coins className="h-3.5 w-3.5" />
-                            </Button>
-
-                            {/* View Person Details & Ledger */}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 px-2 text-[#172B4D] border-[#D9E0E8] hover:bg-[#F1F4F8]"
-                              title="View person details & ledger"
-                              onClick={() => setSelectedResellerId(customer.id)}
-                            >
-                              <Eye className="h-3.5 w-3.5" />
-                            </Button>
-
-                            {/* Edit Person Button */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 text-[#52627A] hover:bg-[#F1F4F8] hover:text-[#172B4D]"
-                              title="Edit person details"
-                              onClick={(e) => openEditCustomer(customer, e)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-
-                            {/* Delete Person Button */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 px-2 text-[#B42318] hover:text-[#B42318] hover:bg-[#FDECEC]"
-                              title="Delete person"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setCustomerToDelete({ id: customer.id, name: customer.name })
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </ResponsiveTable>
-          )}
+          <DataTable
+            columns={columns}
+            data={filteredResellers}
+            loading={isLoading}
+            error={resellersError ? (resellersError instanceof Error ? resellersError.message : "Error loading data") : null}
+            emptyIcon={Users}
+            emptyTitle={searchQuery || filterType !== "ALL" ? "No matching people found" : "No people found"}
+            emptyMessage={
+              searchQuery
+                ? "Try a different search term or clear the filter."
+                : filterType !== "ALL"
+                ? "No people match this filter."
+                : "Click '+ Add Person' to create a personal account."
+            }
+            pagination={true}
+            pageSizeOptions={[10, 25, 50, 100]}
+            onRowClick={(row) => navigate(`/local-customers/${row.id}`)}
+            getRowId={(row) => row.id}
+          />
         </CardContent>
       </Card>
 

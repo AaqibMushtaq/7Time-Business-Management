@@ -79,7 +79,7 @@ Open [http://localhost:5173/7Time-Business-Management/](http://localhost:5173/7T
 # 1. Lint the codebase (Oxlint: 0 errors / 0 warnings required)
 npm run lint
 
-# 2. Run the automated test suite (Vitest: 21 files / 167 tests)
+# 2. Run the automated test suite (Vitest: 37 files / 371 tests)
 npm test -- --run
 
 # 3. Compile TypeScript & bundle for production
@@ -117,5 +117,5 @@ This repository maintains a focused, modular documentation system where each doc
 ## Production Status
 
 - **Build Status:** Verified passing.
-- **Automated Tests:** 167 tests passing across 21 test files.
+- **Automated Tests:** 371 tests passing across 37 test files (100% pass rate).
 - **Database Migrations:** Applied and synchronized with Supabase PostgreSQL backend.

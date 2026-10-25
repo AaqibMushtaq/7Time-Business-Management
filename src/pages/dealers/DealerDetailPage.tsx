@@ -4,12 +4,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { updateDealer, type Dealer } from "@/services/dealers"
 import { createPurchase } from "@/services/purchases"
+import { createProduct, type Product } from "@/services/products"
 import { createDealerPayment } from "@/services/dealerPayments"
 import { reconcileDealerPurchases } from "@/lib/dealerReconciliation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { formatMoney, formatDate } from "@/lib/utils"
+import { formatMoney, formatDate, cn } from "@/lib/utils"
 import {
   DataTable,
   type DataTableColumn,
@@ -56,6 +57,17 @@ export default function DealerDetailPage() {
   // Add Purchase Modal state
   const [isAddPurchaseOpen, setIsAddPurchaseOpen] = useState(false)
   const [purchaseError, setPurchaseError] = useState<string | null>(null)
+  const [productMode, setProductMode] = useState<"existing" | "new">("existing")
+  const [newProductError, setNewProductError] = useState<string | null>(null)
+  const [newProductSuccess, setNewProductSuccess] = useState<string | null>(null)
+  const [createdProducts, setCreatedProducts] = useState<Product[]>([])
+  const [newProductForm, setNewProductForm] = useState({
+    name: "",
+    unit: "Kg",
+    buying_cost: "",
+    wholesale_price: "",
+    retail_price: ""
+  })
   const [purchaseForm, setPurchaseForm] = useState(() => ({
     product_id: "",
     purchase_date: new Date().toISOString().split("T")[0],
@@ -65,6 +77,21 @@ export default function DealerDetailPage() {
     reference: "",
     notes: ""
   }))
+
+  const closePurchaseModal = () => {
+    setIsAddPurchaseOpen(false)
+    setPurchaseError(null)
+    setProductMode("existing")
+    setNewProductError(null)
+    setNewProductSuccess(null)
+    setNewProductForm({
+      name: "",
+      unit: "Kg",
+      buying_cost: "",
+      wholesale_price: "",
+      retail_price: ""
+    })
+  }
 
   // Record Payment Modal state
   const [isRecordPaymentOpen, setIsRecordPaymentOpen] = useState(false)
@@ -118,6 +145,18 @@ export default function DealerDetailPage() {
     },
     enabled: isAddPurchaseOpen
   })
+
+  // Catalog products combined with dealer products and newly created products in current session
+  const availableProducts = useMemo(() => {
+    const baseList = products.length > 0 ? products : allCatalogProducts
+    const combined = [...baseList]
+    for (const cp of createdProducts) {
+      if (!combined.some((p: any) => p.id === cp.id)) {
+        combined.unshift(cp)
+      }
+    }
+    return combined
+  }, [products, allCatalogProducts, createdProducts])
 
   // Query Dealer Purchases
   const {
@@ -190,8 +229,7 @@ export default function DealerDetailPage() {
     mutationFn: (payload: any) => createPurchase(payload),
     onSuccess: () => {
       invalidateDealerContext()
-      setIsAddPurchaseOpen(false)
-      setPurchaseError(null)
+      closePurchaseModal()
       setPurchaseForm({
         product_id: "",
         purchase_date: new Date().toISOString().split("T")[0],
@@ -203,9 +241,104 @@ export default function DealerDetailPage() {
       })
     },
     onError: (error: any) => {
-      setPurchaseError(error.message || "Failed to record purchase.")
+      if (purchaseForm.product_id) {
+        setPurchaseError(
+          `Product was saved, but recording the purchase failed: ${error.message || "Failed to record purchase."} You can retry saving the purchase directly without re-creating the product.`
+        )
+      } else {
+        setPurchaseError(error.message || "Failed to record purchase.")
+      }
     }
   })
+
+  // Mutation: Create Product from Add Purchase Modal
+  const createProductMutation = useMutation({
+    mutationFn: (payload: Omit<Product, "id" | "created_at" | "dealer">) => createProduct(payload),
+    onSuccess: (newProd) => {
+      invalidateDealerContext()
+      setCreatedProducts((prev) => [newProd, ...prev])
+      setProductMode("existing")
+      setPurchaseForm((prev) => ({
+        ...prev,
+        product_id: newProd.id,
+        buying_rate: newProd.buying_cost ? String(newProd.buying_cost) : (prev.buying_rate || "0")
+      }))
+      setNewProductForm({
+        name: "",
+        unit: "Kg",
+        buying_cost: "",
+        wholesale_price: "",
+        retail_price: ""
+      })
+      setNewProductError(null)
+      setNewProductSuccess(`Product "${newProd.name}" created and selected.`)
+    },
+    onError: (error: any) => {
+      setNewProductError(error.message || "Failed to create product.")
+    }
+  })
+
+  // Validate new product fields and check for duplicates
+  const validateNewProduct = (): { valid: boolean; data?: Omit<Product, "id" | "created_at" | "dealer"> } => {
+    setNewProductError(null)
+    const trimmedName = newProductForm.name.trim()
+    if (!trimmedName) {
+      setNewProductError("Product name is required.")
+      return { valid: false }
+    }
+    const trimmedUnit = newProductForm.unit.trim()
+    if (!trimmedUnit) {
+      setNewProductError("Measurement unit is required.")
+      return { valid: false }
+    }
+
+    // Check duplicate name against available products for this dealer
+    const isDup = availableProducts.some(
+      (p: any) => p.name.trim().toLowerCase() === trimmedName.toLowerCase()
+    )
+    if (isDup) {
+      setNewProductError(`A product named "${trimmedName}" already exists for this supplier.`)
+      return { valid: false }
+    }
+
+    const cost = newProductForm.buying_cost !== "" ? parseFloat(newProductForm.buying_cost) : 0
+    const wholesale = newProductForm.wholesale_price !== "" ? parseFloat(newProductForm.wholesale_price) : 0
+    const retail = newProductForm.retail_price !== "" ? parseFloat(newProductForm.retail_price) : 0
+
+    if (isNaN(cost) || cost < 0) {
+      setNewProductError("Buying cost must be zero or a positive amount.")
+      return { valid: false }
+    }
+    if (isNaN(wholesale) || wholesale < 0) {
+      setNewProductError("Wholesale price must be zero or a positive amount.")
+      return { valid: false }
+    }
+    if (isNaN(retail) || retail < 0) {
+      setNewProductError("Retail price must be zero or a positive amount.")
+      return { valid: false }
+    }
+
+    return {
+      valid: true,
+      data: {
+        dealer_id: id!,
+        name: trimmedName,
+        unit: trimmedUnit,
+        buying_cost: cost,
+        wholesale_price: wholesale,
+        retail_price: retail,
+        stock_quantity: 0
+      }
+    }
+  }
+
+  const handleCreateProductOnly = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault()
+    if (!id) return
+    const result = validateNewProduct()
+    if (!result.valid || !result.data) return
+    createProductMutation.mutate(result.data)
+  }
 
   // Mutation: Record Payment
   const recordPaymentMutation = useMutation({
@@ -260,10 +393,67 @@ export default function DealerDetailPage() {
   }
 
   // Add purchase submission
-  const handlePurchaseSubmit = (e: React.FormEvent) => {
+  const handlePurchaseSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setPurchaseError(null)
-    if (!purchaseForm.product_id || !id) {
+    if (!id) return
+
+    let targetProductId = purchaseForm.product_id
+
+    // If user is currently in "new" product mode, create the product first
+    if (productMode === "new") {
+      const result = validateNewProduct()
+      if (!result.valid || !result.data) return
+
+      const qty = Number(purchaseForm.quantity_bought)
+      const rate = Number(purchaseForm.buying_rate || result.data.buying_cost)
+
+      if (isNaN(qty) || qty <= 0) {
+        setPurchaseError("Quantity must be greater than zero.")
+        return
+      }
+      if (isNaN(rate) || rate < 0) {
+        setPurchaseError("Buying rate must be zero or positive.")
+        return
+      }
+
+      try {
+        const newProd = await createProduct(result.data)
+        invalidateDealerContext()
+        setCreatedProducts((prev) => [newProd, ...prev])
+        targetProductId = newProd.id
+        setPurchaseForm((prev) => ({
+          ...prev,
+          product_id: newProd.id,
+          buying_rate: String(rate)
+        }))
+        setProductMode("existing")
+        setNewProductSuccess(`Product "${newProd.name}" created and selected.`)
+
+        const paid = Number(purchaseForm.amount_paid || 0)
+        const total = qty * rate
+        const balance = total - paid
+
+        addPurchaseMutation.mutate({
+          dealer_id: id,
+          product_id: newProd.id,
+          purchase_date: purchaseForm.purchase_date,
+          quantity_bought: qty,
+          buying_rate: rate,
+          total_amount: total,
+          amount_paid: paid,
+          balance,
+          reference: purchaseForm.reference.trim() || null,
+          notes: purchaseForm.notes.trim() || null
+        })
+        return
+      } catch (err: any) {
+        setNewProductError(err.message || "Failed to create new product.")
+        return
+      }
+    }
+
+    if (!targetProductId) {
       setPurchaseError("Please select a product.")
       return
     }
@@ -286,7 +476,7 @@ export default function DealerDetailPage() {
 
     addPurchaseMutation.mutate({
       dealer_id: id,
-      product_id: purchaseForm.product_id,
+      product_id: targetProductId,
       purchase_date: purchaseForm.purchase_date,
       quantity_bought: qty,
       buying_rate: rate,
@@ -1202,7 +1392,7 @@ export default function DealerDetailPage() {
           >
             <DataTable
               title="Payment Settlements"
-              subtitle="Payments disbursed to this supplier against open purchases and account balances."
+              subtitle="Payments recorded for this supplier against open purchases and account balances."
               columns={paymentColumns}
               data={payments}
               getRowId={(p) => p.id}
@@ -1229,7 +1419,7 @@ export default function DealerDetailPage() {
               emptyState={{
                 icon: Wallet,
                 title: "No payments yet",
-                description: "No standalone payment records have been disbursed to this dealer.",
+                description: "No standalone payment records have been recorded for this dealer.",
                 action: (
                   <Button
                     onClick={() => {
@@ -1404,7 +1594,7 @@ export default function DealerDetailPage() {
       {isAddPurchaseOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3.5 sm:p-4 overflow-y-auto animate-in fade-in-50 duration-150"
-          onClick={() => setIsAddPurchaseOpen(false)}
+          onClick={closePurchaseModal}
           role="dialog"
           aria-modal="true"
           aria-labelledby="add-purchase-title"
@@ -1424,7 +1614,7 @@ export default function DealerDetailPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsAddPurchaseOpen(false)}
+                onClick={closePurchaseModal}
                 className="text-slate-400 hover:text-slate-700 p-1 rounded-lg transition-colors cursor-pointer"
                 aria-label="Close purchase dialog"
               >
@@ -1439,46 +1629,240 @@ export default function DealerDetailPage() {
             )}
 
             <form onSubmit={handlePurchaseSubmit} className="space-y-3.5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Purchase Date *
-                  </Label>
-                  <Input
-                    type="date"
-                    required
-                    value={purchaseForm.purchase_date}
-                    onChange={(e) => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
-                    className="rounded-xl h-10 border-slate-200"
-                  />
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                      Purchase Date *
+                    </Label>
+                    <Input
+                      type="date"
+                      required
+                      value={purchaseForm.purchase_date}
+                      onChange={(e) => setPurchaseForm({ ...purchaseForm, purchase_date: e.target.value })}
+                      className="rounded-xl h-10 border-slate-200"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                        Product *
+                      </Label>
+                    </div>
+                    {/* Toggle between Select Existing Product and + Add New Product */}
+                    <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200/80 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProductMode("existing")
+                          setNewProductError(null)
+                        }}
+                        className={cn(
+                          "flex-1 py-1.5 px-2 rounded-lg font-medium text-[11px] transition-colors cursor-pointer text-center",
+                          productMode === "existing"
+                            ? "bg-white text-blue-700 shadow-2xs font-semibold"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        Select Existing Product
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProductMode("new")
+                          setNewProductError(null)
+                          setNewProductSuccess(null)
+                        }}
+                        className={cn(
+                          "flex-1 py-1.5 px-2 rounded-lg font-medium text-[11px] transition-colors cursor-pointer text-center flex items-center justify-center gap-1",
+                          productMode === "new"
+                            ? "bg-white text-blue-700 shadow-2xs font-semibold"
+                            : "text-slate-600 hover:text-slate-900"
+                        )}
+                      >
+                        <Plus className="h-3 w-3" /> Add New Product
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-700 uppercase tracking-wider">
-                    Product *
-                  </Label>
-                  <select
-                    required
-                    className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
-                    value={purchaseForm.product_id}
-                    onChange={(e) => {
-                      const selectedProdId = e.target.value
-                      const prod = (products.length > 0 ? products : allCatalogProducts).find((p: any) => p.id === selectedProdId)
-                      setPurchaseForm({
-                        ...purchaseForm,
-                        product_id: selectedProdId,
-                        buying_rate: prod?.buying_cost ? String(prod.buying_cost) : purchaseForm.buying_rate
-                      })
-                    }}
-                  >
-                    <option value="" disabled>Select Product</option>
-                    {(products.length > 0 ? products : allCatalogProducts).map((p: any) => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} ({p.unit})
+                {productMode === "existing" ? (
+                  <div className="space-y-1">
+                    <select
+                      required={productMode === "existing"}
+                      aria-label="Product"
+                      className="flex h-10 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      value={purchaseForm.product_id}
+                      onChange={(e) => {
+                        const selectedProdId = e.target.value
+                        if (selectedProdId === "__NEW_PRODUCT__") {
+                          setProductMode("new")
+                          setNewProductError(null)
+                          return
+                        }
+                        const prod = availableProducts.find((p: any) => p.id === selectedProdId)
+                        setPurchaseForm({
+                          ...purchaseForm,
+                          product_id: selectedProdId,
+                          buying_rate: prod?.buying_cost ? String(prod.buying_cost) : purchaseForm.buying_rate
+                        })
+                      }}
+                    >
+                      <option value="" disabled>Select Product</option>
+                      {availableProducts.map((p: any) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} ({p.unit})
+                        </option>
+                      ))}
+                      <option value="__NEW_PRODUCT__" className="font-semibold text-blue-600">
+                        + Add New Product...
                       </option>
-                    ))}
-                  </select>
-                </div>
+                    </select>
+                    {newProductSuccess && (
+                      <p className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+                        ✓ {newProductSuccess}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* New Product Inline Card */
+                  <div className="p-3.5 bg-blue-50/40 rounded-xl border border-blue-200/80 space-y-3 animate-in fade-in-50 duration-150">
+                    <div className="flex items-center justify-between border-b border-blue-100 pb-2">
+                      <div className="flex items-center gap-1.5">
+                        <Package className="h-4 w-4 text-blue-600" />
+                        <span className="text-xs font-bold text-slate-900">New Product Form</span>
+                      </div>
+                      <span className="text-[11px] text-slate-500">Supplier: {dealer.name}</span>
+                    </div>
+
+                    {newProductError && (
+                      <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-lg text-xs">
+                        {newProductError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                          Product Name *
+                        </Label>
+                        <Input
+                          required={productMode === "new"}
+                          aria-label="New Product Name"
+                          placeholder="e.g. Sider Honey 500g"
+                          value={newProductForm.name}
+                          onChange={(e) => {
+                            setNewProductForm({ ...newProductForm, name: e.target.value })
+                            setNewProductError(null)
+                          }}
+                          className="rounded-xl h-9 text-xs bg-white border-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+                          Measurement Unit *
+                        </Label>
+                        <select
+                          required={productMode === "new"}
+                          aria-label="Measurement Unit"
+                          className="flex h-9 w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                          value={newProductForm.unit}
+                          onChange={(e) => setNewProductForm({ ...newProductForm, unit: e.target.value })}
+                        >
+                          <option value="Kg">Kg</option>
+                          <option value="Pc">Pc</option>
+                          <option value="Ltr">Ltr</option>
+                          <option value="Box">Box</option>
+                          <option value="Bottle">Bottle</option>
+                          <option value="Pkt">Pkt</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
+                          Buying Cost (₹)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          aria-label="New Product Buying Cost"
+                          placeholder="0.00"
+                          value={newProductForm.buying_cost}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            setNewProductForm({ ...newProductForm, buying_cost: val })
+                            if (!purchaseForm.buying_rate || purchaseForm.buying_rate === newProductForm.buying_cost) {
+                              setPurchaseForm((prev) => ({ ...prev, buying_rate: val }))
+                            }
+                          }}
+                          className="rounded-xl h-9 text-xs bg-white font-mono border-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
+                          Wholesale (₹)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          aria-label="New Product Wholesale Price"
+                          placeholder="0.00"
+                          value={newProductForm.wholesale_price}
+                          onChange={(e) => setNewProductForm({ ...newProductForm, wholesale_price: e.target.value })}
+                          className="rounded-xl h-9 text-xs bg-white font-mono border-slate-200"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
+                          Retail (₹)
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          aria-label="New Product Retail Price"
+                          placeholder="0.00"
+                          value={newProductForm.retail_price}
+                          onChange={(e) => setNewProductForm({ ...newProductForm, retail_price: e.target.value })}
+                          className="rounded-xl h-9 text-xs bg-white font-mono border-slate-200"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-blue-100">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setProductMode("existing")
+                          setNewProductError(null)
+                        }}
+                        className="rounded-lg h-8 text-xs border-slate-200"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={createProductMutation.isPending}
+                        onClick={handleCreateProductOnly}
+                        className="rounded-lg h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer"
+                      >
+                        {createProductMutation.isPending && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                        Save & Select Product
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1490,6 +1874,7 @@ export default function DealerDetailPage() {
                     type="number"
                     step="0.01"
                     required
+                    aria-label="Quantity Bought"
                     placeholder="0"
                     value={purchaseForm.quantity_bought}
                     onChange={(e) => setPurchaseForm({ ...purchaseForm, quantity_bought: e.target.value })}
@@ -1505,6 +1890,7 @@ export default function DealerDetailPage() {
                     type="number"
                     step="0.01"
                     required
+                    aria-label="Buying Rate"
                     placeholder="0.00"
                     value={purchaseForm.buying_rate}
                     onChange={(e) => setPurchaseForm({ ...purchaseForm, buying_rate: e.target.value })}
@@ -1583,18 +1969,20 @@ export default function DealerDetailPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsAddPurchaseOpen(false)}
-                  disabled={addPurchaseMutation.isPending}
-                  className="rounded-xl border-slate-200"
+                  onClick={closePurchaseModal}
+                  disabled={addPurchaseMutation.isPending || createProductMutation.isPending}
+                  className="rounded-xl border-slate-200 cursor-pointer"
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
-                  disabled={addPurchaseMutation.isPending}
-                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold"
+                  disabled={addPurchaseMutation.isPending || createProductMutation.isPending}
+                  className="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer"
                 >
-                  {addPurchaseMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {(addPurchaseMutation.isPending || createProductMutation.isPending) && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
                   Save Purchase
                 </Button>
               </div>
@@ -1622,7 +2010,7 @@ export default function DealerDetailPage() {
                   Record Payment to Dealer
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Disburse settlement to {dealer.name}.
+                  Record settlement for {dealer.name}.
                 </p>
               </div>
               <button

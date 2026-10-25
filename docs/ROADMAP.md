@@ -85,7 +85,7 @@ The following items are technical suggestions and future proposals. None of thes
 
 ### Proposal B: Dedicated Staging Database Environment
 - **Problem:** Automated end-to-end (Playwright) tests cannot execute destructive scenarios against live production.
-- **Scope:** Provision a separate Supabase staging project or local Docker Supabase container to execute automated authenticated browser tests in CI before merging to `main`.
+- **Scope:** Provision a separate disposable Supabase staging project or CI test database to execute automated authenticated browser tests in CI before merging to `main`.
 
 ### Proposal C: Product Catalog Name & Category Editing UI
 - **Problem:** `updateProduct` service exists, but product name and category editing are not exposed in the UI.

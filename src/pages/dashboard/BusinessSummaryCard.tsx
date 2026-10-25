@@ -136,7 +136,7 @@ export const BusinessSummaryCard = memo(function BusinessSummaryCard({
           })}
         </div>
 
-        {/* Optional Footer Metric (e.g. Net Contribution, Supplier Payables) */}
+        {/* Optional Footer Metric (e.g. Net Contribution) */}
         {card.footerFigure && (
           <div className="flex items-center justify-between border-t border-slate-50 pt-1.5 mt-1 min-w-0">
             <span className="text-[11px] font-medium text-slate-500 truncate">

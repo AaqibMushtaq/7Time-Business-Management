@@ -506,7 +506,7 @@ export default function DealerPaymentsPage() {
               selectedDealerMetrics?.latestPayment ? (
                 `Latest: ${formatDate(selectedDealerMetrics.latestPayment.payment_date)} (${formatMoney(selectedDealerMetrics.latestPayment.amount)})`
               ) : (
-                "No prior disbursements"
+                "No prior recorded payments"
               )
             ) : (
               `${payments.length} transactions recorded`
@@ -529,7 +529,7 @@ export default function DealerPaymentsPage() {
       <SectionCard
         title={editingId ? "Edit Dealer Payment" : "Record Dealer Payment"}
         icon={Wallet}
-        description="Issue payment to a registered dealer to decrease their ledger balance."
+        description="Record a payment made to a registered dealer to decrease their ledger balance."
         action={
           editingId ? (
             <Button
@@ -904,8 +904,8 @@ export default function DealerPaymentsPage() {
         title="Payment History"
         subtitle={
           filterBySelectedDealer && selectedDealer
-            ? `Showing payment settlements for ${selectedDealer.name}.`
-            : "Comprehensive audit of all payment settlements issued to dealers."
+            ? `Showing recorded payments for ${selectedDealer.name}.`
+            : "Comprehensive audit of all payments recorded for dealers."
         }
         columns={paymentColumns}
         data={displayedPayments}
