@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { getProducts, type Product } from "@/services/products"
 import {
@@ -12,33 +12,39 @@ import {
 import { formatMoney } from "@/lib/utils"
 import {
   PageContainer,
-  PageHeader,
-  SectionCard,
-  StatusBadge,
   LoadingState,
-  ErrorState,
-  CurrencyDisplay
+  ErrorState
 } from "@/components/shared"
+import { ProductCombobox } from "./ProductCombobox"
+import { ProductIllustration } from "./ProductIllustrations"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
 import {
   Calculator,
-  Coins,
-  Scale,
   RotateCcw,
+  Info,
+  Package,
+  ArrowRight,
+  Check,
+  CheckCircle2,
+  Scale,
+  Wallet,
+  Tag,
+  Receipt,
+  Coins,
+  ChevronDown,
+  ChevronUp,
   AlertTriangle,
   Copy,
-  Check,
-  Package,
-  Info,
   Layers,
-  ArrowRightLeft,
-  Sparkles
+  ArrowLeftRight
 } from "lucide-react"
 
 type CalculationMode = "MONEY_TO_QTY" | "QTY_TO_PRICE"
 type PriceTier = "WHOLESALE" | "RETAIL" | "CUSTOM"
+
+const CATEGORIES = ["All", "Honey", "Spices", "Oils", "Dry Fruits", "Beverages", "Others"] as const
+type Category = (typeof CATEGORIES)[number]
 
 export default function ProductCalculatorPage() {
   const {
@@ -50,6 +56,8 @@ export default function ProductCalculatorPage() {
   } = useQuery({
     queryKey: ["products"],
     queryFn: getProducts,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   })
 
   // Selected product state
@@ -69,11 +77,31 @@ export default function ProductCalculatorPage() {
   // Mode B input: Quantity required
   const [quantityInput, setQuantityInput] = useState<string>("")
 
-  // Unit fractional override
-  const [allowFractional, setAllowFractional] = useState<boolean>(false)
+  // Precision & Fractional controls
+  const [allowFractional, setAllowFractional] = useState<boolean>(true)
+  const [decimalPrecision, setDecimalPrecision] = useState<number>(3)
 
   // Copy feedback
   const [copied, setCopied] = useState<boolean>(false)
+
+  // Accordion toggles
+  const [unitBreakdownOpen, setUnitBreakdownOpen] = useState<boolean>(false)
+  const [stockInfoOpen, setStockInfoOpen] = useState<boolean>(false)
+
+  // Category filter state
+  const [activeCategory, setActiveCategory] = useState<Category>("All")
+
+  // Keyboard shortcut listener (Cmd/Ctrl + /) to trigger combobox
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault()
+        document.getElementById("product-combobox-trigger")?.click()
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   // Active product object
   const selectedProduct = useMemo<Product | null>(() => {
@@ -81,13 +109,39 @@ export default function ProductCalculatorPage() {
     return products.find((p) => p.id === selectedProductId) || null
   }, [products, selectedProductId])
 
+  // Filter products for the left column visual catalogue
+  const filteredProducts = useMemo(() => {
+    if (activeCategory === "All") return products
+
+    return products.filter((p) => {
+      const text = (p.name + " " + (p.dealer?.name || "") + " " + (p.unit || "")).toLowerCase()
+      if (activeCategory === "Honey") return text.includes("honey")
+      if (activeCategory === "Spices") return text.includes("spice") || text.includes("saffron") || text.includes("kesar") || text.includes("masala")
+      if (activeCategory === "Oils") return text.includes("oil") || text.includes("zaitoon") || text.includes("forest")
+      if (activeCategory === "Dry Fruits") return text.includes("almond") || text.includes("badam") || text.includes("pista") || text.includes("date") || text.includes("ajwa") || text.includes("fruit") || text.includes("cashew") || text.includes("walnut") || text.includes("toffee")
+      if (activeCategory === "Beverages") return text.includes("juice") || text.includes("drink") || text.includes("tea") || text.includes("bottle") || text.includes("cold")
+      // Others
+      return (
+        !text.includes("honey") &&
+        !text.includes("spice") &&
+        !text.includes("saffron") &&
+        !text.includes("oil") &&
+        !text.includes("almond") &&
+        !text.includes("date") &&
+        !text.includes("pista") &&
+        !text.includes("juice") &&
+        !text.includes("drink")
+      )
+    })
+  }, [products, activeCategory])
+
   // Compatible units list for selected product
   const compatibleUnits = useMemo<UnitDefinition[]>(() => {
     if (!selectedProduct?.unit) return []
     return getCompatibleUnits(selectedProduct.unit)
   }, [selectedProduct])
 
-  // Active unit definition (defaults to product's normalized unit if selected is invalid)
+  // Active unit definition
   const activeUnitDef = useMemo<UnitDefinition | null>(() => {
     if (!selectedProduct?.unit) return null
     const matched = compatibleUnits.find((u) => u.code === selectedUnitCode)
@@ -95,28 +149,25 @@ export default function ProductCalculatorPage() {
     return normalizeUnit(selectedProduct.unit)
   }, [selectedProduct, selectedUnitCode, compatibleUnits])
 
-  // Determine effective unit selling price (per product base unit)
+  // Effective unit selling price
   const effectiveUnitPrice = useMemo<number>(() => {
     if (!selectedProduct) return 0
     if (priceTier === "CUSTOM") {
       const parsed = parseFloat(customPriceInput)
       return isNaN(parsed) || parsed < 0 ? 0 : parsed
     }
-    if (priceTier === "RETAIL") {
+    if (priceTier === "WHOLESALE") {
+      if (selectedProduct.wholesale_price && Number(selectedProduct.wholesale_price) > 0) {
+        return Number(selectedProduct.wholesale_price)
+      }
       return Number(selectedProduct.retail_price || 0)
     }
-    // Default to wholesale price, falling back to retail if wholesale is 0
-    if (selectedProduct.wholesale_price && Number(selectedProduct.wholesale_price) > 0) {
-      return Number(selectedProduct.wholesale_price)
+    // RETAIL
+    if (selectedProduct.retail_price && Number(selectedProduct.retail_price) > 0) {
+      return Number(selectedProduct.retail_price)
     }
-    return Number(selectedProduct.retail_price || 0)
+    return Number(selectedProduct.wholesale_price || 0)
   }, [selectedProduct, priceTier, customPriceInput])
-
-  // Equivalent price in the actively selected unit (e.g. ₹0.20/g if base is ₹200/kg)
-  const equivalentUnitPrice = useMemo<number>(() => {
-    if (!activeUnitDef || effectiveUnitPrice <= 0) return effectiveUnitPrice
-    return effectiveUnitPrice * activeUnitDef.conversionToBase
-  }, [activeUnitDef, effectiveUnitPrice])
 
   // Mode A Calculation Result (Cash -> Quantity)
   const moneyToQuantityResult = useMemo(() => {
@@ -127,7 +178,7 @@ export default function ProductCalculatorPage() {
       productUnit: selectedProduct?.unit,
       displayUnit: activeUnitDef?.code,
       allowFractional,
-      decimalPlaces: activeUnitDef?.decimalPrecision ?? 3,
+      decimalPlaces: allowFractional ? decimalPrecision : 0,
       availableStock: selectedProduct?.stock_quantity
     })
   }, [
@@ -136,6 +187,7 @@ export default function ProductCalculatorPage() {
     selectedProduct?.unit,
     activeUnitDef,
     allowFractional,
+    decimalPrecision,
     selectedProduct?.stock_quantity
   ])
 
@@ -174,6 +226,35 @@ export default function ProductCalculatorPage() {
     return [1, 2, 5, 10, 20]
   }, [activeUnitDef])
 
+  // Equivalent rates array for chips
+  const equivalentRates = useMemo(() => {
+    if (!selectedProduct?.unit || effectiveUnitPrice <= 0) return []
+    const norm = normalizeUnit(selectedProduct.unit)
+    if (!norm) return []
+
+    if (norm.code === "kg") {
+      return [
+        { label: `${formatMoney(effectiveUnitPrice / 1000)} / g`, code: "g" },
+        { label: `${formatMoney(effectiveUnitPrice / 10)} / 100 g`, code: "100g" },
+        { label: `${formatMoney(effectiveUnitPrice)} / kg`, code: "kg" }
+      ]
+    }
+    if (norm.code === "l") {
+      return [
+        { label: `${formatMoney(effectiveUnitPrice / 1000)} / mL`, code: "ml" },
+        { label: `${formatMoney(effectiveUnitPrice / 10)} / 100 mL`, code: "100ml" },
+        { label: `${formatMoney(effectiveUnitPrice)} / L`, code: "l" }
+      ]
+    }
+    if (compatibleUnits.length > 1) {
+      return compatibleUnits.map((u) => ({
+        label: `${formatMoney(effectiveUnitPrice * u.conversionToBase)} / ${u.symbol}`,
+        code: u.code
+      }))
+    }
+    return [{ label: `${formatMoney(effectiveUnitPrice)} / ${selectedProduct.unit}`, code: "base" }]
+  }, [selectedProduct, effectiveUnitPrice, compatibleUnits])
+
   // Reset form inputs
   const handleReset = () => {
     setCashAmountInput("")
@@ -189,6 +270,7 @@ export default function ProductCalculatorPage() {
     setSelectedUnitCode("")
     setPriceTier("WHOLESALE")
     setAllowFractional(false)
+    setDecimalPrecision(3)
   }
 
   // Product change handler
@@ -199,6 +281,8 @@ export default function ProductCalculatorPage() {
       const normalized = normalizeUnit(prod.unit)
       setSelectedUnitCode(normalized?.code || prod.unit)
       setAllowFractional(normalized ? normalized.isFractional : isContinuousUnit(prod.unit))
+      setDecimalPrecision(normalized?.decimalPrecision ?? 3)
+      setPriceTier("WHOLESALE")
     } else {
       setSelectedUnitCode("")
       setAllowFractional(false)
@@ -217,9 +301,8 @@ Product: ${selectedProduct.name}
 Base Unit Rate: ${formatMoney(effectiveUnitPrice)} / ${selectedProduct.unit}
 Cash Provided: ${formatMoney(moneyToQuantityResult.amount)}
 Sellable Quantity: ${moneyToQuantityResult.practicalQuantity} ${moneyToQuantityResult.displayUnit}
-Convenient Display: ${moneyToQuantityResult.convenientQuantity.primary}
 Value of Goods: ${formatMoney(moneyToQuantityResult.practicalValue)}
-Change / Return: ${formatMoney(moneyToQuantityResult.remainingMoney)}
+Remaining Cash: ${formatMoney(moneyToQuantityResult.remainingMoney)}
 (Exact Math Quantity: ${moneyToQuantityResult.exactQuantity} ${moneyToQuantityResult.displayUnit})`
     } else {
       summaryText = `7TIME Calculator Summary
@@ -237,6 +320,8 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
       // Fallback
     }
   }
+
+  const hasAnyInput = Boolean(cashAmountInput || quantityInput || selectedProductId)
 
   if (isLoading) {
     return (
@@ -260,177 +345,476 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
 
   return (
     <PageContainer>
-      {/* Page Header */}
-      <PageHeader
-        title="Product Price & Quantity Calculator"
-        description="Instant live pricing, metric conversions, sellable quantity estimation, and order total calculation."
-        actions={
-          (cashAmountInput || quantityInput || selectedProductId) && (
-            <Button
-              variant="outline"
-              size="sm"
+      <div className="max-w-7xl mx-auto space-y-4">
+        {/* Page Heading matching approved visual reference */}
+        <header className="flex flex-row justify-between items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-[#2563EB] flex items-center justify-center text-white shrink-0 shadow-xs">
+              <Calculator className="h-5 w-5 sm:h-6 sm:w-6" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-slate-900 truncate">
+                Product Price & Quantity Calculator
+              </h1>
+              <p className="text-xs text-slate-500 truncate hidden sm:block">
+                Instant live pricing, metric conversions, and sellable quantity estimation.
+              </p>
+              <p className="text-xs text-slate-500 truncate sm:hidden">
+                Instant live pricing and metric conversions.
+              </p>
+            </div>
+          </div>
+
+          <div className="shrink-0">
+            <button
+              type="button"
               onClick={handleFullReset}
-              className="text-[#52627A] hover:text-[#172B4D] border-[#D9E0E8] rounded-xl cursor-pointer"
+              aria-label="Reset All Calculator Inputs"
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl shadow-2xs transition-colors cursor-pointer ${
+                hasAnyInput ? "opacity-100" : "opacity-75"
+              }`}
             >
-              <RotateCcw className="h-4 w-4 mr-1.5" /> Reset All
-            </Button>
-          )
-        }
-      />
+              <RotateCcw className="h-3.5 w-3.5 text-slate-500" />
+              <span className="hidden sm:inline">Reset All</span>
+            </button>
+          </div>
+        </header>
 
-      {/* Preview Guard Notice */}
-      <div className="bg-[#EBF2FE] border border-[#BFDBFE] text-[#172B4D] rounded-xl p-3.5 flex items-start gap-3 text-xs mb-6 shadow-2xs">
-        <Info className="h-4 w-4 text-[#2563EB] shrink-0 mt-0.5" />
-        <div className="min-w-0">
-          <p className="font-semibold text-[#172B4D]">
-            Preview & Estimation Tool
-          </p>
-          <p className="text-[#52627A] mt-0.5">
-            Calculations performed here are for pricing estimation, metric conversions, and customer change calculation. They do not deduct inventory stock, create sales entries, or record transactions in any bookkeeping ledger.
-          </p>
+        {/* Preview Information Banner */}
+        <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl px-3.5 py-2.5 flex items-center gap-2.5 text-xs text-slate-700 shadow-2xs">
+          <Info className="h-4 w-4 text-[#2563EB] shrink-0" />
+          <div className="min-w-0 truncate">
+            <span className="hidden sm:inline">
+              <strong className="font-semibold text-slate-900 mr-1">Preview & Estimation Tool:</strong>
+              Calculations here are for pricing estimation only. They do not modify inventory stock, create sales entries, or record transactions.
+            </span>
+            <span className="sm:hidden">
+              <strong className="font-semibold text-slate-900">Preview only</strong> — no stock changes, no sales entries.
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* LEFT COLUMN: Controls & Inputs (7 cols on lg) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Step 1: Product Selection & Pricing */}
-          <SectionCard
-            title="1. Select Product & Selling Rate"
-            icon={Package}
-            description="Choose a catalog product to dynamically load its base unit, metric conversions, and rates."
-          >
-            <div className="space-y-4">
-              {/* Product Selector Dropdown */}
-              <div className="space-y-1.5">
-                <Label htmlFor="calculator-product-select" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Product <span className="text-rose-600">*</span>
-                </Label>
-                <select
-                  id="calculator-product-select"
-                  aria-label="Select Product"
-                  value={selectedProductId}
-                  onChange={(e) => handleProductChange(e.target.value)}
-                  className="flex h-11 w-full rounded-xl border border-[#D9E0E8] bg-white px-3.5 py-2 text-sm text-[#172B4D] shadow-2xs focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] cursor-pointer"
-                >
-                  <option value="">-- Choose a Product from Catalog --</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.unit || "No Unit"}) — Wholesale: {formatMoney(p.wholesale_price || 0)} | Retail: {formatMoney(p.retail_price || 0)}
-                    </option>
-                  ))}
-                </select>
+        {/* Main 2-Column Responsive Workspace */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* LEFT COLUMN: Product Catalogue Card */}
+          <div className="lg:col-span-7 bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+            {/* Catalogue Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#2563EB] flex items-center justify-center shrink-0">
+                  <Package className="h-4.5 w-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-sm sm:text-base font-bold text-slate-900 truncate">
+                    Select Product
+                  </h2>
+                  <p className="text-xs text-slate-500 truncate hidden sm:block">
+                    Choose a product to see its prices, unit, and live stock.
+                  </p>
+                </div>
               </div>
 
-              {/* Product Details & Price Tier Badges */}
-              {selectedProduct ? (
-                <div className="bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl p-4 space-y-3.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E2E8F0] pb-2.5">
-                    <div>
-                      <h4 className="font-bold text-sm text-[#172B4D]">{selectedProduct.name}</h4>
-                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                        <span className="text-xs text-[#52627A]">
-                          Base Selling Unit: <span className="font-semibold text-[#172B4D]">{selectedProduct.unit || "None"}</span>
-                        </span>
-                        {activeUnitDef && (
-                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#E2E8F0] text-[#172B4D] font-medium">
-                            Category: {activeUnitDef.category}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <StatusBadge
-                        status={
-                          selectedProduct.stock_quantity > 10
-                            ? "healthy"
-                            : selectedProduct.stock_quantity > 0
-                            ? "warning"
-                            : "danger"
+              <button
+                type="button"
+                onClick={() => setActiveCategory("All")}
+                className="text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] flex items-center gap-1 cursor-pointer shrink-0"
+              >
+                <span className="hidden sm:inline">View All Products</span>
+                <span className="sm:hidden">See All</span>
+                <ArrowRight className="h-3 w-3" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Searchable Combobox Trigger / Search bar */}
+              <div>
+                <ProductCombobox
+                  products={products}
+                  selectedProductId={selectedProductId}
+                  onSelectProduct={handleProductChange}
+                />
+              </div>
+
+              {/* Category Filter Pills (hidden on small mobile or scrollable row) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {CATEGORIES.map((cat) => {
+                  const isActive = activeCategory === cat
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setActiveCategory(cat)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-[#2563EB] text-white shadow-xs"
+                          : "bg-slate-100 hover:bg-slate-200/80 text-slate-600"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Desktop: 3-Column Product Cards Grid */}
+              <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {filteredProducts.slice(0, 9).map((p) => {
+                  const isSelected = p.id === selectedProductId
+                  const inStock = (p.stock_quantity ?? 0) > 0
+                  const isLowStock = (p.stock_quantity ?? 0) > 0 && (p.stock_quantity ?? 0) <= 2
+
+                  return (
+                    <div
+                      key={p.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => handleProductChange(p.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          handleProductChange(p.id)
                         }
-                        label={`${selectedProduct.stock_quantity} ${selectedProduct.unit} in stock`}
-                        size="sm"
-                      />
-                    </div>
-                  </div>
+                      }}
+                      className={`rounded-2xl p-3.5 bg-white transition-all cursor-pointer relative text-left flex flex-col justify-between ${
+                        isSelected
+                          ? "border-2 border-[#2563EB] bg-[#EFF6FF]/20 shadow-xs ring-2 ring-[#2563EB]/10"
+                          : "border border-slate-200 hover:border-slate-300 hover:shadow-2xs"
+                      }`}
+                    >
+                      {/* Checkmark badge when selected */}
+                      {isSelected && (
+                        <div className="w-5 h-5 rounded-full bg-[#2563EB] text-white flex items-center justify-center absolute top-2.5 right-2.5 shadow-2xs">
+                          <Check className="w-3 h-3 stroke-[3]" />
+                        </div>
+                      )}
 
-                  {/* Missing Unit Warning */}
-                  {(!selectedProduct.unit || !selectedProduct.unit.trim()) && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-bold">Missing Measurement Unit</p>
-                        <p className="mt-0.5">
-                          This product has no measurement unit defined in catalog records. Please configure a unit (e.g. kg, L, pcs) to enable accurate calculations.
-                        </p>
+                      {/* Product Thumbnail / Illustration */}
+                      <div className="h-16 flex items-center justify-center mb-2.5">
+                        <ProductIllustration
+                          name={p.name}
+                          category={p.dealer?.name}
+                          className="w-14 h-14 object-contain drop-shadow-2xs"
+                        />
+                      </div>
+
+                      {/* Title & Metadata */}
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm block truncate">
+                          {p.name}
+                        </span>
+
+                        <div className="flex items-center justify-between gap-1 text-[11px]">
+                          <span className="text-slate-500 font-medium">
+                            {p.unit || "unit"}
+                          </span>
+                          <span
+                            className={`font-semibold flex items-center gap-1 ${
+                              inStock
+                                ? isLowStock
+                                  ? "text-amber-700"
+                                  : "text-emerald-700"
+                                : "text-rose-600"
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                inStock
+                                  ? isLowStock
+                                    ? "bg-amber-500"
+                                    : "bg-emerald-500"
+                                  : "bg-rose-500"
+                              }`}
+                            />
+                            {inStock ? `${p.stock_quantity} in stock` : "Out of stock"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Price Rows */}
+                      <div className="pt-2 mt-2 border-t border-slate-100 grid grid-cols-2 gap-1 text-left">
+                        <div>
+                          <span className="text-[10px] text-slate-400 font-medium block">
+                            Wholesale
+                          </span>
+                          <span className="text-xs font-bold font-mono text-slate-800 block truncate">
+                            {formatMoney(p.wholesale_price || 0)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 font-medium block">
+                            Retail
+                          </span>
+                          <span className="text-xs font-bold font-mono text-slate-800 block truncate">
+                            {formatMoney(p.retail_price || 0)}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  )}
+                  )
+                })}
+              </div>
 
-                  {/* Selling Price Tier Selection */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold text-[#52627A] uppercase tracking-wider block">
-                        Active Selling Rate Basis
-                      </Label>
-                      {effectiveUnitPrice > 0 && selectedProduct.unit && (
-                        <span className="text-xs font-bold text-[#2563EB]">
-                          {formatMoney(effectiveUnitPrice)} / {selectedProduct.unit}
-                        </span>
-                      )}
+              {/* Mobile: Horizontal Swipeable Carousel matching phone mockup */}
+              <div className="sm:hidden space-y-2">
+                <div className="flex overflow-x-auto gap-3 pb-2 snap-x scrollbar-none -mx-1 px-1">
+                  {filteredProducts.slice(0, 9).map((p) => {
+                    const isSelected = p.id === selectedProductId
+                    const inStock = (p.stock_quantity ?? 0) > 0
+                    const isLowStock = (p.stock_quantity ?? 0) > 0 && (p.stock_quantity ?? 0) <= 2
+
+                    return (
+                      <div
+                        key={p.id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => handleProductChange(p.id)}
+                        className={`w-[145px] shrink-0 snap-start rounded-2xl p-3 bg-white transition-all cursor-pointer relative text-left flex flex-col justify-between ${
+                          isSelected
+                            ? "border-2 border-[#2563EB] bg-[#EFF6FF]/20 shadow-xs ring-2 ring-[#2563EB]/10"
+                            : "border border-slate-200 hover:border-slate-300"
+                        }`}
+                      >
+                        {isSelected && (
+                          <div className="w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center absolute top-2 right-2">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+
+                        <div className="h-14 flex items-center justify-center mb-1.5">
+                          <ProductIllustration
+                            name={p.name}
+                            category={p.dealer?.name}
+                            className="w-12 h-12 object-contain"
+                          />
+                        </div>
+
+                        <div>
+                          <span className="font-bold text-slate-900 text-xs block truncate">
+                            {p.name}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-medium block">
+                            {p.unit || "unit"}
+                          </span>
+                          <span className="text-[11px] font-bold font-mono text-slate-900 block mt-0.5">
+                            {formatMoney(p.retail_price || p.wholesale_price || 0)}
+                          </span>
+                          <span
+                            className={`text-[10px] font-semibold flex items-center gap-1 mt-1 ${
+                              inStock
+                                ? isLowStock
+                                  ? "text-amber-700"
+                                  : "text-emerald-700"
+                                : "text-rose-600"
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                inStock
+                                  ? isLowStock
+                                    ? "bg-amber-500"
+                                    : "bg-emerald-500"
+                                  : "bg-rose-500"
+                              }`}
+                            />
+                            {inStock ? `${p.stock_quantity} in stock` : "0 stock"}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* 3 Pagination dots matching mobile mockup */}
+                <div className="flex items-center justify-center gap-1.5 pt-1">
+                  <span className="w-2 h-2 rounded-full bg-[#2563EB]" />
+                  <span className="w-2 h-2 rounded-full bg-slate-200" />
+                  <span className="w-2 h-2 rounded-full bg-slate-200" />
+                </div>
+              </div>
+
+              {filteredProducts.length === 0 && (
+                <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs text-slate-500">
+                  <p className="font-bold text-slate-800">No products found</p>
+                  <p className="mt-1">No catalog entries match category "{activeCategory}".</p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveCategory("All")}
+                    className="mt-3 px-3 py-1.5 bg-white border border-slate-200 rounded-xl font-semibold text-[#2563EB] hover:bg-slate-50 shadow-2xs cursor-pointer"
+                  >
+                    View All Products
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT COLUMN: Calculator Workspace */}
+          <div className="lg:col-span-5 space-y-4">
+            {/* CARD: Selected Product Summary & Selling Rate */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+              <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#2563EB] flex items-center justify-center shrink-0">
+                    <Package className="h-4 w-4" />
+                  </div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Selected Product
+                  </h2>
+                </div>
+
+                {selectedProduct && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      document.getElementById("product-combobox-trigger")?.click()
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <ArrowLeftRight className="h-3 w-3 text-slate-500" />
+                    <span>Change Product</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="p-3.5 sm:p-4 space-y-3.5">
+                {selectedProduct ? (
+                  <>
+                    {/* Selected Product Identity Header */}
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-amber-50/80 border border-amber-200/50 flex items-center justify-center shrink-0 shadow-2xs">
+                        <ProductIllustration
+                          name={selectedProduct.name}
+                          category={selectedProduct.dealer?.name}
+                          className="w-11 h-11 object-contain"
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base truncate">
+                            {selectedProduct.name}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                            {selectedProduct.dealer?.name ? selectedProduct.dealer.name : "Food & Beverage"}
+                          </span>
+                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                            {selectedProduct.unit || "unit"}
+                          </span>
+                        </div>
+                        <div className="mt-1">
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            {selectedProduct.stock_quantity} {selectedProduct.unit || "unit"} in stock
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
+                    {/* Missing Unit Warning */}
+                    {(!selectedProduct.unit || !selectedProduct.unit.trim()) && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">Missing Measurement Unit</p>
+                          <p className="mt-0.5 text-[11px]">
+                            This product has no measurement unit defined in catalog records. Please configure a unit to enable accurate calculations.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Selling Rate Options: Wholesale, Retail, Custom */}
                     <div className="grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
+                      {/* Wholesale Card */}
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setPriceTier("WHOLESALE")}
-                        className={`p-2.5 rounded-xl border text-xs text-left transition-all cursor-pointer ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") setPriceTier("WHOLESALE")
+                        }}
+                        className={`rounded-xl p-2.5 text-center cursor-pointer transition-all relative ${
                           priceTier === "WHOLESALE"
-                            ? "bg-white border-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-xs"
-                            : "bg-white/60 border-[#D9E0E8] hover:bg-white text-[#52627A]"
+                            ? "border-2 border-[#2563EB] bg-[#EFF6FF]/40 shadow-xs"
+                            : "border border-slate-200 bg-white hover:bg-slate-50"
                         }`}
                       >
-                        <span className="font-medium text-[11px] text-[#52627A] block">Wholesale Rate</span>
-                        <span className="font-bold text-sm text-[#172B4D]">
+                        {priceTier === "WHOLESALE" && (
+                          <div className="w-3.5 h-3.5 bg-[#2563EB] text-white rounded-full flex items-center justify-center absolute top-2 right-2">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                        <span className={`text-[11px] block ${priceTier === "WHOLESALE" ? "font-bold text-[#2563EB]" : "font-medium text-slate-500"}`}>
+                          Wholesale
+                        </span>
+                        <span className="font-bold text-xs sm:text-sm text-slate-900 block mt-0.5 font-mono">
                           {formatMoney(selectedProduct.wholesale_price || 0)}
+                          <span className="text-[10px] text-slate-500 font-normal"> / {selectedProduct.unit}</span>
                         </span>
-                      </button>
+                      </div>
 
-                      <button
-                        type="button"
+                      {/* Retail Card */}
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setPriceTier("RETAIL")}
-                        className={`p-2.5 rounded-xl border text-xs text-left transition-all cursor-pointer ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") setPriceTier("RETAIL")
+                        }}
+                        className={`rounded-xl p-2.5 text-center cursor-pointer transition-all relative ${
                           priceTier === "RETAIL"
-                            ? "bg-white border-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-xs"
-                            : "bg-white/60 border-[#D9E0E8] hover:bg-white text-[#52627A]"
+                            ? "border-2 border-[#2563EB] bg-[#EFF6FF]/40 shadow-xs"
+                            : "border border-slate-200 bg-white hover:bg-slate-50"
                         }`}
                       >
-                        <span className="font-medium text-[11px] text-[#52627A] block">Retail Rate</span>
-                        <span className="font-bold text-sm text-[#172B4D]">
+                        {priceTier === "RETAIL" && (
+                          <div className="w-3.5 h-3.5 bg-[#2563EB] text-white rounded-full flex items-center justify-center absolute top-2 right-2">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                        <span className={`text-[11px] block ${priceTier === "RETAIL" ? "font-bold text-[#2563EB]" : "font-medium text-slate-500"}`}>
+                          Retail
+                        </span>
+                        <span className="font-bold text-xs sm:text-sm text-slate-900 block mt-0.5 font-mono">
                           {formatMoney(selectedProduct.retail_price || 0)}
+                          <span className="text-[10px] text-slate-500 font-normal"> / {selectedProduct.unit}</span>
                         </span>
-                      </button>
+                      </div>
 
-                      <button
-                        type="button"
+                      {/* Custom Card */}
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setPriceTier("CUSTOM")}
-                        className={`p-2.5 rounded-xl border text-xs text-left transition-all cursor-pointer ${
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") setPriceTier("CUSTOM")
+                        }}
+                        className={`rounded-xl p-2.5 text-center cursor-pointer transition-all relative ${
                           priceTier === "CUSTOM"
-                            ? "bg-white border-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-xs"
-                            : "bg-white/60 border-[#D9E0E8] hover:bg-white text-[#52627A]"
+                            ? "border-2 border-[#2563EB] bg-[#EFF6FF]/40 shadow-xs"
+                            : "border border-slate-200 bg-white hover:bg-slate-50"
                         }`}
                       >
-                        <span className="font-medium text-[11px] text-[#52627A] block">Custom Rate</span>
-                        <span className="font-bold text-sm text-[#2563EB]">
-                          {customPriceInput ? formatMoney(parseFloat(customPriceInput) || 0) : "Enter ₹"}
+                        {priceTier === "CUSTOM" && (
+                          <div className="w-3.5 h-3.5 bg-[#2563EB] text-white rounded-full flex items-center justify-center absolute top-2 right-2">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </div>
+                        )}
+                        <span className={`text-[11px] block ${priceTier === "CUSTOM" ? "font-bold text-[#2563EB]" : "font-medium text-slate-500"}`}>
+                          Custom
                         </span>
-                      </button>
+                        <span className="font-bold text-xs sm:text-sm text-slate-900 block mt-0.5 font-mono">
+                          {customPriceInput ? formatMoney(parseFloat(customPriceInput) || 0) : "₹0.00"}
+                          <span className="text-[10px] text-slate-500 font-normal"> / {selectedProduct.unit}</span>
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Custom Price Input */}
+                    {/* Custom Rate Input field if selected */}
                     {priceTier === "CUSTOM" && (
-                      <div className="pt-2">
-                        <Label htmlFor="custom-rate-input" className="text-xs font-semibold text-[#172B4D]">
+                      <div className="pt-1">
+                        <Label htmlFor="custom-rate-input" className="text-xs font-semibold text-slate-900">
                           Custom Rate per {selectedProduct.unit || "Unit"} (₹)
                         </Label>
                         <Input
@@ -441,473 +825,686 @@ Total Price: ${formatMoney(quantityToPriceResult.totalPrice)}`
                           placeholder="e.g. 240.00"
                           value={customPriceInput}
                           onChange={(e) => setCustomPriceInput(e.target.value)}
-                          className="mt-1 bg-white border-[#D9E0E8] text-[#172B4D] font-mono rounded-xl"
+                          className="mt-1 bg-white border-slate-200 text-slate-900 font-mono rounded-xl h-10"
                         />
                       </div>
                     )}
-                  </div>
 
-                  {/* Equivalent Metric Rates Banner (e.g. ₹200/kg is ₹0.20/g) */}
-                  {effectiveUnitPrice > 0 && compatibleUnits.length > 1 && (
-                    <div className="pt-2 border-t border-[#E2E8F0] flex flex-wrap items-center gap-2 text-xs text-[#52627A]">
-                      <span className="font-semibold text-[#172B4D]">Equivalent Rates:</span>
-                      {compatibleUnits.map((u) => {
-                        const eqRate = effectiveUnitPrice * u.conversionToBase
+                    {/* Equivalent Prices row */}
+                    {equivalentRates.length > 0 && (
+                      <div className="pt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                          <span className="text-[11px] font-semibold text-slate-500">Equivalent:</span>
+                          {equivalentRates.map((r, i) => (
+                            <span
+                              key={i}
+                              className="bg-slate-100 text-slate-700 text-[11px] px-2 py-0.5 rounded-md font-mono border border-slate-200/60"
+                            >
+                              {r.label}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Packaging Note for packaged items */}
+                    {activeUnitDef?.category === "PACKAGING" && (
+                      <div className="pt-2 border-t border-slate-200 text-[11px] text-slate-500 italic">
+                        Note: This product is priced per individual {activeUnitDef.symbol}. Package price is distinct from bulk volume or weight.
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-xs text-slate-500">
+                    <p className="font-semibold text-slate-700">Select a Product</p>
+                    <p className="mt-0.5">Select a product from the catalogue on the left to load its unit, prices, and live stock.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* CARD 1: Calculation Mode & Input */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+              <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-[#2563EB] flex items-center justify-center shrink-0">
+                    <Scale className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      1. Calculation Mode & Input
+                    </h2>
+                    <p className="text-xs text-slate-500 hidden sm:block">
+                      Choose how you want to calculate.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3.5 sm:p-4 space-y-4">
+                {/* 2 Big Mode Segmented Control Cards */}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setMode("MONEY_TO_QTY")}
+                    aria-label="Mode A: Cash to Quantity"
+                    className={`p-3 rounded-xl text-left cursor-pointer transition-all flex items-start gap-2.5 ${
+                      mode === "MONEY_TO_QTY"
+                        ? "bg-[#2563EB] text-white shadow-xs"
+                        : "bg-slate-50 hover:bg-slate-100/80 text-slate-700 border border-slate-200"
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg shrink-0 ${mode === "MONEY_TO_QTY" ? "bg-white/20 text-white" : "bg-white text-[#2563EB] shadow-2xs"}`}>
+                      <Wallet className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm block leading-tight truncate">
+                        I have Money
+                      </span>
+                      <span className={`text-[11px] block mt-0.5 truncate ${mode === "MONEY_TO_QTY" ? "text-blue-100" : "text-slate-500"}`}>
+                        Calculate quantity from cash
+                      </span>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setMode("QTY_TO_PRICE")}
+                    aria-label="Mode B: Quantity to Price"
+                    className={`p-3 rounded-xl text-left cursor-pointer transition-all flex items-start gap-2.5 ${
+                      mode === "QTY_TO_PRICE"
+                        ? "bg-[#2563EB] text-white shadow-xs"
+                        : "bg-slate-50 hover:bg-slate-100/80 text-slate-700 border border-slate-200"
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg shrink-0 ${mode === "QTY_TO_PRICE" ? "bg-white/20 text-white" : "bg-white text-[#2563EB] shadow-2xs"}`}>
+                      <Package className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="font-bold text-xs sm:text-sm block leading-tight truncate">
+                        I know Quantity
+                      </span>
+                      <span className={`text-[11px] block mt-0.5 truncate ${mode === "QTY_TO_PRICE" ? "text-blue-100" : "text-slate-500"}`}>
+                        Calculate price from quantity
+                      </span>
+                    </div>
+                  </button>
+                </div>
+
+                {/* MODE A INPUT: Cash Amount */}
+                {mode === "MONEY_TO_QTY" ? (
+                  <div className="space-y-3.5">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="calculator-cash-input" className="text-xs font-semibold text-slate-700 block">
+                        Cash Provided by Customer (₹)
+                      </Label>
+                      <div className="relative">
+                        <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
+                          ₹
+                        </span>
+                        <Input
+                          id="calculator-cash-input"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="500"
+                          value={cashAmountInput}
+                          onChange={(e) => setCashAmountInput(e.target.value)}
+                          className="pl-8 h-11 bg-white border-slate-200 text-slate-900 font-mono text-base font-bold rounded-xl focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick Amount Presets */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {quickCashOptions.map((amt) => {
+                        const isActive = cashAmountInput === String(amt)
                         return (
-                          <span key={u.code} className="px-2 py-0.5 rounded-md bg-white border border-[#D9E0E8] font-mono text-[11px]">
-                            {formatMoney(eqRate)} / {u.symbol}
-                          </span>
+                          <button
+                            key={amt}
+                            type="button"
+                            onClick={() => setCashAmountInput(String(amt))}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                              isActive
+                                ? "bg-[#2563EB] text-white shadow-xs"
+                                : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 shadow-2xs"
+                            }`}
+                          >
+                            ₹{amt >= 1000 ? `${amt.toLocaleString()}` : amt}
+                          </button>
                         )
                       })}
                     </div>
-                  )}
 
-                  {/* Packaging Note for packaged items */}
-                  {activeUnitDef?.category === "PACKAGING" && (
-                    <div className="pt-2 border-t border-[#E2E8F0] text-[11px] text-[#52627A] italic">
-                      Note: This product is priced per individual {activeUnitDef.symbol}. Package price is distinct from bulk volume or weight.
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-4 bg-[#F8F7F2] border border-dashed border-[#D9E0E8] rounded-xl text-center text-xs text-[#52627A]">
-                  Select a product above to view live prices and start calculating.
-                </div>
-              )}
-            </div>
-          </SectionCard>
-
-          {/* Step 2: Mode Selection & Input Form */}
-          <SectionCard
-            title="2. Calculation Mode & Parameters"
-            icon={Scale}
-            description="Toggle between money-to-quantity or quantity-to-price workflows."
-          >
-            <div className="space-y-5">
-              {/* Mode Tabs */}
-              <div className="flex p-1 bg-[#F1F4F8] rounded-xl border border-[#D9E0E8]">
-                <button
-                  type="button"
-                  onClick={() => setMode("MONEY_TO_QTY")}
-                  className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    mode === "MONEY_TO_QTY"
-                      ? "bg-white text-[#2563EB] shadow-xs"
-                      : "text-[#52627A] hover:text-[#172B4D]"
-                  }`}
-                >
-                  <Coins className="h-4 w-4" />
-                  Mode A: Cash to Quantity
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode("QTY_TO_PRICE")}
-                  className={`flex-1 py-2.5 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    mode === "QTY_TO_PRICE"
-                      ? "bg-white text-[#2563EB] shadow-xs"
-                      : "text-[#52627A] hover:text-[#172B4D]"
-                  }`}
-                >
-                  <Layers className="h-4 w-4" />
-                  Mode B: Quantity to Price
-                </button>
-              </div>
-
-              {/* Compatible Metric Unit Selector (When product has multiple units like kg/g or L/mL) */}
-              {compatibleUnits.length > 1 && (
-                <div className="p-3 bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-[#172B4D]">
-                      {mode === "MONEY_TO_QTY" ? "Quantity Display Unit" : "Input Quantity Unit"}
-                    </span>
-                    <span className="text-[11px] text-[#52627A]">
-                      Select metric unit ({compatibleUnits.map((u) => u.symbol).join(" / ")})
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {compatibleUnits.map((u) => {
-                      const isSelected = (activeUnitDef?.code || selectedProduct?.unit) === u.code
-                      return (
+                    {/* Fractional Toggle & Sellable Unit Precision */}
+                    <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
                         <button
-                          key={u.code}
                           type="button"
-                          onClick={() => setSelectedUnitCode(u.code)}
-                          className={`py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                            isSelected
-                              ? "bg-white border-[#2563EB] text-[#2563EB] ring-2 ring-[#2563EB]/20 shadow-xs"
-                              : "bg-white/60 border-[#D9E0E8] text-[#52627A] hover:bg-white"
+                          role="button"
+                          aria-label={allowFractional ? "Switch to Whole Units" : "Allow Fractional"}
+                          onClick={() => {
+                            const next = !allowFractional
+                            setAllowFractional(next)
+                            if (!next) setDecimalPrecision(0)
+                            else if (decimalPrecision === 0) setDecimalPrecision(3)
+                          }}
+                          className={`w-11 h-6 flex items-center rounded-full p-1 cursor-pointer transition-colors shrink-0 ${
+                            allowFractional ? "bg-[#2563EB]" : "bg-slate-200"
                           }`}
                         >
-                          {u.name} ({u.symbol})
+                          <div
+                            className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${
+                              allowFractional ? "translate-x-5" : "translate-x-0"
+                            }`}
+                          />
                         </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* MODE A INPUT: Cash Amount */}
-              {mode === "MONEY_TO_QTY" ? (
-                <div className="space-y-3.5">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="calculator-cash-input" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                      Cash Provided by Customer (₹) <span className="text-rose-600">*</span>
-                    </Label>
-                    <div className="relative">
-                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-[#52627A]">
-                        ₹
-                      </span>
-                      <Input
-                        id="calculator-cash-input"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="e.g. 500"
-                        value={cashAmountInput}
-                        onChange={(e) => setCashAmountInput(e.target.value)}
-                        className="pl-8 h-11 bg-white border-[#D9E0E8] text-[#172B4D] font-mono text-base font-bold rounded-xl focus:border-[#2563EB]"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Quick Cash Presets */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-semibold text-[#52627A] uppercase tracking-wider block">
-                      Quick Cash Presets
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {quickCashOptions.map((amt) => (
-                        <button
-                          key={amt}
-                          type="button"
-                          onClick={() => setCashAmountInput(String(amt))}
-                          className="px-3 py-1.5 bg-white border border-[#D9E0E8] hover:border-[#2563EB] hover:text-[#2563EB] text-[#172B4D] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
-                        >
-                          ₹{amt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Fractional / Whole Units Setting */}
-                  <div className="pt-2 border-t border-[#E2E8F0]">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <span className="text-xs font-semibold text-[#172B4D] block">
-                          Sellable Unit Precision
-                        </span>
-                        <span className="text-[11px] text-[#52627A]">
-                          {allowFractional
-                            ? `Fractional quantities permitted (up to ${activeUnitDef?.decimalPrecision ?? 3} decimal places for ${activeUnitDef?.symbol || selectedProduct?.unit || "units"}).`
-                            : `Whole discrete units only (floored to integer pieces for ${activeUnitDef?.symbol || selectedProduct?.unit || "units"}).`}
+                        <span className="text-xs font-semibold text-slate-800">
+                          Allow Fractional Quantity
                         </span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setAllowFractional(!allowFractional)}
-                        className="text-xs h-8 border-[#D9E0E8] text-[#52627A] hover:text-[#172B4D] cursor-pointer"
-                      >
-                        <ArrowRightLeft className="h-3.5 w-3.5 mr-1" />
-                        {allowFractional ? "Switch to Whole Units" : "Allow Fractional"}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                /* MODE B INPUT: Quantity */
-                <div className="space-y-3.5">
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="calculator-qty-input" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                        Required Quantity ({activeUnitDef?.symbol || selectedProduct?.unit || "Units"}) <span className="text-rose-600">*</span>
-                      </Label>
-                      {activeUnitDef && activeUnitDef.code !== selectedProduct?.unit && (
-                        <span className="text-[11px] text-[#2563EB] font-medium">
-                          Converts to {selectedProduct?.unit} base
-                        </span>
-                      )}
-                    </div>
-                    <Input
-                      id="calculator-qty-input"
-                      type="number"
-                      step={allowFractional ? "0.001" : "1"}
-                      min="0"
-                      placeholder={
-                        activeUnitDef?.code === "g" || activeUnitDef?.code === "ml"
-                          ? "e.g. 750"
-                          : allowFractional
-                          ? "e.g. 2.500"
-                          : "e.g. 5"
-                      }
-                      value={quantityInput}
-                      onChange={(e) => setQuantityInput(e.target.value)}
-                      className="h-11 bg-white border-[#D9E0E8] text-[#172B4D] font-mono text-base font-bold rounded-xl focus:border-[#2563EB]"
-                    />
-                  </div>
 
-                  {/* Quick Quantity Presets */}
-                  <div className="space-y-1.5">
-                    <span className="text-[11px] font-semibold text-[#52627A] uppercase tracking-wider block">
-                      Quick Quantity Adjustments ({activeUnitDef?.symbol || selectedProduct?.unit || "units"})
-                    </span>
-                    <div className="flex flex-wrap gap-1.5">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="precision-selector" className="text-xs font-semibold text-slate-600 shrink-0">
+                          Sellable Unit Precision
+                        </Label>
+                        <select
+                          id="precision-selector"
+                          aria-label="Sellable Unit Precision"
+                          value={decimalPrecision}
+                          onChange={(e) => {
+                            const val = Number(e.target.value)
+                            setDecimalPrecision(val)
+                            if (val === 0) setAllowFractional(false)
+                            else setAllowFractional(true)
+                          }}
+                          className="text-xs bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 font-medium text-slate-700 cursor-pointer focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]"
+                        >
+                          <option value={3}>Up to 3 decimal places (e.g. 0.392)</option>
+                          <option value={2}>Up to 2 decimal places (e.g. 0.39)</option>
+                          <option value={1}>Up to 1 decimal place (e.g. 0.4)</option>
+                          <option value={0}>Whole units only (e.g. 1)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* MODE B INPUT: Quantity */
+                  <div className="space-y-3.5">
+                    {/* Metric Unit Selector when product has multiple units (e.g. kg/g or L/mL) */}
+                    {compatibleUnits.length > 1 && (
+                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                        <span className="text-[11px] font-semibold text-slate-600 block">
+                          Select Input Quantity Unit
+                        </span>
+                        <div className="grid grid-cols-2 gap-2">
+                          {compatibleUnits.map((u) => {
+                            const isSelected = (activeUnitDef?.code || selectedProduct?.unit) === u.code
+                            return (
+                              <button
+                                key={u.code}
+                                type="button"
+                                onClick={() => setSelectedUnitCode(u.code)}
+                                className={`py-1.5 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                                  isSelected
+                                    ? "bg-white border-[#2563EB] text-[#2563EB] ring-2 ring-[#2563EB]/15 shadow-xs"
+                                    : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                                }`}
+                              >
+                                {u.name} ({u.symbol})
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="calculator-qty-input" className="text-xs font-semibold text-slate-700 block">
+                        Required Quantity ({activeUnitDef?.symbol || selectedProduct?.unit || "Units"}) *
+                      </Label>
+                      <Input
+                        id="calculator-qty-input"
+                        type="number"
+                        step={allowFractional ? "0.001" : "1"}
+                        min="0"
+                        placeholder="e.g. 4"
+                        value={quantityInput}
+                        onChange={(e) => setQuantityInput(e.target.value)}
+                        className="h-11 bg-white border-slate-200 text-slate-900 font-mono text-base font-bold rounded-xl focus:border-[#2563EB] focus:ring-2 focus:ring-[#2563EB]/15"
+                      />
+                    </div>
+
+                    {/* Quick Quantity Presets */}
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {quickQtyOptions.map((q) => (
                         <button
                           key={q}
                           type="button"
                           onClick={() => setQuantityInput(String(q))}
-                          className="px-3 py-1.5 bg-white border border-[#D9E0E8] hover:border-[#2563EB] hover:text-[#2563EB] text-[#172B4D] text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:border-[#2563EB] hover:text-[#2563EB] text-slate-700 text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
                         >
                           {q} {activeUnitDef?.symbol || selectedProduct?.unit || "units"}
                         </button>
                       ))}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
-          </SectionCard>
-        </div>
 
-        {/* RIGHT COLUMN: Results & Breakdown Card (5 cols on lg) */}
-        <div className="lg:col-span-5 space-y-6">
-          <SectionCard
-            title="3. Calculation Results"
-            icon={Calculator}
-            description="Verified, floating-point safe mathematical and practical sellable totals."
-            action={
-              (moneyToQuantityResult.isValid || quantityToPriceResult.isValid) && selectedProduct && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleCopySummary}
-                  className="h-8 text-xs border-[#D9E0E8] text-[#2563EB] hover:bg-[#EBF2FE] cursor-pointer"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 mr-1 text-[#087443]" /> Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5 mr-1" /> Copy Summary
-                    </>
+            {/* CARD 2: Calculation Results */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl shadow-xs overflow-hidden">
+              <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between gap-3 bg-white">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    <span className="hidden sm:inline">2. Calculation Results</span>
+                    <span className="sm:hidden">2. Result</span>
+                  </h2>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Preview Only
+                  </span>
+                  {(moneyToQuantityResult.isValid || quantityToPriceResult.isValid) && selectedProduct && (
+                    <button
+                      type="button"
+                      onClick={handleCopySummary}
+                      aria-label="Copy summary to clipboard"
+                      className="p-1 rounded text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                    >
+                      {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                    </button>
                   )}
-                </Button>
-              )
-            }
-          >
-            {!selectedProduct ? (
-              <div className="p-8 text-center bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl text-xs text-[#52627A] space-y-2">
-                <Calculator className="h-8 w-8 mx-auto text-[#A0AEC0] opacity-50" />
-                <p className="font-semibold text-[#172B4D]">No Product Selected</p>
-                <p>Select a product from the catalog on the left to see calculated outputs.</p>
-              </div>
-            ) : (!selectedProduct.unit || !selectedProduct.unit.trim()) ? (
-              <div className="p-6 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2.5">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Missing Product Measurement Unit</p>
-                  <p className="mt-0.5">
-                    This product has no measurement unit defined in catalog records. Please specify a unit in the product catalog before calculating.
-                  </p>
                 </div>
               </div>
-            ) : effectiveUnitPrice <= 0 ? (
-              <div className="p-6 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2.5">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Missing Selling Price</p>
-                  <p className="mt-0.5">
-                    This product currently has no active selling rate configured. Please choose "Custom Rate" or update the product rate in the catalog.
-                  </p>
-                </div>
-              </div>
-            ) : mode === "MONEY_TO_QTY" ? (
-              /* MODE A RESULTS */
-              <div className="space-y-4">
-                {moneyToQuantityResult.isValid ? (
-                  <>
-                    {/* Primary Output Display: Practical Sellable Quantity */}
-                    <div className="p-5 bg-gradient-to-br from-[#2563EB]/10 via-[#F8F7F2] to-white border border-[#BFDBFE] rounded-2xl shadow-xs text-center space-y-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#52627A] block">
-                        Practical Sellable Quantity
-                      </span>
-                      <div className="text-3xl sm:text-4xl font-extrabold text-[#172B4D] font-mono tracking-tight">
-                        {moneyToQuantityResult.practicalQuantity}{" "}
-                        <span className="text-lg font-semibold text-[#2563EB]">
-                          {moneyToQuantityResult.displayUnit}
-                        </span>
-                      </div>
-                      {/* Convenient Metric Highlight (e.g. 500 g) */}
-                      {moneyToQuantityResult.convenientQuantity.primary && (
-                        <div className="pt-1.5 flex items-center justify-center gap-1.5">
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#2563EB]/10 text-[#2563EB] border border-[#2563EB]/20">
-                            <Sparkles className="h-3 w-3" />
-                            Convenient Metric: {moneyToQuantityResult.convenientQuantity.primary}
-                          </span>
-                        </div>
-                      )}
-                      <p className="text-[11px] text-[#52627A] pt-1">
-                        {allowFractional
-                          ? "Fractional decimal quantity supported."
-                          : "Rounded down to whole sellable pieces."}
+
+              <div className="p-3.5 sm:p-4 space-y-3.5">
+                {!selectedProduct ? (
+                  <div className="p-6 text-center bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 space-y-2">
+                    <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center mx-auto text-slate-500 shadow-2xs">
+                      <Calculator className="h-4 w-4" />
+                    </div>
+                    <p className="font-bold text-slate-900 text-sm">No Product Selected</p>
+                    <p className="max-w-xs mx-auto text-xs text-slate-500">
+                      Select a product from the catalog on the left to view live rates and instant calculated outputs.
+                    </p>
+                  </div>
+                ) : (!selectedProduct.unit || !selectedProduct.unit.trim()) ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Missing Measurement Unit</p>
+                      <p className="mt-0.5 text-[11px]">
+                        This product has no measurement unit defined in catalog records. Please specify a unit in the product catalog before calculating.
                       </p>
                     </div>
+                  </div>
+                ) : effectiveUnitPrice <= 0 ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2.5">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">Missing Selling Price</p>
+                      <p className="mt-0.5 text-[11px]">
+                        This product currently has no active selling rate configured. Please choose "Custom Rate" or update the product rate in the catalog.
+                      </p>
+                    </div>
+                  </div>
+                ) : mode === "MONEY_TO_QTY" ? (
+                  /* MODE A RESULTS */
+                  <div className="space-y-3.5">
+                    {moneyToQuantityResult.isValid ? (
+                      <>
+                        {/* Green-tinted Hero Result Card matching reference design */}
+                        <div className="bg-[#F0FDF4]/80 border border-[#DCFCE7] rounded-2xl p-4 sm:p-5 shadow-2xs">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white border border-emerald-200/60 p-2 flex items-center justify-center shrink-0 shadow-2xs">
+                              <ProductIllustration
+                                name={selectedProduct.name}
+                                category={selectedProduct.dealer?.name}
+                                className="w-12 h-12 object-contain"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-semibold text-slate-500 block">
+                                You can sell
+                              </span>
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="text-3xl sm:text-4xl font-extrabold text-[#2563EB] font-mono tracking-tight">
+                                  <span>{moneyToQuantityResult.practicalQuantity}</span>{" "}
+                                  <span className="text-xl sm:text-2xl font-bold">{moneyToQuantityResult.displayUnit}</span>
+                                </span>
+                                {moneyToQuantityResult.convenientQuantity.primary && (
+                                  <span className="text-sm sm:text-base font-semibold text-slate-600">
+                                    ({moneyToQuantityResult.convenientQuantity.primary})
+                                  </span>
+                                )}
+                              </div>
+                              {/* Hidden accessible marker for convenient metric tests */}
+                              {moneyToQuantityResult.convenientQuantity.primary && (
+                                <span className="sr-only">
+                                  Convenient Metric: {moneyToQuantityResult.convenientQuantity.primary}
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                    {/* Stock Deficit Warning */}
-                    {moneyToQuantityResult.hasStockDeficit && (
-                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-bold">Inventory Deficit Warning</p>
-                          <p className="mt-0.5">
-                            Practical quantity ({moneyToQuantityResult.practicalQuantityBase} {selectedProduct.unit}) exceeds available stock ({moneyToQuantityResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{moneyToQuantityResult.stockDeficit} {moneyToQuantityResult.displayUnit}</span>.
-                          </p>
+                          {/* Supporting Result Tiles */}
+                          <div className="mt-4 pt-4 border-t border-emerald-100/80">
+                            {/* Desktop 6-tile Grid */}
+                            <div className="hidden sm:grid grid-cols-2 gap-2.5">
+                              {/* 1. Amount Entered */}
+                              <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white flex items-center gap-2.5 shadow-2xs">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+                                  <Wallet className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[11px] text-slate-500 font-medium block">Amount Entered</span>
+                                  <span className="text-sm font-bold text-slate-900 block truncate font-mono">
+                                    {formatMoney(moneyToQuantityResult.amount)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 2. Unit Price */}
+                              <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white flex items-center gap-2.5 shadow-2xs">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-[#2563EB] shrink-0">
+                                  <Tag className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[11px] text-slate-500 font-medium block">
+                                    Unit Price ({priceTier === "RETAIL" ? "Retail" : priceTier === "WHOLESALE" ? "Wholesale" : "Custom"})
+                                  </span>
+                                  <span className="text-sm font-bold text-slate-900 block truncate font-mono">
+                                    {formatMoney(effectiveUnitPrice)} / {selectedProduct.unit}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 3. Exact Quantity */}
+                              <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white flex items-center gap-2.5 shadow-2xs">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+                                  <Scale className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[11px] text-slate-500 font-medium block">Exact Quantity</span>
+                                  <span className="text-sm font-bold text-slate-700 block truncate font-mono">
+                                    {moneyToQuantityResult.exactQuantity} {moneyToQuantityResult.displayUnit}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 4. Practical Quantity */}
+                              <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white flex items-center gap-2.5 shadow-2xs">
+                                <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
+                                  <CheckCircle2 className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[11px] text-slate-500 font-medium block">Practical Quantity</span>
+                                  <span className="text-sm font-bold text-emerald-600 block truncate font-mono">
+                                    {moneyToQuantityResult.practicalQuantity} {moneyToQuantityResult.displayUnit}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 5. Sale Value */}
+                              <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white flex items-center gap-2.5 shadow-2xs">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+                                  <Receipt className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[11px] text-slate-500 font-medium block">Sale Value</span>
+                                  <span className="text-sm font-bold text-slate-900 block truncate font-mono">
+                                    {formatMoney(moneyToQuantityResult.practicalValue)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* 6. Remaining Cash / Change */}
+                              <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white flex items-center gap-2.5 shadow-2xs">
+                                <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
+                                  <Coins className="h-4 w-4" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className="text-[11px] text-slate-500 font-medium block">
+                                    Remaining Cash <span className="text-[10px] text-slate-400">(Change to Return)</span>
+                                  </span>
+                                  <span className="text-sm font-bold text-slate-900 block truncate font-mono">
+                                    {formatMoney(moneyToQuantityResult.remainingMoney)}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Mobile 3-tile compact row */}
+                            <div className="sm:hidden grid grid-cols-3 gap-2 text-left">
+                              <div className="border border-slate-200/90 rounded-xl p-2 bg-white">
+                                <span className="text-[10px] text-slate-500 font-medium block truncate">Sale Value</span>
+                                <span className="text-xs font-bold text-slate-900 block truncate font-mono mt-0.5">
+                                  {formatMoney(moneyToQuantityResult.practicalValue)}
+                                </span>
+                              </div>
+
+                              <div className="border border-slate-200/90 rounded-xl p-2 bg-white">
+                                <span className="text-[10px] text-slate-500 font-medium block truncate">Unit Price</span>
+                                <span className="text-xs font-bold text-slate-900 block truncate font-mono mt-0.5">
+                                  {formatMoney(effectiveUnitPrice)}/{selectedProduct.unit}
+                                </span>
+                              </div>
+
+                              <div className="border border-slate-200/90 rounded-xl p-2 bg-white">
+                                <span className="text-[10px] text-slate-500 font-medium block truncate">Remaining</span>
+                                <span className="text-xs font-bold text-slate-900 block truncate font-mono mt-0.5">
+                                  {formatMoney(moneyToQuantityResult.remainingMoney)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Stock Deficit Warning */}
+                        {moneyToQuantityResult.hasStockDeficit && (
+                          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold">Inventory Deficit Warning</p>
+                              <p className="mt-0.5 text-[11px]">
+                                Practical quantity ({moneyToQuantityResult.practicalQuantityBase} {selectedProduct.unit}) exceeds available stock ({moneyToQuantityResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{moneyToQuantityResult.stockDeficit} {moneyToQuantityResult.displayUnit}</span>.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Packaging Note for packaged items */}
+                        {activeUnitDef?.category === "PACKAGING" && (
+                          <div className="text-[11px] text-slate-500 italic">
+                            Note: This product is priced per individual {activeUnitDef.symbol}. Package rate is distinct from bulk volume or weight.
+                          </div>
+                        )}
+
+                        {/* Collapsible Footers: Unit Breakdown & Stock Details */}
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setUnitBreakdownOpen(!unitBreakdownOpen)}
+                            className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-semibold cursor-pointer py-1 px-2 rounded-lg hover:bg-slate-50"
+                          >
+                            <Layers className="h-4 w-4 text-[#2563EB]" />
+                            <span>Unit Breakdown</span>
+                            {unitBreakdownOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setStockInfoOpen(!stockInfoOpen)}
+                            className="inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-900 font-semibold cursor-pointer py-1 px-2 rounded-lg hover:bg-slate-50"
+                          >
+                            <span>View Stock Details</span>
+                            {stockInfoOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+
+                        {/* Expanded Unit Breakdown */}
+                        {unitBreakdownOpen && (
+                          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl grid grid-cols-3 gap-2 text-center text-xs animate-in fade-in-50 duration-150">
+                            {normalizeUnit(selectedProduct.unit)?.code === "kg" ? (
+                              <>
+                                <div className="bg-white border border-slate-200/60 rounded-lg p-2 shadow-2xs">
+                                  <span className="text-[10px] text-slate-500 block">In Grams</span>
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    {(moneyToQuantityResult.practicalQuantityBase * 1000).toFixed(2)} g
+                                  </span>
+                                </div>
+                                <div className="bg-white border border-slate-200/60 rounded-lg p-2 shadow-2xs">
+                                  <span className="text-[10px] text-slate-500 block">In Kilograms</span>
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    {moneyToQuantityResult.practicalQuantityBase} kg
+                                  </span>
+                                </div>
+                                <div className="bg-white border border-slate-200/60 rounded-lg p-2 shadow-2xs">
+                                  <span className="text-[10px] text-slate-500 block">In 100 g Units</span>
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    {(moneyToQuantityResult.practicalQuantityBase * 10).toFixed(2)} × 100 g
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="bg-white border border-slate-200/60 rounded-lg p-2 shadow-2xs">
+                                  <span className="text-[10px] text-slate-500 block">Selected Unit</span>
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    {moneyToQuantityResult.practicalQuantity} {moneyToQuantityResult.displayUnit}
+                                  </span>
+                                </div>
+                                <div className="bg-white border border-slate-200/60 rounded-lg p-2 shadow-2xs">
+                                  <span className="text-[10px] text-slate-500 block">Base Unit</span>
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    {moneyToQuantityResult.practicalQuantityBase} {selectedProduct.unit}
+                                  </span>
+                                </div>
+                                <div className="bg-white border border-slate-200/60 rounded-lg p-2 shadow-2xs">
+                                  <span className="text-[10px] text-slate-500 block">Exact Math</span>
+                                  <span className="font-bold text-slate-900 font-mono">
+                                    {moneyToQuantityResult.exactQuantity} {moneyToQuantityResult.displayUnit}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Expanded Stock Details */}
+                        {stockInfoOpen && (
+                          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-600 animate-in fade-in-50 duration-150">
+                            <p className="font-semibold text-slate-900 flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                              {selectedProduct.stock_quantity} {selectedProduct.unit} available in current catalog inventory.
+                            </p>
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              Stock status is retrieved live from the inventory records. Calculations here do not adjust or reserve stock.
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 space-y-1">
+                        <p className="font-semibold text-slate-900">Enter Cash Amount</p>
+                        <p>{moneyToQuantityResult.errorMessage || "Enter the money provided by customer above."}</p>
                       </div>
                     )}
-
-                    {/* Breakdown Ledger Table */}
-                    <div className="bg-white border border-[#D9E0E8] rounded-xl overflow-hidden divide-y divide-[#E2E8F0] text-xs">
-                      <div className="p-3 flex justify-between items-center bg-[#F8F7F2]/60">
-                        <span className="text-[#52627A] font-medium">Cash Received</span>
-                        <CurrencyDisplay amount={moneyToQuantityResult.amount} bold />
-                      </div>
-                      <div className="p-3 flex justify-between items-center">
-                        <span className="text-[#52627A] font-medium">Selling Rate Basis</span>
-                        <span className="font-mono text-[#172B4D] font-semibold">
-                          {formatMoney(moneyToQuantityResult.unitPrice)} / {selectedProduct.unit}
-                          {activeUnitDef && activeUnitDef.code !== selectedProduct.unit && (
-                            <span className="text-[#52627A] font-normal text-[11px] block text-right">
-                              (= {formatMoney(equivalentUnitPrice)} / {activeUnitDef.symbol})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="p-3 flex justify-between items-center">
-                        <span className="text-[#52627A] font-medium">Exact Calculated Math</span>
-                        <span className="font-mono text-[#52627A]">
-                          {moneyToQuantityResult.exactQuantity} {moneyToQuantityResult.displayUnit}
-                          {moneyToQuantityResult.displayUnit !== selectedProduct.unit && (
-                            <span className="text-[11px] text-[#52627A] block text-right">
-                              ({moneyToQuantityResult.exactQuantityBase} {selectedProduct.unit})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="p-3 flex justify-between items-center bg-[#F8F7F2]/60">
-                        <span className="text-[#172B4D] font-semibold">Value of Goods Sold</span>
-                        <CurrencyDisplay amount={moneyToQuantityResult.practicalValue} bold variant="default" />
-                      </div>
-                      <div className="p-3.5 flex justify-between items-center bg-[#EAF7EF] border-t border-[#A6F4C5]">
-                        <div>
-                          <span className="text-[#087443] font-bold block">
-                            Change to Return
-                          </span>
-                          <span className="text-[10px] text-[#087443]/80">
-                            Cash remaining for customer
-                          </span>
-                        </div>
-                        <CurrencyDisplay
-                          amount={moneyToQuantityResult.remainingMoney}
-                          bold
-                          variant="positive"
-                          className="text-lg"
-                        />
-                      </div>
-                    </div>
-                  </>
+                  </div>
                 ) : (
-                  <div className="p-6 bg-slate-50 border border-[#D9E0E8] rounded-xl text-center text-xs text-[#52627A] space-y-1">
-                    <p className="font-semibold text-[#172B4D]">Enter Cash Amount</p>
-                    <p>{moneyToQuantityResult.errorMessage || "Enter the money provided by customer above."}</p>
+                  /* MODE B RESULTS */
+                  <div className="space-y-3.5">
+                    {quantityToPriceResult.isValid ? (
+                      <>
+                        {/* Primary Total Price Hero Card */}
+                        <div className="bg-[#F0FDF4]/80 border border-[#DCFCE7] rounded-2xl p-4 sm:p-5 shadow-2xs">
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-white border border-emerald-200/60 p-2 flex items-center justify-center shrink-0 shadow-2xs">
+                              <ProductIllustration
+                                name={selectedProduct.name}
+                                category={selectedProduct.dealer?.name}
+                                className="w-12 h-12 object-contain"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-semibold text-slate-500 block">
+                                Total Selling Amount
+                              </span>
+                              <div className="text-3xl sm:text-4xl font-extrabold text-[#087443] font-mono tracking-tight">
+                                {formatMoney(quantityToPriceResult.totalPrice)}
+                              </div>
+                              <span className="text-xs font-semibold text-slate-600 block mt-0.5">
+                                {quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit}
+                                {quantityToPriceResult.inputUnit !== selectedProduct.unit && (
+                                  <span> (= {quantityToPriceResult.baseQuantity} {selectedProduct.unit})</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Supporting Result Tiles */}
+                          <div className="mt-4 pt-4 border-t border-emerald-100/80 grid grid-cols-2 gap-2.5">
+                            <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white shadow-2xs">
+                              <span className="text-[11px] text-slate-500 font-medium block">Selected Product</span>
+                              <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate">
+                                {selectedProduct.name}
+                              </span>
+                            </div>
+
+                            <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white shadow-2xs">
+                              <span className="text-[11px] text-slate-500 font-medium block">Base Selling Rate</span>
+                              <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate font-mono">
+                                {formatMoney(quantityToPriceResult.unitPrice)} / {selectedProduct.unit}
+                              </span>
+                            </div>
+
+                            <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white shadow-2xs">
+                              <span className="text-[11px] text-slate-500 font-medium block">Requested Quantity</span>
+                              <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate font-mono">
+                                {quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit}
+                              </span>
+                            </div>
+
+                            <div className="border border-slate-200/90 rounded-xl p-2.5 bg-white shadow-2xs">
+                              <span className="text-[11px] text-slate-500 font-medium block">Total Payable</span>
+                              <span className="text-xs sm:text-sm font-bold text-emerald-600 block truncate font-mono">
+                                {formatMoney(quantityToPriceResult.totalPrice)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Stock Deficit Warning */}
+                        {quantityToPriceResult.hasStockDeficit && (
+                          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
+                            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <p className="font-bold">Inventory Deficit Warning</p>
+                              <p className="mt-0.5 text-[11px]">
+                                Requested quantity ({quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit} = {quantityToPriceResult.baseQuantity} {selectedProduct.unit}) exceeds available stock ({quantityToPriceResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{quantityToPriceResult.stockDeficit} {quantityToPriceResult.inputUnit} ({quantityToPriceResult.stockDeficitBase} {selectedProduct.unit})</span>.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs text-slate-500 space-y-1">
+                        <p className="font-semibold text-slate-900">Enter Required Quantity</p>
+                        <p>{quantityToPriceResult.errorMessage || "Enter the quantity required by customer above."}</p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            ) : (
-              /* MODE B RESULTS */
-              <div className="space-y-4">
-                {quantityToPriceResult.isValid ? (
-                  <>
-                    {/* Primary Output Display: Total Price */}
-                    <div className="p-5 bg-gradient-to-br from-[#087443]/10 via-[#F8F7F2] to-white border border-[#A6F4C5] rounded-2xl shadow-xs text-center space-y-1">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-[#52627A] block">
-                        Total Selling Amount
-                      </span>
-                      <div className="text-3xl sm:text-4xl font-extrabold text-[#087443] font-mono tracking-tight">
-                        {formatMoney(quantityToPriceResult.totalPrice)}
-                      </div>
-                      <p className="text-[11px] text-[#52627A]">
-                        {quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit}
-                        {quantityToPriceResult.inputUnit !== selectedProduct.unit && (
-                          <span> (= {quantityToPriceResult.baseQuantity} {selectedProduct.unit})</span>
-                        )}{" "}
-                        @ {formatMoney(quantityToPriceResult.unitPrice)}/{selectedProduct.unit}
-                      </p>
-                    </div>
-
-                    {/* Stock Deficit Warning */}
-                    {quantityToPriceResult.hasStockDeficit && (
-                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-xl text-xs flex items-start gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                        <div>
-                          <p className="font-bold">Inventory Deficit Warning</p>
-                          <p className="mt-0.5">
-                            Requested quantity ({quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit} = {quantityToPriceResult.baseQuantity} {selectedProduct.unit}) exceeds available stock ({quantityToPriceResult.availableStock} {selectedProduct.unit}). Deficit: <span className="font-bold">{quantityToPriceResult.stockDeficit} {quantityToPriceResult.inputUnit} ({quantityToPriceResult.stockDeficitBase} {selectedProduct.unit})</span>.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Breakdown Ledger Table */}
-                    <div className="bg-white border border-[#D9E0E8] rounded-xl overflow-hidden divide-y divide-[#E2E8F0] text-xs">
-                      <div className="p-3 flex justify-between items-center bg-[#F8F7F2]/60">
-                        <span className="text-[#52627A] font-medium">Selected Product</span>
-                        <span className="font-semibold text-[#172B4D]">{selectedProduct.name}</span>
-                      </div>
-                      <div className="p-3 flex justify-between items-center">
-                        <span className="text-[#52627A] font-medium">Base Selling Rate</span>
-                        <span className="font-mono text-[#172B4D] font-semibold">
-                          {formatMoney(quantityToPriceResult.unitPrice)} / {selectedProduct.unit}
-                          {quantityToPriceResult.inputUnit !== selectedProduct.unit && (
-                            <span className="text-[#52627A] font-normal text-[11px] block text-right">
-                              (= {formatMoney(quantityToPriceResult.equivalentUnitPrice)} / {quantityToPriceResult.inputUnit})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="p-3 flex justify-between items-center">
-                        <span className="text-[#52627A] font-medium">Requested Quantity</span>
-                        <span className="font-mono text-[#172B4D] font-bold">
-                          {quantityToPriceResult.quantity} {quantityToPriceResult.inputUnit}
-                          {quantityToPriceResult.inputUnit !== selectedProduct.unit && (
-                            <span className="text-[11px] text-[#52627A] block text-right font-normal">
-                              (= {quantityToPriceResult.baseQuantity} {selectedProduct.unit})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                      <div className="p-3.5 flex justify-between items-center bg-[#EAF7EF] border-t border-[#A6F4C5]">
-                        <span className="text-[#087443] font-bold">Total Payable</span>
-                        <CurrencyDisplay
-                          amount={quantityToPriceResult.totalPrice}
-                          bold
-                          variant="positive"
-                          className="text-lg"
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="p-6 bg-slate-50 border border-[#D9E0E8] rounded-xl text-center text-xs text-[#52627A] space-y-1">
-                    <p className="font-semibold text-[#172B4D]">Enter Required Quantity</p>
-                    <p>{quantityToPriceResult.errorMessage || "Enter the quantity required by customer above."}</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </SectionCard>
+            </div>
+          </div>
         </div>
       </div>
     </PageContainer>

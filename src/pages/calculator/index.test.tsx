@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import ProductCalculatorPage from "./index"
@@ -141,7 +141,7 @@ describe("ProductCalculatorPage Component", () => {
     fireEvent.change(select, { target: { value: "prod-1" } })
 
     // Product info and active rates are visible
-    expect(screen.getByText("Cooking Oil 5L")).toBeDefined()
+    expect(screen.getAllByText("Cooking Oil 5L").length).toBeGreaterThan(0)
     expect(screen.getByText(/25 tin in stock/i)).toBeDefined()
     // Defaults to wholesale price (₹500.00)
     expect(screen.getAllByText(/500/i).length).toBeGreaterThan(0)
@@ -269,7 +269,7 @@ describe("ProductCalculatorPage Component", () => {
 
     // ₹1000 / ₹100 = 10 kg
     await waitFor(() => {
-      expect(screen.getByText("Basmati Rice Premium")).toBeDefined()
+      expect(screen.getAllByText("Basmati Rice Premium").length).toBeGreaterThan(0)
       expect(screen.getByText("10")).toBeDefined()
     })
   })
@@ -303,7 +303,7 @@ describe("ProductCalculatorPage Component", () => {
     const select = await screen.findByLabelText(/Select Product/i)
     fireEvent.change(select, { target: { value: "prod-8" } }) // Mystery Item without unit
 
-    expect(await screen.findByText(/Missing Measurement Unit/i)).toBeDefined()
+    expect((await screen.findAllByText(/Missing Measurement Unit/i)).length).toBeGreaterThan(0)
   })
 
   // 10. Fractional quantities, rounding, and whole-unit restrictions
@@ -402,5 +402,78 @@ describe("ProductCalculatorPage Component", () => {
 
     // Verify supabase mutation methods (insert, update, delete, rpc) were NEVER called
     expect(supabase.from).not.toHaveBeenCalled()
+  })
+
+  // 16. Combobox portal rendering, search filtering, and product selection
+  it("opens the searchable combobox portal and filters products by query", async () => {
+    renderCalculator()
+
+    // Trigger button
+    const trigger = await screen.findByRole("combobox", { name: /Open product catalog/i })
+    fireEvent.click(trigger)
+
+    // Verify search input is present in the portaled dropdown
+    const searchInput = screen.getByRole("searchbox", { name: "" })
+    expect(searchInput).toBeDefined()
+
+    // Type "Almonds"
+    fireEvent.change(searchInput, { target: { value: "Almonds" } })
+
+    const listbox = screen.getByRole("listbox")
+    // Only Almonds California should be visible in filtered list
+    expect(within(listbox).getByText("Almonds California")).toBeDefined()
+    expect(within(listbox).queryByText("Basmati Rice Premium")).toBeNull()
+
+    // Select Almonds California
+    fireEvent.click(within(listbox).getByText("Almonds California"))
+
+    // Selected product summary appears
+    await waitFor(() => {
+      expect(screen.getAllByText("Almonds California").length).toBeGreaterThan(0)
+    })
+  })
+
+  // 17. Keyboard navigation in searchable combobox (ArrowDown, Enter, Escape)
+  it("supports keyboard navigation: ArrowDown, Enter to select, and Escape to dismiss", async () => {
+    renderCalculator()
+
+    const trigger = await screen.findByRole("combobox", { name: /Open product catalog/i })
+
+    // Open via Enter
+    fireEvent.keyDown(trigger, { key: "Enter" })
+    expect(screen.getByRole("searchbox")).toBeDefined()
+
+    // Press Escape to dismiss
+    const searchInput = screen.getByRole("searchbox")
+    fireEvent.keyDown(searchInput, { key: "Escape" })
+    expect(screen.queryByRole("searchbox")).toBeNull()
+
+    // Open again via ArrowDown
+    fireEvent.keyDown(trigger, { key: "ArrowDown" })
+    expect(screen.getByRole("searchbox")).toBeDefined()
+
+    // Press ArrowDown to navigate to second item and Enter to select
+    const searchInput2 = screen.getByRole("searchbox")
+    fireEvent.keyDown(searchInput2, { key: "ArrowDown" })
+    fireEvent.keyDown(searchInput2, { key: "Enter" })
+
+    // Second product selected
+    await waitFor(() => {
+      expect(screen.getAllByText("Basmati Rice Premium").length).toBeGreaterThan(0)
+    })
+  })
+
+  // 18. Outside click dismisses the portaled combobox menu
+  it("dismisses the combobox dropdown when clicking outside", async () => {
+    renderCalculator()
+
+    const trigger = await screen.findByRole("combobox", { name: /Open product catalog/i })
+    fireEvent.click(trigger)
+    expect(screen.getByRole("searchbox")).toBeDefined()
+
+    // Click outside on heading
+    const heading = screen.getByText(/Product Price & Quantity Calculator/i)
+    fireEvent.mouseDown(heading)
+    expect(screen.queryByRole("searchbox")).toBeNull()
   })
 })
