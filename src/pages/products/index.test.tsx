@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import ProductsPage from "./index"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
@@ -101,19 +101,20 @@ describe("ProductsPage and EditProductModal Component", () => {
       </QueryClientProvider>
     )
 
-  it("renders the products catalog title, create form, and products table", async () => {
+  it("renders the products directory header, categories strip, and products catalogue", async () => {
     renderComponent()
 
-    expect(screen.getByText("Products Catalog")).toBeDefined()
-    expect(screen.getByText("Add New Product")).toBeDefined()
+    expect(screen.getByText("Product Catalog")).toBeDefined()
+    expect(screen.getByText("Total Products")).toBeDefined()
+    expect(screen.getByText("Total Stock Value")).toBeDefined()
 
-    // Wait for data to load in table
+    // Wait for data to load in cards
     await waitFor(() => {
       expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
       expect(screen.getAllByText("Organic Walnuts").length).toBeGreaterThan(0)
     })
 
-    // Check dealer badges in table
+    // Check dealer badges
     expect(screen.getAllByText("Sunrise Agro Traders").length).toBeGreaterThan(0)
     expect(screen.getAllByText("Valley Dry Fruits Co").length).toBeGreaterThan(0)
   })
@@ -122,26 +123,37 @@ describe("ProductsPage and EditProductModal Component", () => {
     renderComponent()
 
     await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    // Click Add Product to open AddProductModal
+    const openAddBtn = screen.getByRole("button", { name: /Add Product/i })
+    fireEvent.click(openAddBtn)
+
+    await waitFor(() => {
       expect(screen.getByPlaceholderText(/e\.g\. Sider Honey/i)).toBeDefined()
     })
 
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Sider Honey/i), {
+    const modal = screen.getByRole("dialog")
+
+    fireEvent.change(within(modal).getByPlaceholderText(/e\.g\. Sider Honey/i), {
       target: { value: "Green Cardamom" },
     })
 
-    const selects = screen.getAllByRole("combobox")
-    // First select is dealer, second is unit
-    fireEvent.change(selects[0], { target: { value: "dealer-1" } })
-    fireEvent.change(selects[1], { target: { value: "Kg" } })
+    const dealerSelect = within(modal).getByLabelText(/Dealer/i)
+    const unitSelect = within(modal).getByLabelText(/Unit/i)
+    fireEvent.change(dealerSelect, { target: { value: "dealer-1" } })
+    fireEvent.change(unitSelect, { target: { value: "Kg" } })
 
-    const inputs = screen.getAllByRole("spinbutton")
-    // spinbuttons are: Buying Cost, Wholesale Rate, Retail Rate
-    fireEvent.change(inputs[0], { target: { value: "1200" } })
-    fireEvent.change(inputs[1], { target: { value: "1450" } })
-    fireEvent.change(inputs[2], { target: { value: "1600" } })
+    const costInput = within(modal).getByLabelText(/Buying/i)
+    const wholesaleInput = within(modal).getByLabelText(/Wholesale/i)
+    const retailInput = within(modal).getByLabelText(/Retail/i)
+    fireEvent.change(costInput, { target: { value: "1200" } })
+    fireEvent.change(wholesaleInput, { target: { value: "1450" } })
+    fireEvent.change(retailInput, { target: { value: "1600" } })
 
-    const submitBtn = screen.getByRole("button", { name: /Add Product/i })
-    fireEvent.click(submitBtn)
+    const form = modal.querySelector("form")!
+    fireEvent.submit(form)
 
     await waitFor(() => {
       expect(createProduct).toHaveBeenCalledWith(
@@ -247,7 +259,6 @@ describe("ProductsPage and EditProductModal Component", () => {
     })
 
     const nameInput = screen.getByDisplayValue("California Almonds")
-    // Set to whitespace string to test trim validation
     fireEvent.change(nameInput, { target: { value: "   " } })
 
     const saveBtn = screen.getByRole("button", { name: /Save Changes/i })
@@ -289,24 +300,36 @@ describe("ProductsPage and EditProductModal Component", () => {
     renderComponent()
 
     await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    const openAddBtn = screen.getByRole("button", { name: /Add Product/i })
+    fireEvent.click(openAddBtn)
+
+    await waitFor(() => {
       expect(screen.getByPlaceholderText(/e\.g\. Sider Honey/i)).toBeDefined()
     })
 
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Sider Honey/i), {
+    const modal = screen.getByRole("dialog")
+
+    fireEvent.change(within(modal).getByPlaceholderText(/e\.g\. Sider Honey/i), {
       target: { value: "   Kashmiri Saffron   " },
     })
 
-    const selects = screen.getAllByRole("combobox")
-    fireEvent.change(selects[0], { target: { value: "dealer-1" } })
-    fireEvent.change(selects[1], { target: { value: "Box" } })
+    const dealerSelect = within(modal).getByLabelText(/Dealer/i)
+    const unitSelect = within(modal).getByLabelText(/Unit/i)
+    fireEvent.change(dealerSelect, { target: { value: "dealer-1" } })
+    fireEvent.change(unitSelect, { target: { value: "Box" } })
 
-    const inputs = screen.getAllByRole("spinbutton")
-    fireEvent.change(inputs[0], { target: { value: "250" } })
-    fireEvent.change(inputs[1], { target: { value: "320" } })
-    fireEvent.change(inputs[2], { target: { value: "400" } })
+    const costInput = within(modal).getByLabelText(/Buying/i)
+    const wholesaleInput = within(modal).getByLabelText(/Wholesale/i)
+    const retailInput = within(modal).getByLabelText(/Retail/i)
+    fireEvent.change(costInput, { target: { value: "250" } })
+    fireEvent.change(wholesaleInput, { target: { value: "320" } })
+    fireEvent.change(retailInput, { target: { value: "400" } })
 
-    const submitBtn = screen.getByRole("button", { name: /Add Product/i })
-    fireEvent.click(submitBtn)
+    const form = modal.querySelector("form")!
+    fireEvent.submit(form)
 
     await waitFor(() => {
       expect(createProduct).toHaveBeenCalledWith(
@@ -323,23 +346,34 @@ describe("ProductsPage and EditProductModal Component", () => {
     renderComponent()
 
     await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    const openAddBtn = screen.getByRole("button", { name: /Add Product/i })
+    fireEvent.click(openAddBtn)
+
+    await waitFor(() => {
       expect(screen.getByPlaceholderText(/e\.g\. Sider Honey/i)).toBeDefined()
     })
 
-    fireEvent.change(screen.getByPlaceholderText(/e\.g\. Sider Honey/i), {
+    const modal = screen.getByRole("dialog")
+
+    fireEvent.change(within(modal).getByPlaceholderText(/e\.g\. Sider Honey/i), {
       target: { value: "Invalid Product" },
     })
 
-    const selects = screen.getAllByRole("combobox")
-    fireEvent.change(selects[0], { target: { value: "dealer-1" } })
+    const dealerSelect = within(modal).getByLabelText(/Dealer/i)
+    fireEvent.change(dealerSelect, { target: { value: "dealer-1" } })
 
-    const inputs = screen.getAllByRole("spinbutton")
-    fireEvent.change(inputs[0], { target: { value: "-100" } })
-    fireEvent.change(inputs[1], { target: { value: "100" } })
-    fireEvent.change(inputs[2], { target: { value: "120" } })
+    const costInput = within(modal).getByLabelText(/Buying/i)
+    const wholesaleInput = within(modal).getByLabelText(/Wholesale/i)
+    const retailInput = within(modal).getByLabelText(/Retail/i)
+    fireEvent.change(costInput, { target: { value: "-100" } })
+    fireEvent.change(wholesaleInput, { target: { value: "100" } })
+    fireEvent.change(retailInput, { target: { value: "120" } })
 
-    const submitBtn = screen.getByRole("button", { name: /Add Product/i })
-    fireEvent.click(submitBtn)
+    const form = modal.querySelector("form")!
+    fireEvent.submit(form)
 
     await waitFor(() => {
       expect(screen.getByText(/Buying cost must be zero or a positive amount/i)).toBeDefined()
@@ -375,6 +409,137 @@ describe("ProductsPage and EditProductModal Component", () => {
       expect(
         screen.getByText(/Cannot delete product because it is referenced by 2 purchase order\(s\)/i)
       ).toBeDefined()
+    })
+  })
+
+  it("filters products when search term is entered", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    const searchInput = screen.getByPlaceholderText(/Search products by name/i)
+    fireEvent.change(searchInput, { target: { value: "Almonds" } })
+
+    expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    expect(screen.queryByText("Organic Walnuts")).toBeNull()
+  })
+
+  it("filters products when category is selected", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    // Both mock products are in Dry Fruits category
+    const honeyBtn = screen.getByRole("button", { name: /Honey category/i })
+    fireEvent.click(honeyBtn)
+
+    // Should show no products for Honey
+    expect(screen.getByText(/No products found/i)).toBeDefined()
+
+    // Reset or click Dry Fruits
+    const dryFruitsBtn = screen.getByRole("button", { name: /Dry Fruits.*category/i })
+    fireEvent.click(dryFruitsBtn)
+
+    expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+  })
+
+  it("renders 3-column mobile grid container with exact grid classes", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    // Verify 3-column mobile grid exists
+    const mobileGrid = document.querySelector(".product-mobile-grid")
+    expect(mobileGrid).toBeDefined()
+    expect(mobileGrid?.classList.contains("grid-cols-3")).toBe(true)
+  })
+
+  it("opens the unified filter drawer when Filters button is clicked and closes on Close button", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    // Filter drawer should not be open initially
+    expect(screen.queryByRole("dialog", { name: "Filter Products" })).toBeNull()
+
+    // Click Filters button in toolbar
+    const filterBtn = screen.getByRole("button", { name: /Open filters panel|Filters/i })
+    fireEvent.click(filterBtn)
+
+    // Drawer should open
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Filter Products" })).toBeDefined()
+    })
+
+    // Verify there is exactly ONE filter dialog in the document (no duplicate panels)
+    const filterDialogs = screen.getAllByRole("dialog", { name: "Filter Products" })
+    expect(filterDialogs.length).toBe(1)
+
+    // Click Close button
+    const closeBtn = screen.getByRole("button", { name: "Close filters" })
+    fireEvent.click(closeBtn)
+
+    // Wait for transition/unmount
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Filter Products" })).toBeNull()
+    })
+  })
+
+  it("closes the filter drawer when Escape key is pressed", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    const filterBtn = screen.getByRole("button", { name: /Open filters panel|Filters/i })
+    fireEvent.click(filterBtn)
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Filter Products" })).toBeDefined()
+    })
+
+    // Press Escape
+    fireEvent.keyDown(window, { key: "Escape", code: "Escape" })
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Filter Products" })).toBeNull()
+    })
+  })
+
+  it("applies stock filters from drawer and filters product catalogue", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    const filterBtn = screen.getByRole("button", { name: /Open filters panel|Filters/i })
+    fireEvent.click(filterBtn)
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog", { name: "Filter Products" })).toBeDefined()
+    })
+
+    // Uncheck In Stock
+    const inStockCheckbox = screen.getByLabelText(/In Stock/i)
+    fireEvent.click(inStockCheckbox)
+
+    // Click Apply Filters
+    const applyBtn = screen.getByRole("button", { name: /Apply Filters/i })
+    fireEvent.click(applyBtn)
+
+    // Both mock products have stock > 2 (In Stock), so unchecking In Stock should filter them out
+    await waitFor(() => {
+      expect(screen.getByText(/No products found/i)).toBeDefined()
     })
   })
 })
