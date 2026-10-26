@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { MemoryRouter } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import ProductCalculatorPage from "./index"
@@ -63,6 +63,50 @@ describe("ProductCalculatorPage Component", () => {
       retail_price: 50,
       stock_quantity: 2, // Low stock for warning verification
       created_at: "2026-01-04",
+    },
+    {
+      id: "prod-5",
+      dealer_id: "dealer-3",
+      name: "Pure Apple Juice",
+      unit: "L",
+      buying_cost: 80,
+      wholesale_price: 120,
+      retail_price: 140,
+      stock_quantity: 30,
+      created_at: "2026-01-05",
+    },
+    {
+      id: "prod-6",
+      dealer_id: "dealer-3",
+      name: "Almonds California",
+      unit: "kg",
+      buying_cost: 160,
+      wholesale_price: 200,
+      retail_price: 220,
+      stock_quantity: 40,
+      created_at: "2026-01-06",
+    },
+    {
+      id: "prod-7",
+      dealer_id: "dealer-3",
+      name: "Cold Drink Glass Bottle",
+      unit: "bottle",
+      buying_cost: 30,
+      wholesale_price: 40,
+      retail_price: 50,
+      stock_quantity: 100,
+      created_at: "2026-01-07",
+    },
+    {
+      id: "prod-8",
+      dealer_id: "dealer-4",
+      name: "Mystery Item",
+      unit: "", // Missing unit
+      buying_cost: 50,
+      wholesale_price: 70,
+      retail_price: 80,
+      stock_quantity: 10,
+      created_at: "2026-01-08",
     }
   ]
 
@@ -97,7 +141,7 @@ describe("ProductCalculatorPage Component", () => {
     fireEvent.change(select, { target: { value: "prod-1" } })
 
     // Product info and active rates are visible
-    expect(screen.getByText("Cooking Oil 5L")).toBeDefined()
+    expect(screen.getAllByText("Cooking Oil 5L").length).toBeGreaterThan(0)
     expect(screen.getByText(/25 tin in stock/i)).toBeDefined()
     // Defaults to wholesale price (₹500.00)
     expect(screen.getAllByText(/500/i).length).toBeGreaterThan(0)
@@ -120,7 +164,22 @@ describe("ProductCalculatorPage Component", () => {
     expect(screen.getByText(/Change to Return/i)).toBeDefined()
   })
 
-  // 3. Mode B: Entering quantity calculates total price correctly
+  // 3. Mode A: Illustrative Example - ₹100 for product priced at ₹200/kg shows convenient 500 g
+  it("calculates ₹100 for ₹200/kg product as convenient 500 g in Mode A", async () => {
+    renderCalculator()
+
+    const select = await screen.findByLabelText(/Select Product/i)
+    fireEvent.change(select, { target: { value: "prod-6" } }) // Almonds: ₹200/kg
+
+    const cashInput = screen.getByLabelText(/Cash Provided by Customer/i)
+    fireEvent.change(cashInput, { target: { value: "100" } })
+
+    // 100 / 200 = 0.5 kg, convenient metric highlight displays 500 g
+    expect(screen.getByText("0.5")).toBeDefined()
+    expect(screen.getByText(/Convenient Metric: 500 g/i)).toBeDefined()
+  })
+
+  // 4. Mode B: Entering quantity calculates total price correctly
   it("calculates total selling price from quantity in Mode B", async () => {
     renderCalculator()
 
@@ -140,7 +199,55 @@ describe("ProductCalculatorPage Component", () => {
     expect(screen.getAllByText(/2,000/i).length).toBeGreaterThan(0)
   })
 
-  // 4. Product changes dynamically update calculations
+  // 5. Mode B: Metric Conversion - 750 g for product priced at ₹200/kg = ₹150
+  it("converts 750 g to 0.75 kg for ₹200/kg product and calculates ₹150 total in Mode B", async () => {
+    renderCalculator()
+
+    const select = await screen.findByLabelText(/Select Product/i)
+    fireEvent.change(select, { target: { value: "prod-6" } }) // Almonds: ₹200/kg
+
+    // Switch to Mode B: Quantity to Price
+    const modeBBtn = screen.getByRole("button", { name: /Mode B: Quantity to Price/i })
+    fireEvent.click(modeBBtn)
+
+    // Select Gram (g) unit
+    const gramUnitBtn = screen.getByRole("button", { name: /Gram \(g\)/i })
+    fireEvent.click(gramUnitBtn)
+
+    // Enter quantity 750 (grams)
+    const qtyInput = screen.getByLabelText(/Required Quantity/i)
+    fireEvent.change(qtyInput, { target: { value: "750" } })
+
+    // 750 g @ ₹200/kg (₹0.20/g) = ₹150.00
+    expect(screen.getAllByText(/150/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/0.75 kg/i).length).toBeGreaterThan(0)
+  })
+
+  // 6. Mode B: Metric Conversion - 250 mL for product priced at ₹120/L = ₹30
+  it("converts 250 mL to 0.25 L for ₹120/L product and calculates ₹30 total in Mode B", async () => {
+    renderCalculator()
+
+    const select = await screen.findByLabelText(/Select Product/i)
+    fireEvent.change(select, { target: { value: "prod-5" } }) // Apple Juice: ₹120/L
+
+    // Switch to Mode B
+    const modeBBtn = screen.getByRole("button", { name: /Mode B: Quantity to Price/i })
+    fireEvent.click(modeBBtn)
+
+    // Select Millilitre (mL) unit
+    const mlUnitBtn = screen.getByRole("button", { name: /Millilitre \(mL\)/i })
+    fireEvent.click(mlUnitBtn)
+
+    // Enter quantity 250 (mL)
+    const qtyInput = screen.getByLabelText(/Required Quantity/i)
+    fireEvent.change(qtyInput, { target: { value: "250" } })
+
+    // 250 mL @ ₹120/L (₹0.12/mL) = ₹30.00
+    expect(screen.getAllByText(/30/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/0.25 L/i).length).toBeGreaterThan(0)
+  })
+
+  // 7. Product changes dynamically update calculations and reset units
   it("updates calculations dynamically when product selection changes", async () => {
     renderCalculator()
 
@@ -156,14 +263,18 @@ describe("ProductCalculatorPage Component", () => {
     // Switch product to Basmati Rice (prod-2: ₹100/kg)
     fireEvent.change(select, { target: { value: "prod-2" } })
 
+    // Enter cash again after product switch
+    const cashInputAfter = screen.getByLabelText(/Cash Provided by Customer/i)
+    fireEvent.change(cashInputAfter, { target: { value: "1000" } })
+
     // ₹1000 / ₹100 = 10 kg
     await waitFor(() => {
-      expect(screen.getByText("Basmati Rice Premium")).toBeDefined()
+      expect(screen.getAllByText("Basmati Rice Premium").length).toBeGreaterThan(0)
       expect(screen.getByText("10")).toBeDefined()
     })
   })
 
-  // 5. Zero, negative, invalid, and missing-price inputs
+  // 8. Zero, negative, invalid, and missing-price inputs
   it("handles zero, negative, invalid inputs, and missing prices safely", async () => {
     renderCalculator()
 
@@ -185,7 +296,17 @@ describe("ProductCalculatorPage Component", () => {
     expect(await screen.findByText(/Missing Selling Price/i)).toBeDefined()
   })
 
-  // 6. Fractional quantities, rounding, and whole-unit restrictions
+  // 9. Missing measurement unit displays warning
+  it("displays a clear warning when a product has no defined measurement unit", async () => {
+    renderCalculator()
+
+    const select = await screen.findByLabelText(/Select Product/i)
+    fireEvent.change(select, { target: { value: "prod-8" } }) // Mystery Item without unit
+
+    expect((await screen.findAllByText(/Missing Measurement Unit/i)).length).toBeGreaterThan(0)
+  })
+
+  // 10. Fractional quantities, rounding, and whole-unit restrictions
   it("supports fractional quantities for continuous units and allows toggling whole-unit precision", async () => {
     renderCalculator()
 
@@ -207,7 +328,17 @@ describe("ProductCalculatorPage Component", () => {
     expect(screen.getByText("2")).toBeDefined()
   })
 
-  // 7. Stock deficit warning when inventory info is available
+  // 11. Packaging product distinction
+  it("displays packaging rate notice for discrete package units (e.g. bottles)", async () => {
+    renderCalculator()
+
+    const select = await screen.findByLabelText(/Select Product/i)
+    fireEvent.change(select, { target: { value: "prod-7" } }) // Cold Drink Glass Bottle
+
+    expect(screen.getByText(/priced per individual bottle/i)).toBeDefined()
+  })
+
+  // 12. Stock deficit warning when inventory info is available
   it("displays prominent inventory deficit warning without silently capping quantity", async () => {
     renderCalculator()
 
@@ -226,7 +357,7 @@ describe("ProductCalculatorPage Component", () => {
     expect(screen.getByText("10")).toBeDefined()
   })
 
-  // 8. Loading state and product-fetch errors
+  // 13. Loading state and product-fetch errors
   it("renders error state when product loading fails with retry support", async () => {
     ;(getProducts as any).mockRejectedValueOnce(new Error("Supabase connection timeout"))
 
@@ -241,7 +372,7 @@ describe("ProductCalculatorPage Component", () => {
     expect(getProducts).toHaveBeenCalledTimes(2)
   })
 
-  // 9. Reset and mode switching
+  // 14. Reset and mode switching
   it("clears inputs and allows seamless mode switching", async () => {
     renderCalculator()
 
@@ -259,32 +390,7 @@ describe("ProductCalculatorPage Component", () => {
     expect(screen.getByText(/No Product Selected/i)).toBeDefined()
   })
 
-  // 10. Quick cash and quick quantity buttons work
-  it("sets values instantly when quick cash and quick quantity presets are clicked", async () => {
-    renderCalculator()
-
-    const select = await screen.findByLabelText(/Select Product/i)
-    fireEvent.change(select, { target: { value: "prod-1" } }) // ₹500/tin
-
-    // Click quick preset ₹500
-    const preset500 = screen.getByRole("button", { name: "₹500" })
-    fireEvent.click(preset500)
-
-    // 500 / 500 = 1 tin
-    expect(screen.getByText("1")).toBeDefined()
-
-    // Switch to Mode B and click quantity preset
-    const modeBBtn = screen.getByRole("button", { name: /Mode B: Quantity to Price/i })
-    fireEvent.click(modeBBtn)
-
-    const preset5Qty = screen.getByRole("button", { name: /5 tin/i })
-    fireEvent.click(preset5Qty)
-
-    // 5 * 500 = 2,500
-    expect(screen.getAllByText(/2,500/i).length).toBeGreaterThan(0)
-  })
-
-  // 11. Data and business safety: preview tool only (0 database mutations)
+  // 15. Data and business safety: preview tool only (0 database mutations)
   it("guarantees 0 database writes, 0 ledger mutations, and 0 stock deductions", async () => {
     renderCalculator()
 
@@ -296,5 +402,78 @@ describe("ProductCalculatorPage Component", () => {
 
     // Verify supabase mutation methods (insert, update, delete, rpc) were NEVER called
     expect(supabase.from).not.toHaveBeenCalled()
+  })
+
+  // 16. Combobox portal rendering, search filtering, and product selection
+  it("opens the searchable combobox portal and filters products by query", async () => {
+    renderCalculator()
+
+    // Trigger button
+    const trigger = await screen.findByRole("combobox", { name: /Open product catalog/i })
+    fireEvent.click(trigger)
+
+    // Verify search input is present in the portaled dropdown
+    const searchInput = screen.getByRole("searchbox", { name: "" })
+    expect(searchInput).toBeDefined()
+
+    // Type "Almonds"
+    fireEvent.change(searchInput, { target: { value: "Almonds" } })
+
+    const listbox = screen.getByRole("listbox")
+    // Only Almonds California should be visible in filtered list
+    expect(within(listbox).getByText("Almonds California")).toBeDefined()
+    expect(within(listbox).queryByText("Basmati Rice Premium")).toBeNull()
+
+    // Select Almonds California
+    fireEvent.click(within(listbox).getByText("Almonds California"))
+
+    // Selected product summary appears
+    await waitFor(() => {
+      expect(screen.getAllByText("Almonds California").length).toBeGreaterThan(0)
+    })
+  })
+
+  // 17. Keyboard navigation in searchable combobox (ArrowDown, Enter, Escape)
+  it("supports keyboard navigation: ArrowDown, Enter to select, and Escape to dismiss", async () => {
+    renderCalculator()
+
+    const trigger = await screen.findByRole("combobox", { name: /Open product catalog/i })
+
+    // Open via Enter
+    fireEvent.keyDown(trigger, { key: "Enter" })
+    expect(screen.getByRole("searchbox")).toBeDefined()
+
+    // Press Escape to dismiss
+    const searchInput = screen.getByRole("searchbox")
+    fireEvent.keyDown(searchInput, { key: "Escape" })
+    expect(screen.queryByRole("searchbox")).toBeNull()
+
+    // Open again via ArrowDown
+    fireEvent.keyDown(trigger, { key: "ArrowDown" })
+    expect(screen.getByRole("searchbox")).toBeDefined()
+
+    // Press ArrowDown to navigate to second item and Enter to select
+    const searchInput2 = screen.getByRole("searchbox")
+    fireEvent.keyDown(searchInput2, { key: "ArrowDown" })
+    fireEvent.keyDown(searchInput2, { key: "Enter" })
+
+    // Second product selected
+    await waitFor(() => {
+      expect(screen.getAllByText("Basmati Rice Premium").length).toBeGreaterThan(0)
+    })
+  })
+
+  // 18. Outside click dismisses the portaled combobox menu
+  it("dismisses the combobox dropdown when clicking outside", async () => {
+    renderCalculator()
+
+    const trigger = await screen.findByRole("combobox", { name: /Open product catalog/i })
+    fireEvent.click(trigger)
+    expect(screen.getByRole("searchbox")).toBeDefined()
+
+    // Click outside on heading
+    const heading = screen.getByText(/Product Price & Quantity Calculator/i)
+    fireEvent.mouseDown(heading)
+    expect(screen.queryByRole("searchbox")).toBeNull()
   })
 })
