@@ -1,52 +1,97 @@
-import { useState, useMemo } from "react"
-import { Link } from "react-router-dom"
+import { useState, useMemo, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getProducts, createProduct, deleteProduct, type Product } from "@/services/products"
+import {
+  getProducts,
+  deleteProduct,
+  type Product,
+} from "@/services/products"
 import { getDealers } from "@/services/dealers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
-  PageHeader,
   PageContainer,
-  SectionCard,
   ConfirmDialog,
-  CurrencyDisplay,
-  DataTable,
-  type DataTableColumn,
-  DataTableActionButton,
 } from "@/components/shared"
-import { Loader2, Plus, Pencil, Trash2, AlertCircle, Package } from "lucide-react"
+import {
+  Package,
+  Plus,
+  AlertCircle,
+  Search,
+  X,
+  LayoutGrid,
+  List,
+  Table as TableIcon,
+  SlidersHorizontal,
+  Download,
+} from "lucide-react"
 import { EditProductModal } from "./EditProductModal"
+import { AddProductModal } from "./AddProductModal"
+import { ProductCard } from "./ProductCard"
+import { ProductCategoryStrip } from "./ProductCategoryStrip"
+import { ProductInventorySummary } from "./ProductInventorySummary"
+import { ProductTableView } from "./ProductTableView"
+import {
+  ProductFiltersDrawer,
+  type ProductFiltersState,
+} from "./ProductFiltersDrawer"
+import {
+  calculateInventoryAggregates,
+  getProductCategory,
+  getProductStockStatus,
+  PRODUCT_CATEGORIES,
+} from "@/lib/productCategories"
+
+type ViewMode = "grid" | "list" | "compact" | "table"
+
+type SortOption =
+  | "name_asc"
+  | "name_desc"
+  | "retail_asc"
+  | "retail_desc"
+  | "stock_asc"
+  | "stock_desc"
+  | "profit_asc"
+  | "profit_desc"
+  | "buying_asc"
 
 export default function ProductsPage() {
   const queryClient = useQueryClient()
 
-  const [name, setName] = useState("")
-  const [dealerId, setDealerId] = useState("")
-  const [unit, setUnit] = useState("Kg")
-  const [buyingCost, setBuyingCost] = useState("")
-  const [wholesalePrice, setWholesalePrice] = useState("")
-  const [retailPrice, setRetailPrice] = useState("")
-  const [formError, setFormError] = useState<string | null>(null)
+  // Modals state
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [productToEdit, setProductToEdit] = useState<Product | null>(null)
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  // Edit product modal state
-  const [productToEdit, setProductToEdit] = useState<Product | null>(null)
+  // View & Filter states
+  const [viewMode, setViewMode] = useState<ViewMode>("grid")
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all")
+  const [searchTerm, setSearchTerm] = useState("")
+  const [sortBy, setSortBy] = useState<SortOption>("name_asc")
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = useState(false)
+  const filterButtonRef = useRef<HTMLButtonElement>(null)
 
-  // Delete confirmation dialog state
-  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [filters, setFilters] = useState<ProductFiltersState>({
+    categoryId: "all",
+    stockStatuses: ["in_stock", "low_stock", "out_of_stock"],
+    minPrice: "",
+    maxPrice: "",
+    dealerId: "all",
+    unit: "all",
+  })
 
-  const { data: products, isLoading: isLoadingProducts } = useQuery({
+  // Queries
+  const { data: products = [], isLoading: isLoadingProducts } = useQuery({
     queryKey: ["products"],
     queryFn: getProducts,
   })
 
-  const { data: dealers } = useQuery({
+  const { data: dealers = [] } = useQuery({
     queryKey: ["dealers"],
     queryFn: getDealers,
   })
 
+  // Invalidate cache
   const invalidateProductContext = () => {
     queryClient.invalidateQueries({ queryKey: ["products"] })
     queryClient.invalidateQueries({ queryKey: ["inventory_page"] })
@@ -54,21 +99,7 @@ export default function ProductsPage() {
     queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
   }
 
-  const createMutation = useMutation({
-    mutationFn: createProduct,
-    onSuccess: () => {
-      invalidateProductContext()
-      setName("")
-      setBuyingCost("")
-      setWholesalePrice("")
-      setRetailPrice("")
-      setFormError(null)
-    },
-    onError: (err: any) => {
-      setFormError(err.message || "Failed to add product.")
-    },
-  })
-
+  // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
     onSuccess: () => {
@@ -81,330 +112,262 @@ export default function ProductsPage() {
     },
   })
 
-  const handleCreate = (e: React.FormEvent) => {
-    e.preventDefault()
-    setFormError(null)
-    if (createMutation.isPending) return
+  // Available units extracted dynamically from existing products
+  const availableUnits = useMemo(() => {
+    const units = new Set<string>()
+    products.forEach((p) => {
+      if (p.unit) units.add(p.unit)
+    })
+    return Array.from(units).sort()
+  }, [products])
 
-    const trimmedName = name.trim()
-    if (!trimmedName) {
-      setFormError("Product name is required.")
-      return
-    }
+  // Category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: products.length }
+    PRODUCT_CATEGORIES.forEach((cat) => {
+      if (cat.id !== "all") counts[cat.id] = 0
+    })
 
-    if (!dealerId) {
-      setFormError("Please select a dealer.")
-      return
-    }
+    products.forEach((p) => {
+      const cat = getProductCategory(p)
+      counts[cat.id] = (counts[cat.id] || 0) + 1
+    })
 
-    const trimmedUnit = unit.trim()
-    if (!trimmedUnit) {
-      setFormError("Measurement unit is required.")
-      return
-    }
+    return counts
+  }, [products])
 
-    const cost = buyingCost !== "" ? parseFloat(buyingCost) : 0
-    const wholesale = wholesalePrice !== "" ? parseFloat(wholesalePrice) : 0
-    const retail = retailPrice !== "" ? parseFloat(retailPrice) : 0
+  // Inventory aggregates
+  const aggregates = useMemo(() => {
+    return calculateInventoryAggregates(products)
+  }, [products])
 
-    if (isNaN(cost) || cost < 0) {
-      setFormError("Buying cost must be zero or a positive amount.")
-      return
-    }
+  // Handle category strip selection (syncs with sidebar filter)
+  const handleSelectCategory = (catId: string) => {
+    setSelectedCategoryId(catId)
+    setFilters((prev) => ({ ...prev, categoryId: catId }))
+  }
 
-    if (isNaN(wholesale) || wholesale < 0) {
-      setFormError("Wholesale price must be zero or a positive amount.")
-      return
-    }
-
-    if (isNaN(retail) || retail < 0) {
-      setFormError("Retail price must be zero or a positive amount.")
-      return
-    }
-
-    createMutation.mutate({
-      name: trimmedName,
-      dealer_id: dealerId,
-      unit: trimmedUnit,
-      buying_cost: cost,
-      wholesale_price: wholesale,
-      retail_price: retail,
-      stock_quantity: 0,
+  // Reset all filters
+  const handleResetFilters = () => {
+    setSelectedCategoryId("all")
+    setSearchTerm("")
+    setSortBy("name_asc")
+    setFilters({
+      categoryId: "all",
+      stockStatuses: ["in_stock", "low_stock", "out_of_stock"],
+      minPrice: "",
+      maxPrice: "",
+      dealerId: "all",
+      unit: "all",
     })
   }
 
-  const productColumns: DataTableColumn<Product>[] = useMemo(
-    () => [
-      {
-        id: "name",
-        header: "Product",
-        accessorKey: "name",
-        sortable: true,
-        mobilePriority: "primary",
-        mobileLabel: "Product",
-        mobileSpan: "full",
-        mobileOrder: 1,
-        cell: ({ row }) => (
-          <Link
-            to={`/products/${row.id}`}
-            className="font-semibold text-[#0F172A] hover:text-[#2563EB] hover:underline transition-colors"
-          >
-            {row.name}
-          </Link>
-        ),
-      },
-      {
-        id: "dealer",
-        header: "Dealer",
-        accessorFn: (row) => row.dealer?.name || "—",
-        sortable: true,
-        mobilePriority: "primary",
-        mobileLabel: "Dealer",
-        mobileSpan: 1,
-        mobileOrder: 2,
-        cell: ({ row }) => (
-          <span className="text-[#64748B] font-medium text-xs">
-            {row.dealer?.name || "—"}
-          </span>
-        ),
-      },
-      {
-        id: "unit",
-        header: "Unit",
-        accessorKey: "unit",
-        mobilePriority: "secondary",
-        mobileLabel: "Unit",
-        mobileSpan: 1,
-        mobileOrder: 3,
-        cell: ({ row }) => (
-          <span className="font-mono text-xs text-slate-600 font-medium">
-            {row.unit}
-          </span>
-        ),
-      },
-      {
-        id: "stock",
-        header: "Stock",
-        accessorKey: "stock_quantity",
-        align: "right",
-        sortable: true,
-        mobilePriority: "primary",
-        mobileLabel: "Stock",
-        mobileSpan: 1,
-        mobileOrder: 4,
-        mobileCell: ({ row }) => (
-          <span
-            className={
-              row.stock_quantity <= 0
-                ? "font-mono font-bold text-xs text-[#DC2626]"
-                : "font-mono font-bold text-xs text-[#059669]"
-            }
-          >
-            {row.stock_quantity} {row.unit}
-          </span>
-        ),
-        cell: ({ row }) => (
-          <span
-            className={
-              row.stock_quantity <= 0
-                ? "font-mono font-bold text-[#DC2626]"
-                : "font-mono font-bold text-[#059669]"
-            }
-          >
-            {row.stock_quantity}
-          </span>
-        ),
-      },
-      {
-        id: "buying_cost",
-        header: "Buying",
-        accessorKey: "buying_cost",
-        align: "right",
-        sortable: true,
-        mobilePriority: "primary",
-        mobileLabel: "Buying Cost",
-        mobileSpan: 1,
-        mobileOrder: 5,
-        cell: ({ row }) => <CurrencyDisplay amount={row.buying_cost} />,
-      },
-      {
-        id: "wholesale_price",
-        header: "Wholesale",
-        accessorKey: "wholesale_price",
-        align: "right",
-        sortable: true,
-        mobilePriority: "primary",
-        mobileLabel: "Wholesale Rate",
-        mobileSpan: 1,
-        mobileOrder: 6,
-        cell: ({ row }) => <CurrencyDisplay amount={row.wholesale_price} variant="brand" />,
-      },
-      {
-        id: "profit",
-        header: "W. Profit",
-        accessorFn: (row) => row.wholesale_price - row.buying_cost,
-        align: "right",
-        sortable: true,
-        mobilePriority: "primary",
-        mobileLabel: "W. Profit",
-        mobileSpan: 1,
-        mobileOrder: 7,
-        cell: ({ row }) => {
-          const wholesaleProfit = row.wholesale_price - row.buying_cost
-          return (
-            <CurrencyDisplay
-              amount={wholesaleProfit}
-              variant={wholesaleProfit >= 0 ? "positive" : "negative"}
-              bold
-            />
-          )
-        },
-      },
-      {
-        id: "retail_price",
-        header: "Retail",
-        accessorKey: "retail_price",
-        align: "right",
-        sortable: true,
-        mobilePriority: "secondary",
-        mobileLabel: "Retail Rate",
-        mobileSpan: 1,
-        mobileOrder: 8,
-        cell: ({ row }) => <CurrencyDisplay amount={row.retail_price} />,
-      },
-    ],
-    []
-  )
+  // Filter & sort products
+  const filteredProducts = useMemo(() => {
+    return products
+      .filter((product) => {
+        // Search term filter
+        if (searchTerm.trim()) {
+          const q = searchTerm.toLowerCase().trim()
+          const matchesName = product.name.toLowerCase().includes(q)
+          const matchesDealer = product.dealer?.name.toLowerCase().includes(q)
+          const matchesUnit = product.unit.toLowerCase().includes(q)
+          const cat = getProductCategory(product)
+          const matchesCat =
+            cat.name.toLowerCase().includes(q) || cat.shortName.toLowerCase().includes(q)
+
+          if (!matchesName && !matchesDealer && !matchesUnit && !matchesCat) {
+            return false
+          }
+        }
+
+        // Category filter (strip or dropdown)
+        const activeCat =
+          filters.categoryId !== "all"
+            ? filters.categoryId
+            : selectedCategoryId !== "all"
+            ? selectedCategoryId
+            : "all"
+
+        if (activeCat !== "all") {
+          const cat = getProductCategory(product)
+          if (cat.id !== activeCat) return false
+        }
+
+        // Stock status filter
+        const stockStatus = getProductStockStatus(Number(product.stock_quantity) || 0).status
+        if (!filters.stockStatuses.includes(stockStatus)) {
+          return false
+        }
+
+        // Min price filter (retail)
+        if (filters.minPrice !== "") {
+          const min = parseFloat(filters.minPrice)
+          if (!isNaN(min) && (product.retail_price || 0) < min) {
+            return false
+          }
+        }
+
+        // Max price filter (retail)
+        if (filters.maxPrice !== "") {
+          const max = parseFloat(filters.maxPrice)
+          if (!isNaN(max) && (product.retail_price || 0) > max) {
+            return false
+          }
+        }
+
+        // Dealer filter
+        if (filters.dealerId !== "all" && product.dealer_id !== filters.dealerId) {
+          return false
+        }
+
+        // Unit filter
+        if (filters.unit !== "all" && product.unit !== filters.unit) {
+          return false
+        }
+
+        return true
+      })
+      .sort((a, b) => {
+        switch (sortBy) {
+          case "name_asc":
+            return a.name.localeCompare(b.name)
+          case "name_desc":
+            return b.name.localeCompare(a.name)
+          case "retail_asc":
+            return (a.retail_price || 0) - (b.retail_price || 0)
+          case "retail_desc":
+            return (b.retail_price || 0) - (a.retail_price || 0)
+          case "stock_asc":
+            return (a.stock_quantity || 0) - (b.stock_quantity || 0)
+          case "stock_desc":
+            return (b.stock_quantity || 0) - (a.stock_quantity || 0)
+          case "profit_asc": {
+            const profitA = (a.wholesale_price || 0) - (a.buying_cost || 0)
+            const profitB = (b.wholesale_price || 0) - (b.buying_cost || 0)
+            return profitA - profitB
+          }
+          case "profit_desc": {
+            const profitA = (a.wholesale_price || 0) - (a.buying_cost || 0)
+            const profitB = (b.wholesale_price || 0) - (b.buying_cost || 0)
+            return profitB - profitA
+          }
+          case "buying_asc":
+            return (a.buying_cost || 0) - (b.buying_cost || 0)
+          default:
+            return 0
+        }
+      })
+  }, [products, searchTerm, selectedCategoryId, filters, sortBy])
+
+  // Count active filters
+  const activeFiltersCount = useMemo(() => {
+    let count = 0
+    if (selectedCategoryId !== "all" || filters.categoryId !== "all") count++
+    if (filters.stockStatuses.length < 3) count++
+    if (filters.minPrice !== "" || filters.maxPrice !== "") count++
+    if (filters.dealerId !== "all") count++
+    if (filters.unit !== "all") count++
+    return count
+  }, [selectedCategoryId, filters])
+
+  // Export Catalogue CSV
+  const handleExportCSV = () => {
+    if (!products.length) return
+    const headers = [
+      "ID",
+      "Product Name",
+      "Category",
+      "Dealer",
+      "Unit",
+      "Stock",
+      "Buying Cost",
+      "Wholesale Price",
+      "Retail Price",
+      "Wholesale Profit",
+    ]
+    const rows = products.map((p) => {
+      const cat = getProductCategory(p).name
+      const profit = (p.wholesale_price || 0) - (p.buying_cost || 0)
+      return [
+        `"${p.id}"`,
+        `"${p.name.replace(/"/g, '""')}"`,
+        `"${cat}"`,
+        `"${(p.dealer?.name || "").replace(/"/g, '""')}"`,
+        `"${p.unit}"`,
+        p.stock_quantity,
+        p.buying_cost,
+        p.wholesale_price,
+        p.retail_price,
+        profit,
+      ].join(",")
+    })
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n")
+    const encodedUri = encodeURI(csvContent)
+    const link = document.createElement("a")
+    link.setAttribute("href", encodedUri)
+    link.setAttribute("download", `7time_products_catalog_${new Date().toISOString().slice(0, 10)}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const productsRef = useRef<HTMLDivElement>(null)
 
   return (
-    <PageContainer>
-      <PageHeader
-        title="Products Catalog"
-        badge={{ label: "INVENTORY", variant: "brand" }}
-        description="Manage product definitions, default buying costs, wholesale rates, and retail pricing."
-      />
+    <PageContainer className="px-2.5 sm:px-6 lg:px-8 space-y-4 sm:space-y-6">
+      {/* 1. Page Header matching Reference Design */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-[#2563EB] text-white flex items-center justify-center shrink-0 shadow-xs">
+            <Package className="w-5 h-5 sm:w-6 sm:h-6" />
+          </div>
+          <div>
+            <h1 className="text-xl sm:text-2xl font-black text-[#0F172A] tracking-tight">
+              Product Catalog
+            </h1>
+            <p className="text-xs sm:text-sm text-[#64748B] mt-0.5">
+              Manage your product catalogue, pricing, stock, and categories with ease.
+            </p>
+          </div>
+        </div>
 
-      {/* Add New Product Form */}
-      <SectionCard
-        title="Add New Product"
-        icon={Plus}
-        description="Define a new inventory catalog item with dealer association and default pricing."
-      >
-        {formError && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-center gap-2 text-xs font-medium text-rose-700 animate-in fade-in duration-150">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{formError}</span>
-          </div>
-        )}
-        <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-              Product Name
-            </Label>
-            <Input
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sider Honey"
-              className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
-            />
-          </div>
+        {/* Header Actions */}
+        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleExportCSV}
+            className="h-9 sm:h-10 px-3 sm:px-4 rounded-xl border-[#D9E0E8] text-xs font-semibold text-[#172B4D] hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer shadow-xs"
+            title="Export products catalogue to CSV"
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            <span>Export</span>
+          </Button>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-              Dealer
-            </Label>
-            <select
-              required
-              className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors"
-              value={dealerId}
-              onChange={(e) => setDealerId(e.target.value)}
-            >
-              <option value="" disabled>Select Dealer</option>
-              {dealers?.map((d) => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          </div>
+          <Button
+            type="button"
+            aria-label="Add Product"
+            onClick={() => setIsAddModalOpen(true)}
+            className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Product</span>
+          </Button>
+        </div>
+      </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-              Unit
-            </Label>
-            <select
-              required
-              className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors"
-              value={unit}
-              onChange={(e) => setUnit(e.target.value)}
-            >
-              <option value="Kg">Kg</option>
-              <option value="Pc">Pc</option>
-              <option value="Ltr">Ltr</option>
-              <option value="Box">Box</option>
-            </select>
-          </div>
+      {/* 3. Horizontal Category Navigation Strip */}
+      <div className="space-y-1">
+        <ProductCategoryStrip
+          selectedCategoryId={selectedCategoryId}
+          onSelectCategory={handleSelectCategory}
+          categoryCounts={categoryCounts}
+        />
+      </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-              Buying Cost (₹)
-            </Label>
-            <Input
-              type="number"
-              step="0.01"
-              required
-              value={buyingCost}
-              onChange={(e) => setBuyingCost(e.target.value)}
-              placeholder="0.00"
-              className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-              Wholesale Price (₹)
-            </Label>
-            <Input
-              type="number"
-              step="0.01"
-              required
-              value={wholesalePrice}
-              onChange={(e) => setWholesalePrice(e.target.value)}
-              placeholder="0.00"
-              className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-              Retail Price (₹)
-            </Label>
-            <Input
-              type="number"
-              step="0.01"
-              required
-              value={retailPrice}
-              onChange={(e) => setRetailPrice(e.target.value)}
-              placeholder="0.00"
-              className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
-            />
-          </div>
-
-          <div className="col-span-1 md:col-span-2 lg:col-span-2">
-            <Button
-              type="submit"
-              disabled={createMutation.isPending}
-              className="w-full h-10 rounded-xl font-semibold shadow-xs bg-[#2563EB] hover:bg-[#1D4ED8] text-white"
-            >
-              {createMutation.isPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="mr-2 h-4 w-4" />
-              )}
-              Add Product
-            </Button>
-          </div>
-        </form>
-      </SectionCard>
+      {/* 4. Inventory Summary Cards */}
+      <ProductInventorySummary aggregates={aggregates} />
 
       {/* Delete Error Notification Banner */}
       {deleteError && (
@@ -423,46 +386,353 @@ export default function ProductsPage() {
         </div>
       )}
 
-      {/* Products Directory Table */}
-      <DataTable<Product>
-        title="Products Directory"
-        subtitle="Complete list of all registered products with real-time margins and stock levels."
-        columns={productColumns}
-        data={products || []}
-        loading={isLoadingProducts}
-        responsiveMode="cards"
-        searchable
-        searchPlaceholder="Search by product, dealer, unit..."
-        pagination
-        pageSize={15}
-        getRowId={(p) => p.id}
-        emptyState={{
-          icon: Package,
-          title: "No products found",
-          description: "Define your first inventory catalog item using the form above.",
-        }}
-        rowActions={(product) => (
-          <div className="flex items-center justify-end gap-1">
-            <DataTableActionButton
-              icon={<Pencil className="h-4 w-4" />}
-              label={`Edit ${product.name}`}
-              actionVariant="neutral"
-              onClick={() => {
-                setDeleteError(null)
-                setProductToEdit(product)
-              }}
+      {/* 5. Search Bar & Toolbar Controls */}
+      <div ref={productsRef} className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 pt-1">
+        {/* Search Input and Mobile Filter Button */}
+        <div className="flex items-center gap-2 flex-1 max-w-xl">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search products by name, dealer, unit, or category..."
+              className="h-10 pl-9 pr-8 rounded-xl border-[#D9E0E8] bg-white text-xs text-[#0F172A] placeholder:text-slate-400 focus:border-[#2563EB] shadow-xs"
             />
-            <DataTableActionButton
-              icon={<Trash2 className="h-4 w-4" />}
-              label={`Delete ${product.name}`}
-              actionVariant="destructive"
-              onClick={() => {
-                setDeleteError(null)
-                setProductToDelete({ id: product.id, name: product.name })
-              }}
-            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 cursor-pointer"
+                aria-label="Clear search"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-        )}
+
+          {/* Mobile Quick Filter Button matching Reference Mockup */}
+          <button
+            type="button"
+            onClick={() => setIsFilterDrawerOpen(true)}
+            className="sm:hidden w-10 h-10 rounded-xl bg-white border border-[#D9E0E8] shadow-xs flex items-center justify-center text-[#2563EB] hover:bg-blue-50 relative shrink-0 cursor-pointer transition-colors"
+            aria-label="Filter products"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#2563EB] text-white text-[9px] font-bold flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Controls Toolbar */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-0.5 sm:pb-0 shrink-0">
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-1.5 bg-white border border-[#D9E0E8] rounded-xl px-2.5 h-10 shadow-xs shrink-0">
+            <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap hidden sm:inline">
+              Sort by
+            </span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortOption)}
+              className="text-xs font-semibold text-[#0F172A] bg-transparent focus:outline-none cursor-pointer"
+              aria-label="Sort products"
+            >
+              <option value="name_asc">Name (A – Z)</option>
+              <option value="name_desc">Name (Z – A)</option>
+              <option value="retail_asc">Price: Low to High</option>
+              <option value="retail_desc">Price: High to Low</option>
+              <option value="stock_asc">Stock: Low to High</option>
+              <option value="stock_desc">Stock: High to Low</option>
+              <option value="profit_asc">Profit: Low to High</option>
+              <option value="profit_desc">Profit: High to Low</option>
+            </select>
+          </div>
+
+          {/* View Mode Selector */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode("grid")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === "grid"
+                  ? "bg-white text-[#2563EB] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+              title="Grid View (3-column on mobile)"
+              aria-label="Grid view"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="sm:hidden">Grid</span>
+              <span className="hidden sm:inline">Grid</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === "list"
+                  ? "bg-white text-[#2563EB] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+              title="List View (Structured Shared Header Table)"
+              aria-label="List view"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>List</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("compact")}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                viewMode === "compact" || viewMode === "table"
+                  ? "bg-white text-[#2563EB] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+              title="Compact View (Dense Directory Table)"
+              aria-label="Compact view"
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              <span>Compact</span>
+            </button>
+          </div>
+
+          {/* Unified Desktop / Tablet Filters Button matching Reference Design */}
+          <Button
+            ref={filterButtonRef}
+            type="button"
+            variant="outline"
+            onClick={() => setIsFilterDrawerOpen(!isFilterDrawerOpen)}
+            className={`hidden sm:flex h-10 px-3.5 rounded-xl border text-xs font-semibold items-center gap-2 shadow-xs cursor-pointer transition-colors ${
+              isFilterDrawerOpen || activeFiltersCount > 0
+                ? "border-blue-400 bg-blue-50/70 text-blue-700"
+                : "border-[#D9E0E8] bg-white text-slate-700 hover:bg-slate-50"
+            }`}
+            aria-label={isFilterDrawerOpen ? "Close filters panel" : "Open filters panel"}
+            aria-expanded={isFilterDrawerOpen}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5 text-[#2563EB]" />
+            <span>Filters</span>
+            {activeFiltersCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-[#2563EB] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                {activeFiltersCount}
+              </span>
+            )}
+          </Button>
+        </div>
+      </div>
+
+      {/* Active Filter Chips Row */}
+      {activeFiltersCount > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap pt-1 text-xs">
+          <span className="text-slate-500 font-medium">Active filters:</span>
+          {selectedCategoryId !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+              Category: {PRODUCT_CATEGORIES.find((c) => c.id === selectedCategoryId)?.name}
+              <button
+                type="button"
+                onClick={() => handleSelectCategory("all")}
+                className="hover:text-blue-900"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filters.stockStatuses.length < 3 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+              Stock: {filters.stockStatuses.length} selected
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    stockStatuses: ["in_stock", "low_stock", "out_of_stock"],
+                  }))
+                }
+                className="hover:text-blue-900"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {(filters.minPrice !== "" || filters.maxPrice !== "") && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+              Price: ₹{filters.minPrice || "0"} - ₹{filters.maxPrice || "Any"}
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, minPrice: "", maxPrice: "" }))}
+                className="hover:text-blue-900"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filters.dealerId !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+              Dealer: {dealers.find((d) => d.id === filters.dealerId)?.name}
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, dealerId: "all" }))}
+                className="hover:text-blue-900"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {filters.unit !== "all" && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">
+              Unit: {filters.unit}
+              <button
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, unit: "all" }))}
+                className="hover:text-blue-900"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="text-xs font-semibold text-rose-600 hover:underline ml-1"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {/* 6. Main Content Area with Desktop Sidebar */}
+      <div className="flex items-start gap-5">
+        {/* Left/Center Content Grid */}
+        <div className="flex-1 min-w-0">
+          {isLoadingProducts ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
+              <Package className="w-8 h-8 text-blue-600 animate-bounce mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-700">Loading product catalogue...</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="p-10 text-center bg-white rounded-2xl border border-slate-200 shadow-xs">
+              <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-slate-800">No products found</h3>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+                No catalog items match your search query or selected filter criteria.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleResetFilters}
+                className="h-9 px-4 rounded-xl text-xs font-semibold"
+              >
+                Reset Filters
+              </Button>
+            </div>
+          ) : viewMode === "grid" ? (
+            <div>
+              {/* EXACT MOBILE REQUIREMENT: Exactly 3 product cards per row on mobile (< 640px) */}
+              <div
+                className="grid grid-cols-3 gap-1.5 sm:hidden product-mobile-grid"
+                style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+              >
+                {filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    isMobileCompact
+                    onEdit={(p) => {
+                      setDeleteError(null)
+                      setProductToEdit(p)
+                    }}
+                    onDelete={(p) => {
+                      setDeleteError(null)
+                      setProductToDelete({ id: p.id, name: p.name })
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Responsive Desktop & Tablet Grid (>= 640px) */}
+              <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
+                {filteredProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onEdit={(p) => {
+                      setDeleteError(null)
+                      setProductToEdit(p)
+                    }}
+                    onDelete={(p) => {
+                      setDeleteError(null)
+                      setProductToDelete({ id: p.id, name: p.name })
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          ) : viewMode === "list" ? (
+            /* Structured List View with Shared Header */
+            <ProductTableView
+              products={filteredProducts}
+              mode="list"
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              onEdit={(p) => {
+                setDeleteError(null)
+                setProductToEdit(p)
+              }}
+              onDelete={(p) => {
+                setDeleteError(null)
+                setProductToDelete({ id: p.id, name: p.name })
+              }}
+            />
+          ) : (
+            /* Dense Compact View with Shared Header */
+            <ProductTableView
+              products={filteredProducts}
+              mode="compact"
+              sortBy={sortBy}
+              onSortChange={setSortBy}
+              onEdit={(p) => {
+                setDeleteError(null)
+                setProductToEdit(p)
+              }}
+              onDelete={(p) => {
+                setDeleteError(null)
+                setProductToDelete({ id: p.id, name: p.name })
+              }}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Unified Animated Desktop Slide Drawer & Mobile Bottom Sheet */}
+      <ProductFiltersDrawer
+        isOpen={isFilterDrawerOpen}
+        onClose={() => setIsFilterDrawerOpen(false)}
+        filters={filters}
+        onApplyFilters={(newFilters) => {
+          setFilters(newFilters)
+          if (newFilters.categoryId !== selectedCategoryId) {
+            setSelectedCategoryId(newFilters.categoryId)
+          }
+        }}
+        onResetFilters={handleResetFilters}
+        dealers={dealers}
+        availableUnits={availableUnits}
+        stockCounts={{
+          inStock: aggregates.inStockCount,
+          lowStock: aggregates.lowStockCount,
+          outOfStock: aggregates.outOfStockCount,
+        }}
+        triggerRef={filterButtonRef}
+      />
+
+      {/* Add Product Modal */}
+      <AddProductModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        dealers={dealers}
       />
 
       {/* Edit Product Modal */}
@@ -470,7 +740,7 @@ export default function ProductsPage() {
         isOpen={Boolean(productToEdit)}
         onClose={() => setProductToEdit(null)}
         product={productToEdit}
-        dealers={dealers || []}
+        dealers={dealers}
       />
 
       {/* Accessible Destructive Confirmation Modal */}
