@@ -140,8 +140,10 @@ describe("ProductsPage and EditProductModal Component", () => {
       target: { value: "Green Cardamom" },
     })
 
+    const categorySelect = within(modal).getByLabelText(/Category/i)
     const dealerSelect = within(modal).getByLabelText(/Dealer/i)
     const unitSelect = within(modal).getByLabelText(/Unit/i)
+    fireEvent.change(categorySelect, { target: { value: "Spices & Masalas" } })
     fireEvent.change(dealerSelect, { target: { value: "dealer-1" } })
     fireEvent.change(unitSelect, { target: { value: "Kg" } })
 
@@ -165,6 +167,7 @@ describe("ProductsPage and EditProductModal Component", () => {
           wholesale_price: 1450,
           retail_price: 1600,
           stock_quantity: 0,
+          category: "Spices & Masalas",
         }),
         expect.anything()
       )
@@ -236,6 +239,7 @@ describe("ProductsPage and EditProductModal Component", () => {
         buying_cost: 650,
         wholesale_price: 780,
         retail_price: 850,
+        category: "Dry Fruits & Nuts",
       })
     })
 
@@ -316,8 +320,10 @@ describe("ProductsPage and EditProductModal Component", () => {
       target: { value: "   Kashmiri Saffron   " },
     })
 
+    const categorySelect = within(modal).getByLabelText(/Category/i)
     const dealerSelect = within(modal).getByLabelText(/Dealer/i)
     const unitSelect = within(modal).getByLabelText(/Unit/i)
+    fireEvent.change(categorySelect, { target: { value: "Spices & Masalas" } })
     fireEvent.change(dealerSelect, { target: { value: "dealer-1" } })
     fireEvent.change(unitSelect, { target: { value: "Box" } })
 
@@ -362,7 +368,9 @@ describe("ProductsPage and EditProductModal Component", () => {
       target: { value: "Invalid Product" },
     })
 
+    const categorySelect = within(modal).getByLabelText(/Category/i)
     const dealerSelect = within(modal).getByLabelText(/Dealer/i)
+    fireEvent.change(categorySelect, { target: { value: "Dry Fruits & Nuts" } })
     fireEvent.change(dealerSelect, { target: { value: "dealer-1" } })
 
     const costInput = within(modal).getByLabelText(/Buying/i)
@@ -471,7 +479,7 @@ describe("ProductsPage and EditProductModal Component", () => {
     expect(screen.queryByRole("dialog", { name: "Filter Products" })).toBeNull()
 
     // Click Filters button in toolbar
-    const filterBtn = screen.getByRole("button", { name: /Open filters panel|Filters/i })
+    const filterBtn = screen.getByRole("button", { name: "Filters" })
     fireEvent.click(filterBtn)
 
     // Drawer should open
@@ -500,7 +508,7 @@ describe("ProductsPage and EditProductModal Component", () => {
       expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
     })
 
-    const filterBtn = screen.getByRole("button", { name: /Open filters panel|Filters/i })
+    const filterBtn = screen.getByRole("button", { name: "Filters" })
     fireEvent.click(filterBtn)
 
     await waitFor(() => {
@@ -522,7 +530,7 @@ describe("ProductsPage and EditProductModal Component", () => {
       expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
     })
 
-    const filterBtn = screen.getByRole("button", { name: /Open filters panel|Filters/i })
+    const filterBtn = screen.getByRole("button", { name: "Filters" })
     fireEvent.click(filterBtn)
 
     await waitFor(() => {
@@ -540,6 +548,156 @@ describe("ProductsPage and EditProductModal Component", () => {
     // Both mock products have stock > 2 (In Stock), so unchecking In Stock should filter them out
     await waitFor(() => {
       expect(screen.getByText(/No products found/i)).toBeDefined()
+    })
+  })
+
+  it("validates that a category is required before creating a product", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /Add Product/i }))
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/e\.g\. Sider Honey/i)).toBeDefined()
+    })
+
+    const modal = screen.getByRole("dialog")
+    fireEvent.change(within(modal).getByPlaceholderText(/e\.g\. Sider Honey/i), {
+      target: { value: "New Raw Item" },
+    })
+
+    const dealerSelect = within(modal).getByLabelText(/Dealer/i)
+    fireEvent.change(dealerSelect, { target: { value: "dealer-1" } })
+
+    // Do NOT select category
+    const form = modal.querySelector("form")!
+    fireEvent.submit(form)
+
+    await waitFor(() => {
+      expect(within(modal).getAllByText(/Please select a product category/i).length).toBeGreaterThan(0)
+    })
+
+    expect(createProduct).not.toHaveBeenCalled()
+  })
+
+  it("allows updating category in EditProductModal and persists new category", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    fireEvent.click(screen.getAllByLabelText("Edit California Almonds")[0])
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Edit Product" })).toBeDefined()
+    })
+
+    const modal = screen.getByRole("dialog")
+    const categorySelect = within(modal).getByLabelText(/Category/i)
+    expect((categorySelect as HTMLSelectElement).value).toBe("Dry Fruits & Nuts")
+
+    // Change category to Honey
+    fireEvent.change(categorySelect, { target: { value: "Honey" } })
+
+    fireEvent.click(within(modal).getByRole("button", { name: /Save Changes/i }))
+
+    await waitFor(() => {
+      expect(updateProduct).toHaveBeenCalledWith("prod-1", expect.objectContaining({
+        category: "Honey",
+      }))
+    })
+  })
+
+  it("creates a retail-only product with absent wholesale price persisted as null", async () => {
+    ;(createProduct as any).mockResolvedValueOnce({
+      id: "prod-new-retail-only",
+      name: "Retail Exclusive Saffron",
+      category: "Spices & Masalas",
+      dealer_id: "dealer-1",
+      unit: "Gram",
+      buying_cost: 200,
+      wholesale_price: null,
+      retail_price: 350,
+      stock_quantity: 0,
+    })
+
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    fireEvent.click(screen.getByRole("button", { name: /Add Product/i }))
+
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/e\.g\. Sider Honey/i)).toBeDefined()
+    })
+
+    const modal = screen.getByRole("dialog")
+    fireEvent.change(within(modal).getByPlaceholderText(/e\.g\. Sider Honey/i), {
+      target: { value: "Retail Exclusive Saffron" },
+    })
+    fireEvent.change(within(modal).getByLabelText(/Category/i), {
+      target: { value: "Spices & Masalas" },
+    })
+    fireEvent.change(within(modal).getByLabelText(/Dealer/i), {
+      target: { value: "dealer-1" },
+    })
+    fireEvent.change(within(modal).getByLabelText(/Unit/i), {
+      target: { value: "g" },
+    })
+    fireEvent.change(within(modal).getByLabelText(/Buying/i), {
+      target: { value: "200" },
+    })
+    // Leave wholesale price blank!
+    fireEvent.change(within(modal).getByLabelText(/Retail/i), {
+      target: { value: "350" },
+    })
+
+    const form = modal.querySelector("form")!
+    fireEvent.submit(form)
+
+    await waitFor(() => {
+      expect(createProduct).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Retail Exclusive Saffron",
+          wholesale_price: null,
+          retail_price: 350,
+          buying_cost: 200,
+          category: "Spices & Masalas",
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("renders list and compact view modes with separate wholesale and retail profit columns", async () => {
+    renderComponent()
+
+    await waitFor(() => {
+      expect(screen.getAllByText("California Almonds").length).toBeGreaterThan(0)
+    })
+
+    // Switch to List View
+    const listBtn = screen.getByRole("button", { name: "List view" })
+    fireEvent.click(listBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Wholesale Profit")).toBeDefined()
+      expect(screen.getByText("Retail Profit")).toBeDefined()
+    })
+
+    // Switch to Compact View
+    const compactBtn = screen.getByRole("button", { name: "Compact view" })
+    fireEvent.click(compactBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Wholesale Profit")).toBeDefined()
+      expect(screen.getByText("Retail Profit")).toBeDefined()
     })
   })
 })

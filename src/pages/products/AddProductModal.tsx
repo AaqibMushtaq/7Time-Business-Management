@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CurrencyDisplay } from "@/components/shared"
+import { ProductCategorySelector } from "./ProductCategorySelector"
+import { calculateDualProfit } from "@/lib/productPricing"
 import { X, Loader2, Plus, AlertCircle, Package } from "lucide-react"
 
 interface AddProductModalProps {
@@ -24,6 +26,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   const queryClient = useQueryClient()
 
   const [name, setName] = useState("")
+  const [category, setCategory] = useState("")
   const [dealerId, setDealerId] = useState("")
   const [unit, setUnit] = useState("Kg")
   const [buyingCost, setBuyingCost] = useState("")
@@ -31,17 +34,10 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   const [retailPrice, setRetailPrice] = useState("")
   const [formError, setFormError] = useState<string | null>(null)
 
-  const numBuyingCost = parseFloat(buyingCost) || 0
-  const numWholesalePrice = parseFloat(wholesalePrice) || 0
-  const numRetailPrice = parseFloat(retailPrice) || 0
-
-  const wholesaleProfit = useMemo(() => numWholesalePrice - numBuyingCost, [numWholesalePrice, numBuyingCost])
-  const retailProfit = useMemo(() => numRetailPrice - numBuyingCost, [numRetailPrice, numBuyingCost])
-
-  const wholesaleMarginPercent =
-    numBuyingCost > 0 ? Math.round((wholesaleProfit / numBuyingCost) * 100) : 0
-  const retailMarginPercent =
-    numBuyingCost > 0 ? Math.round((retailProfit / numBuyingCost) * 100) : 0
+  const dualProfit = useMemo(
+    () => calculateDualProfit(buyingCost, wholesalePrice, retailPrice),
+    [buyingCost, wholesalePrice, retailPrice]
+  )
 
   const invalidateProductContext = () => {
     queryClient.invalidateQueries({ queryKey: ["products"] })
@@ -55,6 +51,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
     onSuccess: () => {
       invalidateProductContext()
       setName("")
+      setCategory("")
       setDealerId("")
       setUnit("Kg")
       setBuyingCost("")
@@ -80,6 +77,12 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       return
     }
 
+    const trimmedCategory = category.trim()
+    if (!trimmedCategory) {
+      setFormError("Please select a product category.")
+      return
+    }
+
     if (!dealerId) {
       setFormError("Please select a dealer.")
       return
@@ -91,21 +94,21 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       return
     }
 
-    const cost = buyingCost !== "" ? parseFloat(buyingCost) : 0
-    const wholesale = wholesalePrice !== "" ? parseFloat(wholesalePrice) : 0
-    const retail = retailPrice !== "" ? parseFloat(retailPrice) : 0
+    const cost = buyingCost.trim() !== "" ? parseFloat(buyingCost) : 0
+    const wholesale = wholesalePrice.trim() !== "" ? parseFloat(wholesalePrice) : null
+    const retail = retailPrice.trim() !== "" ? parseFloat(retailPrice) : null
 
     if (isNaN(cost) || cost < 0) {
       setFormError("Buying cost must be zero or a positive amount.")
       return
     }
 
-    if (isNaN(wholesale) || wholesale < 0) {
+    if (wholesale !== null && (isNaN(wholesale) || wholesale < 0)) {
       setFormError("Wholesale price must be zero or a positive amount.")
       return
     }
 
-    if (isNaN(retail) || retail < 0) {
+    if (retail !== null && (isNaN(retail) || retail < 0)) {
       setFormError("Retail price must be zero or a positive amount.")
       return
     }
@@ -118,6 +121,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       wholesale_price: wholesale,
       retail_price: retail,
       stock_quantity: 0,
+      category: trimmedCategory,
     })
   }
 
@@ -180,6 +184,16 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             />
           </div>
 
+          {/* Product Category Selector */}
+          <ProductCategorySelector
+            value={category}
+            onChange={(val) => {
+              setCategory(val)
+              if (formError?.includes("category")) setFormError(null)
+            }}
+            error={formError && !category ? formError : undefined}
+          />
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label htmlFor="add-product-dealer" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
@@ -240,34 +254,40 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="add-wholesale-price" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                Wholesale (₹)
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="add-wholesale-price" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  Wholesale (₹)
+                </Label>
+                <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+              </div>
               <Input
                 id="add-wholesale-price"
                 type="number"
                 step="0.01"
-                required
+                min="0"
                 value={wholesalePrice}
                 onChange={(e) => setWholesalePrice(e.target.value)}
-                placeholder="0.00"
-                className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] rounded-xl h-10 text-sm"
+                placeholder="Leave blank if not sold wholesale"
+                className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#94A3B8] focus:border-[#2563EB] rounded-xl h-10 text-sm"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="add-retail-price" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                Retail (₹)
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="add-retail-price" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
+                  Retail (₹)
+                </Label>
+                <span className="text-[10px] text-slate-400 font-medium">Optional</span>
+              </div>
               <Input
                 id="add-retail-price"
                 type="number"
                 step="0.01"
-                required
+                min="0"
                 value={retailPrice}
                 onChange={(e) => setRetailPrice(e.target.value)}
-                placeholder="0.00"
-                className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] rounded-xl h-10 text-sm"
+                placeholder="Leave blank if not sold retail"
+                className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#94A3B8] focus:border-[#2563EB] rounded-xl h-10 text-sm"
               />
             </div>
           </div>
@@ -280,28 +300,44 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="p-2 rounded-lg bg-white border border-[#E2E8F0]">
                 <div className="text-[10px] text-slate-500 font-medium">Wholesale Margin</div>
-                <div className="flex items-baseline gap-1 mt-0.5">
-                  <CurrencyDisplay
-                    amount={wholesaleProfit}
-                    variant={wholesaleProfit >= 0 ? "positive" : "negative"}
-                    bold
-                  />
-                  <span className="text-[10px] text-slate-500 font-medium">
-                    ({wholesaleMarginPercent}%)
-                  </span>
+                <div className="mt-0.5">
+                  {dualProfit.wholesale.isConfigured && dualProfit.wholesale.profit !== null ? (
+                    <div className="flex items-baseline gap-1">
+                      <CurrencyDisplay
+                        amount={dualProfit.wholesale.profit}
+                        variant={dualProfit.wholesale.isPositive ? "positive" : dualProfit.wholesale.isNegative ? "negative" : "default"}
+                        bold
+                      />
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        ({dualProfit.wholesale.displayPercent})
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 text-xs italic font-normal">
+                      {dualProfit.wholesale.statusText}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="p-2 rounded-lg bg-white border border-[#E2E8F0]">
                 <div className="text-[10px] text-slate-500 font-medium">Retail Margin</div>
-                <div className="flex items-baseline gap-1 mt-0.5">
-                  <CurrencyDisplay
-                    amount={retailProfit}
-                    variant={retailProfit >= 0 ? "positive" : "negative"}
-                    bold
-                  />
-                  <span className="text-[10px] text-slate-500 font-medium">
-                    ({retailMarginPercent}%)
-                  </span>
+                <div className="mt-0.5">
+                  {dualProfit.retail.isConfigured && dualProfit.retail.profit !== null ? (
+                    <div className="flex items-baseline gap-1">
+                      <CurrencyDisplay
+                        amount={dualProfit.retail.profit}
+                        variant={dualProfit.retail.isPositive ? "positive" : dualProfit.retail.isNegative ? "negative" : "default"}
+                        bold
+                      />
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        ({dualProfit.retail.displayPercent})
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400 text-xs italic font-normal">
+                      {dualProfit.retail.statusText}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

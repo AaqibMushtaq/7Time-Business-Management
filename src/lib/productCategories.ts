@@ -150,6 +150,14 @@ export const PRODUCT_CATEGORIES: ProductCategoryDef[] = [
 ]
 
 /**
+ * The 9 canonical business categories for product assignment in forms and business logic.
+ * Excludes the 'all' filter-only browsing option.
+ */
+export const BUSINESS_CATEGORIES: ProductCategoryDef[] = PRODUCT_CATEGORIES.filter(
+  (c) => c.id !== "all"
+)
+
+/**
  * Resolves the business category for a product.
  * Respects product.category if set in database; otherwise infers from product name.
  * Falls back to "Other Products" as required.

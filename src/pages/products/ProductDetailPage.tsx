@@ -6,6 +6,8 @@ import { getDealers } from "@/services/dealers"
 import { EditProductModal } from "./EditProductModal"
 import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/utils"
+import { getProductCategory } from "@/lib/productCategories"
+import { calculateDualProfit } from "@/lib/productPricing"
 import {
   PageContainer,
   SectionCard,
@@ -233,11 +235,16 @@ export default function ProductDetailPage() {
     )
   }
 
-  const wholesaleProfitPerUnit = product.wholesale_price - product.buying_cost
-  const retailProfitPerUnit = product.retail_price - product.buying_cost
-  const stockValue = product.stock_quantity * product.buying_cost
-  const potentialWholesaleRevenue = product.stock_quantity * product.wholesale_price
-  const potentialWholesaleProfit = product.stock_quantity * wholesaleProfitPerUnit
+  const dualProfit = calculateDualProfit(product.buying_cost, product.wholesale_price, product.retail_price)
+  const stockValue = product.stock_quantity * (dualProfit.buyingCost || 0)
+  const potentialWholesaleRevenue =
+    dualProfit.wholesale.isConfigured && dualProfit.wholesale.sellingPrice !== null
+      ? product.stock_quantity * dualProfit.wholesale.sellingPrice
+      : null
+  const potentialWholesaleProfit =
+    dualProfit.wholesale.isConfigured && dualProfit.wholesale.profit !== null
+      ? product.stock_quantity * dualProfit.wholesale.profit
+      : null
 
   return (
     <PageContainer>
@@ -261,6 +268,9 @@ export default function ProductDetailPage() {
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EAF2FD] text-[#2563EB] border border-[#2563EB]/20 uppercase tracking-wider">
                 PRODUCT DETAIL
+              </span>
+              <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getProductCategory(product).badgeClass}`}>
+                {getProductCategory(product).name}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-[#52627A] mt-0.5">
@@ -303,14 +313,29 @@ export default function ProductDetailPage() {
 
         <MetricCard
           title="Pot. Wholesale Revenue"
-          value={<CurrencyDisplay amount={potentialWholesaleRevenue} variant="brand" />}
+          value={
+            potentialWholesaleRevenue !== null ? (
+              <CurrencyDisplay amount={potentialWholesaleRevenue} variant="brand" />
+            ) : (
+              <span className="text-sm text-slate-400 font-medium italic">Not set</span>
+            )
+          }
           icon={TrendingUp}
           variant="blue"
         />
 
         <MetricCard
           title="Pot. Wholesale Profit"
-          value={<CurrencyDisplay amount={potentialWholesaleProfit} variant="positive" />}
+          value={
+            potentialWholesaleProfit !== null ? (
+              <CurrencyDisplay
+                amount={potentialWholesaleProfit}
+                variant={potentialWholesaleProfit >= 0 ? "positive" : "negative"}
+              />
+            ) : (
+              <span className="text-sm text-slate-400 font-medium italic">Not set</span>
+            )
+          }
           icon={TrendingUp}
           variant="green"
         />
@@ -326,37 +351,69 @@ export default function ProductDetailPage() {
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
               <span className="text-xs sm:text-sm text-[#52627A]">Buying Cost</span>
-              <CurrencyDisplay amount={product.buying_cost} bold />
+              <span className="font-mono font-bold text-[#0F172A]">
+                {dualProfit.displayBuyingCost}
+              </span>
             </div>
             <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
               <span className="text-xs sm:text-sm text-[#52627A]">Wholesale Price</span>
-              <span className="bg-[#EAF2FD] px-2 py-0.5 rounded-lg border border-[#2563EB]/20">
-                <CurrencyDisplay amount={product.wholesale_price} variant="brand" bold />
+              <span className={`px-2 py-0.5 rounded-lg border font-mono font-bold ${
+                dualProfit.wholesale.isConfigured
+                  ? "bg-[#EAF2FD] text-[#2563EB] border-[#2563EB]/20"
+                  : "bg-slate-50 text-slate-400 border-slate-200 font-normal italic text-xs"
+              }`}>
+                {dualProfit.wholesale.displayPrice}
               </span>
             </div>
             <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
               <span className="text-xs sm:text-sm text-[#52627A]">Retail Price</span>
-              <CurrencyDisplay amount={product.retail_price} bold />
+              <span className={`font-mono font-bold ${
+                dualProfit.retail.isConfigured ? "text-[#0F172A]" : "text-slate-400 font-normal italic text-xs"
+              }`}>
+                {dualProfit.retail.displayPrice}
+              </span>
             </div>
             <div className="flex justify-between items-center py-2.5 border-b border-[#D9E0E8]">
               <span className="text-xs sm:text-sm text-[#52627A]">Wholesale Profit / Unit</span>
-              <span className="bg-[#EAF7EF] px-2 py-0.5 rounded-lg border border-[#087443]/20">
-                <CurrencyDisplay
-                  amount={wholesaleProfitPerUnit}
-                  variant={wholesaleProfitPerUnit >= 0 ? "positive" : "negative"}
-                  bold
-                />
-              </span>
+              {dualProfit.wholesale.isConfigured && dualProfit.wholesale.profit !== null ? (
+                <div className="flex items-center gap-1.5">
+                  <span className={`px-2 py-0.5 rounded-lg border font-mono font-bold ${
+                    dualProfit.wholesale.isPositive
+                      ? "bg-[#EAF7EF] text-[#087443] border-[#087443]/20"
+                      : "bg-rose-50 text-rose-600 border-rose-200"
+                  }`}>
+                    {dualProfit.wholesale.displayProfit}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    ({dualProfit.wholesale.displayPercent})
+                  </span>
+                </div>
+              ) : (
+                <span className="text-slate-400 text-xs italic font-normal">
+                  {dualProfit.wholesale.statusText}
+                </span>
+              )}
             </div>
             <div className="flex justify-between items-center py-2.5">
               <span className="text-xs sm:text-sm text-[#52627A]">Retail Profit / Unit</span>
-              <span className="bg-[#EAF7EF] px-2 py-0.5 rounded-lg border border-[#087443]/20">
-                <CurrencyDisplay
-                  amount={retailProfitPerUnit}
-                  variant={retailProfitPerUnit >= 0 ? "positive" : "negative"}
-                  bold
-                />
-              </span>
+              {dualProfit.retail.isConfigured && dualProfit.retail.profit !== null ? (
+                <div className="flex items-center gap-1.5">
+                  <span className={`px-2 py-0.5 rounded-lg border font-mono font-bold ${
+                    dualProfit.retail.isPositive
+                      ? "bg-[#EAF7EF] text-[#087443] border-[#087443]/20"
+                      : "bg-rose-50 text-rose-600 border-rose-200"
+                  }`}>
+                    {dualProfit.retail.displayProfit}
+                  </span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    ({dualProfit.retail.displayPercent})
+                  </span>
+                </div>
+              ) : (
+                <span className="text-slate-400 text-xs italic font-normal">
+                  {dualProfit.retail.statusText}
+                </span>
+              )}
             </div>
           </div>
         </SectionCard>
