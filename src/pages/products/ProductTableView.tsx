@@ -2,7 +2,7 @@ import { Link } from "react-router-dom"
 import { Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import type { Product } from "@/services/products"
 import { getProductCategory, getProductStockStatus, getProductImageUrl } from "@/lib/productCategories"
-import { formatMoney } from "@/lib/utils"
+import { calculateDualProfit } from "@/lib/productPricing"
 
 export type SortOption =
   | "name_asc"
@@ -57,17 +57,19 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
     <div className="w-full bg-white rounded-2xl border border-[#E2E8F0] shadow-xs overflow-hidden">
       {/* Table Container with self-contained horizontal scrolling */}
       <div className="overflow-x-auto max-w-full">
-        <table className="w-full text-left border-collapse min-w-[960px]">
+        <table className="w-full text-left border-collapse min-w-[1020px]">
           {/* Defined Colgroup for strictly aligned column widths */}
           <colgroup>
-            <col style={{ width: isCompact ? "28%" : "26%" }} />
-            <col style={{ width: isCompact ? "14%" : "13%" }} />
-            <col style={{ width: isCompact ? "7%" : "7%" }} />
+            <col style={{ width: isCompact ? "24%" : "22%" }} />
+            <col style={{ width: isCompact ? "12%" : "12%" }} />
+            <col style={{ width: isCompact ? "6%" : "6%" }} />
+            <col style={{ width: isCompact ? "8%" : "8%" }} />
+            <col style={{ width: isCompact ? "8%" : "9%" }} />
             <col style={{ width: isCompact ? "9%" : "9%" }} />
-            <col style={{ width: isCompact ? "10%" : "10%" }} />
+            <col style={{ width: isCompact ? "9%" : "9%" }} />
             <col style={{ width: isCompact ? "10%" : "11%" }} />
-            <col style={{ width: isCompact ? "10%" : "10%" }} />
-            <col style={{ width: isCompact ? "12%" : "14%" }} />
+            <col style={{ width: isCompact ? "10%" : "11%" }} />
+            <col style={{ width: isCompact ? "4%" : "5%" }} />
           </colgroup>
 
           {/* Sticky Solid Table Header */}
@@ -76,7 +78,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               {/* Product Column */}
               <th
                 scope="col"
-                className={`group ${isCompact ? "py-2.5 px-3" : "py-3 px-4"} cursor-pointer hover:bg-slate-100/70 transition-colors`}
+                className={`group ${isCompact ? "py-2 px-3" : "py-3 px-4"} cursor-pointer hover:bg-slate-100/70 transition-colors`}
                 onClick={() => handleSortToggle("name_asc", "name_desc")}
                 title="Sort by Name"
               >
@@ -87,19 +89,19 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               </th>
 
               {/* Dealer Column */}
-              <th scope="col" className={`${isCompact ? "py-2.5 px-3" : "py-3 px-4"}`}>
+              <th scope="col" className={`${isCompact ? "py-2 px-3" : "py-3 px-4"}`}>
                 Dealer
               </th>
 
               {/* Unit Column */}
-              <th scope="col" className={`${isCompact ? "py-2.5 px-3" : "py-3 px-4"}`}>
+              <th scope="col" className={`${isCompact ? "py-2 px-3" : "py-3 px-4"}`}>
                 Unit
               </th>
 
               {/* Stock Column */}
               <th
                 scope="col"
-                className={`group ${isCompact ? "py-2.5 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
+                className={`group ${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
                 onClick={() => handleSortToggle("stock_asc", "stock_desc")}
                 title="Sort by Stock"
               >
@@ -112,7 +114,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               {/* Buying Price Column */}
               <th
                 scope="col"
-                className={`group ${isCompact ? "py-2.5 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
+                className={`group ${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
                 onClick={() => handleSortToggle("buying_asc", "retail_asc")}
                 title="Sort by Buying Cost"
               >
@@ -123,14 +125,14 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               </th>
 
               {/* Wholesale Price Column */}
-              <th scope="col" className={`${isCompact ? "py-2.5 px-3" : "py-3 px-4"} text-right`}>
+              <th scope="col" className={`${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right`}>
                 Wholesale
               </th>
 
               {/* Retail Price Column */}
               <th
                 scope="col"
-                className={`group ${isCompact ? "py-2.5 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
+                className={`group ${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
                 onClick={() => handleSortToggle("retail_asc", "retail_desc")}
                 title="Sort by Retail Price"
               >
@@ -140,17 +142,27 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                 </div>
               </th>
 
-              {/* Profit & Actions Column */}
+              {/* Wholesale Profit Column */}
               <th
                 scope="col"
-                className={`group ${isCompact ? "py-2.5 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
+                className={`group ${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right cursor-pointer hover:bg-slate-100/70 transition-colors`}
                 onClick={() => handleSortToggle("profit_asc", "profit_desc")}
                 title="Sort by Wholesale Profit"
               >
                 <div className="flex items-center justify-end gap-1">
-                  <span>Profit & Actions</span>
+                  <span>Wholesale Profit</span>
                   {renderSortIndicator("profit_asc", "profit_desc")}
                 </div>
+              </th>
+
+              {/* Retail Profit Column */}
+              <th scope="col" className={`${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right`}>
+                Retail Profit
+              </th>
+
+              {/* Actions Column */}
+              <th scope="col" className={`${isCompact ? "py-2 px-2" : "py-3 px-3"} text-center`}>
+                Actions
               </th>
             </tr>
           </thead>
@@ -161,12 +173,11 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
               const cat = getProductCategory(product)
               const stock = Number(product.stock_quantity) || 0
               const stockInfo = getProductStockStatus(stock)
-              const buyingCost = Number(product.buying_cost) || 0
-              const wholesalePrice = Number(product.wholesale_price) || 0
-              const retailPrice = Number(product.retail_price) || 0
-              const profit = wholesalePrice - buyingCost
-              const profitPercent =
-                buyingCost > 0 ? Math.round((profit / buyingCost) * 100) : 0
+              const dual = calculateDualProfit(
+                product.buying_cost,
+                product.wholesale_price,
+                product.retail_price
+              )
               const imageUrl = getProductImageUrl(product)
 
               return (
@@ -175,11 +186,11 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                   className="hover:bg-blue-50/30 transition-colors group"
                 >
                   {/* Product (Photo, Name, Category) */}
-                  <td className={`${isCompact ? "py-2 px-3" : "py-3 px-4"}`}>
+                  <td className={`${isCompact ? "py-1.5 px-3" : "py-3 px-4"}`}>
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
                         className={`${
-                          isCompact ? "w-7 h-7" : "w-10 h-10"
+                          isCompact ? "w-6 h-6" : "w-10 h-10"
                         } rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5`}
                       >
                         <img
@@ -196,7 +207,7 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                         <Link
                           to={`/products/${product.id}`}
                           className={`font-bold text-[#0F172A] hover:text-[#2563EB] truncate block transition-colors ${
-                            isCompact ? "text-xs" : "text-sm"
+                            isCompact ? "text-xs leading-tight" : "text-sm"
                           }`}
                           title={product.name}
                         >
@@ -215,25 +226,23 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
 
                   {/* Dealer */}
                   <td
-                    className={`${isCompact ? "py-2 px-3 text-xs" : "py-3 px-4 text-xs"} text-slate-600 truncate`}
+                    className={`${isCompact ? "py-1.5 px-3 text-xs" : "py-3 px-4 text-xs"} text-slate-600 truncate`}
                     title={product.dealer?.name || "Direct Supplier"}
                   >
                     {product.dealer?.name || "Direct Supplier"}
                   </td>
 
                   {/* Unit */}
-                  <td className={`${isCompact ? "py-2 px-3" : "py-3 px-4"}`}>
+                  <td className={`${isCompact ? "py-1.5 px-3" : "py-3 px-4"}`}>
                     <span className="text-[10px] font-mono font-bold text-slate-700 bg-slate-100 border border-slate-200/60 px-1.5 py-0.5 rounded">
                       {product.unit}
                     </span>
                   </td>
 
                   {/* Stock */}
-                  <td className={`${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right`}>
+                  <td className={`${isCompact ? "py-1.5 px-3" : "py-3 px-4"} text-right`}>
                     <span
-                      className={`inline-flex items-center gap-1 font-mono font-bold ${
-                        isCompact ? "text-xs" : "text-xs"
-                      } ${stockInfo.colorClass}`}
+                      className={`inline-flex items-center gap-1 font-mono font-bold text-xs ${stockInfo.colorClass}`}
                     >
                       <span className={`w-1.5 h-1.5 rounded-full ${stockInfo.dotClass}`} />
                       {stock}
@@ -243,75 +252,115 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                   {/* Buying Cost */}
                   <td
                     className={`${
-                      isCompact ? "py-2 px-3 text-xs" : "py-3 px-4 text-xs"
+                      isCompact ? "py-1.5 px-3 text-xs" : "py-3 px-4 text-xs"
                     } text-right font-mono font-medium text-slate-700`}
                   >
-                    {formatMoney(buyingCost)}
+                    {dual.displayBuyingCost}
                   </td>
 
                   {/* Wholesale Price */}
                   <td
                     className={`${
-                      isCompact ? "py-2 px-3 text-xs" : "py-3 px-4 text-xs"
-                    } text-right font-mono font-bold text-[#2563EB]`}
+                      isCompact ? "py-1.5 px-3 text-xs" : "py-3 px-4 text-xs"
+                    } text-right font-mono font-bold ${
+                      dual.wholesale.isConfigured ? "text-[#2563EB]" : "text-slate-400 italic font-normal text-[11px]"
+                    }`}
                   >
-                    {formatMoney(wholesalePrice)}
+                    {dual.wholesale.displayPrice}
                   </td>
 
                   {/* Retail Price */}
                   <td
                     className={`${
-                      isCompact ? "py-2 px-3 text-xs" : "py-3 px-4 text-xs"
-                    } text-right font-mono font-bold text-slate-900`}
+                      isCompact ? "py-1.5 px-3 text-xs" : "py-3 px-4 text-xs"
+                    } text-right font-mono font-bold ${
+                      dual.retail.isConfigured ? "text-slate-900" : "text-slate-400 italic font-normal text-[11px]"
+                    }`}
                   >
-                    {formatMoney(retailPrice)}
+                    {dual.retail.displayPrice}
                   </td>
 
-                  {/* Profit & Actions */}
-                  <td className={`${isCompact ? "py-2 px-3" : "py-3 px-4"} text-right`}>
-                    <div className="flex items-center justify-end gap-3">
+                  {/* Wholesale Profit */}
+                  <td className={`${isCompact ? "py-1.5 px-3" : "py-3 px-4"} text-right`}>
+                    {dual.wholesale.isConfigured && dual.wholesale.profit !== null ? (
                       <div className="text-right leading-tight">
                         <span
                           className={`font-mono font-bold text-xs ${
-                            profit >= 0 ? "text-emerald-600" : "text-rose-600"
+                            dual.wholesale.isPositive
+                              ? "text-emerald-600"
+                              : dual.wholesale.isNegative
+                              ? "text-rose-600"
+                              : "text-slate-600"
                           }`}
                         >
-                          {formatMoney(profit)}
+                          {dual.wholesale.displayProfit}
                         </span>
                         <span className="text-[10px] text-slate-500 font-medium block">
-                          ({profitPercent}%)
+                          ({dual.wholesale.displayPercent})
                         </span>
                       </div>
+                    ) : (
+                      <span className="text-slate-400 text-[11px] italic font-normal">
+                        Not set
+                      </span>
+                    )}
+                  </td>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Link
-                          to={`/products/${product.id}`}
-                          className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors"
-                          aria-label={`View ${product.name}`}
-                          title={`View ${product.name}`}
+                  {/* Retail Profit */}
+                  <td className={`${isCompact ? "py-1.5 px-3" : "py-3 px-4"} text-right`}>
+                    {dual.retail.isConfigured && dual.retail.profit !== null ? (
+                      <div className="text-right leading-tight">
+                        <span
+                          className={`font-mono font-bold text-xs ${
+                            dual.retail.isPositive
+                              ? "text-emerald-600"
+                              : dual.retail.isNegative
+                              ? "text-rose-600"
+                              : "text-slate-600"
+                          }`}
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                        </Link>
-                        <button
-                          type="button"
-                          onClick={() => onEdit(product)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                          aria-label={`Edit ${product.name}`}
-                          title={`Edit ${product.name}`}
-                        >
-                          <Pencil className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(product)}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          aria-label={`Delete ${product.name}`}
-                          title={`Delete ${product.name}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          {dual.retail.displayProfit}
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium block">
+                          ({dual.retail.displayPercent})
+                        </span>
                       </div>
+                    ) : (
+                      <span className="text-slate-400 text-[11px] italic font-normal">
+                        Not set
+                      </span>
+                    )}
+                  </td>
+
+                  {/* Actions */}
+                  <td className={`${isCompact ? "py-1.5 px-2" : "py-3 px-3"} text-center`}>
+                    <div className="flex items-center justify-center gap-1">
+                      <Link
+                        to={`/products/${product.id}`}
+                        className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors"
+                        aria-label={`View ${product.name}`}
+                        title={`View ${product.name}`}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(product)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                        aria-label={`Edit ${product.name}`}
+                        title={`Edit ${product.name}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(product)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                        aria-label={`Delete ${product.name}`}
+                        title={`Delete ${product.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>

@@ -157,16 +157,16 @@ export default function ProductCalculatorPage() {
       return isNaN(parsed) || parsed < 0 ? 0 : parsed
     }
     if (priceTier === "WHOLESALE") {
-      if (selectedProduct.wholesale_price && Number(selectedProduct.wholesale_price) > 0) {
+      if (selectedProduct.wholesale_price != null && Number(selectedProduct.wholesale_price) > 0) {
         return Number(selectedProduct.wholesale_price)
       }
-      return Number(selectedProduct.retail_price || 0)
+      return 0
     }
     // RETAIL
-    if (selectedProduct.retail_price && Number(selectedProduct.retail_price) > 0) {
+    if (selectedProduct.retail_price != null && Number(selectedProduct.retail_price) > 0) {
       return Number(selectedProduct.retail_price)
     }
-    return Number(selectedProduct.wholesale_price || 0)
+    return 0
   }, [selectedProduct, priceTier, customPriceInput])
 
   // Mode A Calculation Result (Cash -> Quantity)

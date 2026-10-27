@@ -8,7 +8,7 @@ import {
   getProductStockStatus,
 } from "@/lib/productCategories"
 import { ProductIllustration } from "@/pages/calculator/ProductIllustrations"
-import { formatMoney } from "@/lib/utils"
+import { ProductPricing } from "./ProductPricing"
 
 interface ProductCardProps {
   product: Product
@@ -32,15 +32,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const stockInfo = getProductStockStatus(Number(product.stock_quantity) || 0)
   const imageUrl = getProductImageUrl(product)
 
-  const buyingCost = Number(product.buying_cost) || 0
-  const wholesalePrice = Number(product.wholesale_price) || 0
-  const retailPrice = Number(product.retail_price) || 0
+  const buyingCost = product.buying_cost != null ? Number(product.buying_cost) : 0
+  const wholesalePrice = product.wholesale_price != null ? Number(product.wholesale_price) : null
+  const retailPrice = product.retail_price != null ? Number(product.retail_price) : null
   const stock = Number(product.stock_quantity) || 0
-
-  // Wholesale profit & profit %
-  const wholesaleProfit = wholesalePrice - buyingCost
-  const wholesaleProfitPercent =
-    buyingCost > 0 ? Math.round((wholesaleProfit / buyingCost) * 100) : 0
 
   // Close more menu when clicking outside
   useEffect(() => {
@@ -131,39 +126,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </p>
           </div>
 
-          {/* Micro 3-Column Pricing (B, W, R) matching Reference Mockup */}
-          <div className="grid grid-cols-3 gap-0.5 text-center my-1 bg-[#F8FAFC] border border-slate-100 rounded-md py-1 px-0.5">
-            <div className="min-w-0">
-              <span className="block text-[7px] font-bold text-slate-400 uppercase tracking-tight">B</span>
-              <span className="block text-[8px] font-mono font-bold text-[#0F172A] truncate" title={formatMoney(buyingCost)}>
-                {formatMoney(buyingCost)}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <span className="block text-[7px] font-bold text-slate-400 uppercase tracking-tight">W</span>
-              <span className="block text-[8px] font-mono font-bold text-[#0F172A] truncate" title={formatMoney(wholesalePrice)}>
-                {formatMoney(wholesalePrice)}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <span className="block text-[7px] font-bold text-blue-600 uppercase tracking-tight">R</span>
-              <span className="block text-[8px] font-mono font-bold text-[#2563EB] truncate" title={formatMoney(retailPrice)}>
-                {formatMoney(retailPrice)}
-              </span>
-            </div>
-          </div>
-
-          {/* Profit Row */}
-          <div className="flex items-center justify-between text-[7.5px] my-0.5 px-0.5">
-            <span className="text-slate-400 font-medium">Profit</span>
-            <span
-              className={`font-mono font-bold truncate ${
-                wholesaleProfit >= 0 ? "text-[#059669]" : "text-[#DC2626]"
-              }`}
-            >
-              {formatMoney(wholesaleProfit)} ({wholesaleProfitPercent}%)
-            </span>
-          </div>
+          {/* Reusable Product Pricing (Compact Mobile) */}
+          <ProductPricing
+            buyingCost={buyingCost}
+            wholesalePrice={wholesalePrice}
+            retailPrice={retailPrice}
+            compact
+          />
         </div>
 
         {/* Action Buttons: View and Edit matching Mobile Mockup */}
@@ -263,65 +232,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </p>
         </div>
 
-        {/* Dedicated 3-Column Pricing Panel matching Image 1 */}
-        <div className="rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] p-3 mb-3">
-          <div className="grid grid-cols-3 gap-2 text-left">
-            <div className="min-w-0">
-              <span
-                className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate"
-                title="Buying Price"
-              >
-                BUYING
-              </span>
-              <span
-                className="block text-xs sm:text-[13px] font-bold text-[#0F172A] font-mono mt-0.5 tabular-nums truncate"
-                title={formatMoney(buyingCost)}
-              >
-                {formatMoney(buyingCost)}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <span
-                className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate"
-                title="Wholesale Price"
-              >
-                WHOLESALE
-              </span>
-              <span
-                className="block text-xs sm:text-[13px] font-bold text-[#0F172A] font-mono mt-0.5 tabular-nums truncate"
-                title={formatMoney(wholesalePrice)}
-              >
-                {formatMoney(wholesalePrice)}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <span
-                className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate"
-                title="Retail Price"
-              >
-                RETAIL
-              </span>
-              <span
-                className="block text-xs sm:text-[13px] font-bold text-[#0F172A] font-mono mt-0.5 tabular-nums truncate"
-                title={formatMoney(retailPrice)}
-              >
-                {formatMoney(retailPrice)}
-              </span>
-            </div>
-          </div>
-
-          {/* Profit Row */}
-          <div className="border-t border-slate-200/70 mt-2.5 pt-2 flex items-center justify-between text-xs">
-            <span className="text-[#64748B] font-medium">Profit</span>
-            <span
-              className={`font-mono font-bold tabular-nums ${
-                wholesaleProfit >= 0 ? "text-[#059669]" : "text-[#DC2626]"
-              }`}
-            >
-              {formatMoney(wholesaleProfit)} ({wholesaleProfitPercent}%)
-            </span>
-          </div>
-        </div>
+        {/* Reusable Dedicated 3-Column Pricing Panel */}
+        <ProductPricing
+          buyingCost={buyingCost}
+          wholesalePrice={wholesalePrice}
+          retailPrice={retailPrice}
+        />
       </div>
 
       {/* Action Buttons Row: View, Edit, and Additional Actions Menu */}

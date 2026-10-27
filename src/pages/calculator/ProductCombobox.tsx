@@ -82,7 +82,8 @@ export function ProductCombobox({
       if (
         p.name.toLowerCase().includes(q) ||
         (p.unit && p.unit.toLowerCase().includes(q)) ||
-        (p.dealer?.name && p.dealer.name.toLowerCase().includes(q))
+        (p.dealer?.name && p.dealer.name.toLowerCase().includes(q)) ||
+        (p.category && p.category.toLowerCase().includes(q))
       ) {
         results.push(p)
         if (results.length >= 50) break
@@ -249,7 +250,7 @@ export function ProductCombobox({
         <option value="">-- Choose a Product from Catalog --</option>
         {products.map((p) => (
           <option key={p.id} value={p.id}>
-            {p.name} ({p.unit || "No Unit"}) — Wholesale: {formatMoney(p.wholesale_price || 0)} | Retail: {formatMoney(p.retail_price || 0)}
+            {p.name} ({p.unit || "No Unit"}) — Wholesale: {p.wholesale_price != null ? formatMoney(p.wholesale_price) : "Not set"} | Retail: {p.retail_price != null ? formatMoney(p.retail_price) : "Not set"}
           </option>
         ))}
       </select>
@@ -409,14 +410,19 @@ export function ProductCombobox({
                               <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#F1F4F8] text-[#52627A]">
                                 {p.unit || "unit"}
                               </span>
+                              {p.category && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                                  {p.category}
+                                </span>
+                              )}
                             </div>
 
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-[#52627A]">
                               <span>
-                                Wholesale: <strong className="text-[#172B4D]">{formatMoney(p.wholesale_price || 0)}</strong>
+                                Wholesale: <strong className="text-[#172B4D]">{p.wholesale_price != null ? formatMoney(p.wholesale_price) : "Not set"}</strong>
                               </span>
                               <span>
-                                Retail: <strong className="text-[#172B4D]">{formatMoney(p.retail_price || 0)}</strong>
+                                Retail: <strong className="text-[#172B4D]">{p.retail_price != null ? formatMoney(p.retail_price) : "Not set"}</strong>
                               </span>
                               {p.stock_quantity !== undefined && (
                                 <span
@@ -557,14 +563,19 @@ export function ProductCombobox({
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#F1F4F8] text-[#52627A]">
                               {p.unit || "unit"}
                             </span>
+                            {p.category && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                                {p.category}
+                              </span>
+                            )}
                           </div>
 
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-[#52627A]">
                             <span>
-                              Wholesale: <strong className="text-[#172B4D]">{formatMoney(p.wholesale_price || 0)}</strong>
+                              Wholesale: <strong className="text-[#172B4D]">{p.wholesale_price != null ? formatMoney(p.wholesale_price) : "Not set"}</strong>
                             </span>
                             <span>
-                              Retail: <strong className="text-[#172B4D]">{formatMoney(p.retail_price || 0)}</strong>
+                              Retail: <strong className="text-[#172B4D]">{p.retail_price != null ? formatMoney(p.retail_price) : "Not set"}</strong>
                             </span>
                             {p.stock_quantity !== undefined && (
                               <span
