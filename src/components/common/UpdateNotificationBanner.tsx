@@ -101,5 +101,3 @@ export function UpdateNotificationBanner() {
     </div>
   )
 }
-
-export default UpdateNotificationBanner

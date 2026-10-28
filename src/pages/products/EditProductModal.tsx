@@ -1,13 +1,9 @@
-import { useState, useMemo } from "react"
+import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { updateProduct, type Product } from "@/services/products"
 import type { Dealer } from "@/services/dealers"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { CurrencyDisplay } from "@/components/shared"
-import { ProductCategorySelector } from "./ProductCategorySelector"
-import { calculateDualProfit } from "@/lib/productPricing"
+import { ProductFormFields } from "@/components/products"
 import { getProductCategory } from "@/lib/productCategories"
 import { X, Loader2, Pencil, AlertCircle, Package } from "lucide-react"
 
@@ -84,12 +80,6 @@ function EditProductModalForm({
       setFormError(err.message || "Failed to update product")
     },
   })
-
-  // Live dual margin preview
-  const dualProfit = useMemo(
-    () => calculateDualProfit(buyingCost, wholesalePrice, retailPrice),
-    [buyingCost, wholesalePrice, retailPrice]
-  )
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -190,170 +180,32 @@ function EditProductModalForm({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-product-name" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-              Product Name
-            </Label>
-            <Input
-              id="edit-product-name"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Sider Honey"
-              className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10"
-            />
-          </div>
-
-          {/* Product Category Selector */}
-          <ProductCategorySelector
-            value={category}
-            onChange={(val) => {
-              setCategory(val)
-              if (formError?.includes("category")) setFormError(null)
+          <ProductFormFields
+            values={{
+              name,
+              category,
+              dealerId,
+              unit,
+              buyingCost,
+              wholesalePrice,
+              retailPrice,
             }}
-            error={formError && !category ? formError : undefined}
+            onChange={(field, value) => {
+              if (field === "name") setName(value)
+              else if (field === "category") {
+                setCategory(value)
+                if (formError?.includes("category")) setFormError(null)
+              } else if (field === "dealerId") setDealerId(value)
+              else if (field === "unit") setUnit(value)
+              else if (field === "buyingCost") setBuyingCost(value)
+              else if (field === "wholesalePrice") setWholesalePrice(value)
+              else if (field === "retailPrice") setRetailPrice(value)
+            }}
+            dealers={dealers}
+            formError={formError}
+            disabled={mutation.isPending}
+            idPrefix="edit-product"
           />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-product-dealer" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                Dealer
-              </Label>
-              <select
-                id="edit-product-dealer"
-                required
-                className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors"
-                value={dealerId}
-                onChange={(e) => setDealerId(e.target.value)}
-              >
-                <option value="" disabled>Select Dealer</option>
-                {dealers.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-product-unit" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                Measurement Unit
-              </Label>
-              <select
-                id="edit-product-unit"
-                required
-                className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors"
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-              >
-                <option value="Kg">Kg</option>
-                <option value="Pc">Pc</option>
-                <option value="Ltr">Ltr</option>
-                <option value="Box">Box</option>
-                <option value="Bottle">Bottle</option>
-                <option value="Pkt">Pkt</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="edit-product-buying" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                Buying Cost (₹)
-              </Label>
-              <Input
-                id="edit-product-buying"
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                value={buyingCost}
-                onChange={(e) => setBuyingCost(e.target.value)}
-                placeholder="0.00"
-                className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#52627A] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10 font-mono"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="edit-product-wholesale" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Wholesale (₹)
-                </Label>
-                <span className="text-[10px] text-slate-400 font-medium">Optional</span>
-              </div>
-              <Input
-                id="edit-product-wholesale"
-                type="number"
-                step="0.01"
-                min="0"
-                value={wholesalePrice}
-                onChange={(e) => setWholesalePrice(e.target.value)}
-                placeholder="Leave blank if not sold wholesale"
-                className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#94A3B8] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10 font-mono text-sm"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="edit-product-retail" className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Retail (₹)
-                </Label>
-                <span className="text-[10px] text-slate-400 font-medium">Optional</span>
-              </div>
-              <Input
-                id="edit-product-retail"
-                type="number"
-                step="0.01"
-                min="0"
-                value={retailPrice}
-                onChange={(e) => setRetailPrice(e.target.value)}
-                placeholder="Leave blank if not sold retail"
-                className="border-[#D9E0E8] bg-white text-[#172B4D] placeholder:text-[#94A3B8] focus:border-[#2563EB] focus:ring-1 focus:ring-[#2563EB]/20 rounded-xl h-10 font-mono text-sm"
-              />
-            </div>
-          </div>
-
-          {/* Real-time Margins Summary Card */}
-          <div className="p-3.5 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] grid grid-cols-2 gap-3 text-xs">
-            <div>
-              <span className="text-[#64748B] block font-medium">Wholesale Margin / {unit}:</span>
-              {dualProfit.wholesale.isConfigured && dualProfit.wholesale.profit !== null ? (
-                <div className="flex items-baseline gap-1 mt-0.5">
-                  <CurrencyDisplay
-                    amount={dualProfit.wholesale.profit}
-                    variant={dualProfit.wholesale.isPositive ? "positive" : dualProfit.wholesale.isNegative ? "negative" : "default"}
-                    bold
-                    className="text-sm"
-                  />
-                  <span className="text-[10px] text-slate-500 font-medium">
-                    ({dualProfit.wholesale.displayPercent})
-                  </span>
-                </div>
-              ) : (
-                <span className="text-slate-400 text-xs italic font-normal mt-0.5 block">
-                  {dualProfit.wholesale.statusText}
-                </span>
-              )}
-            </div>
-            <div>
-              <span className="text-[#64748B] block font-medium">Retail Margin / {unit}:</span>
-              {dualProfit.retail.isConfigured && dualProfit.retail.profit !== null ? (
-                <div className="flex items-baseline gap-1 mt-0.5">
-                  <CurrencyDisplay
-                    amount={dualProfit.retail.profit}
-                    variant={dualProfit.retail.isPositive ? "positive" : dualProfit.retail.isNegative ? "negative" : "default"}
-                    bold
-                    className="text-sm"
-                  />
-                  <span className="text-[10px] text-slate-500 font-medium">
-                    ({dualProfit.retail.displayPercent})
-                  </span>
-                </div>
-              ) : (
-                <span className="text-slate-400 text-xs italic font-normal mt-0.5 block">
-                  {dualProfit.retail.statusText}
-                </span>
-              )}
-            </div>
-          </div>
 
           {/* Existing Stock Info (Read-only reminder) */}
           <div className="flex items-center justify-between text-xs text-[#52627A] px-1">

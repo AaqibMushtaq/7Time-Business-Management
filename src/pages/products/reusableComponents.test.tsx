@@ -1,8 +1,10 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
+import { MemoryRouter } from "react-router-dom"
 import { ProductPricing } from "./ProductPricing"
 import { ProductCategorySelector } from "./ProductCategorySelector"
 import { HamburgerFilterButton } from "./HamburgerFilterButton"
+import { ProductIdentity, ProductSelector, ProductFormFields } from "@/components/products"
 import { BUSINESS_CATEGORIES } from "@/lib/productCategories"
 
 describe("Product Reusable Components Architecture", () => {
@@ -204,6 +206,197 @@ describe("Product Reusable Components Architecture", () => {
 
       fireEvent.click(button)
       expect(handleClick).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  describe("ProductIdentity Component", () => {
+    it("renders product name, unit badge, and category badge", () => {
+      render(
+        <ProductIdentity
+          name="Saffron Gold"
+          unit="g"
+          category="Spices & Masalas"
+          size="sm"
+          showCategory={true}
+          showUnit={true}
+        />
+      )
+
+      expect(screen.getByText("Saffron Gold")).toBeDefined()
+      expect(screen.getByText("g")).toBeDefined()
+      expect(screen.getByText("Spices")).toBeDefined()
+    })
+
+    it("renders dealer name when showDealer is enabled", () => {
+      render(
+        <ProductIdentity
+          name="Kashmir Honey"
+          unit="Kg"
+          dealerName="Himalayan Organics"
+          showDealer={true}
+        />
+      )
+
+      expect(screen.getByText("Kashmir Honey")).toBeDefined()
+      expect(screen.getByText("Himalayan Organics")).toBeDefined()
+    })
+
+    it("renders link to detail page when linkToDetail is true", () => {
+      render(
+        <MemoryRouter>
+          <ProductIdentity
+            id="p-123"
+            name="Raw Forest Honey"
+            linkToDetail={true}
+          />
+        </MemoryRouter>
+      )
+
+      const link = screen.getByRole("link", { name: "Raw Forest Honey" })
+      expect(link.getAttribute("href")).toBe("/products/p-123")
+    })
+
+    it("renders stock status indicator when showStock is true", () => {
+      render(
+        <ProductIdentity
+          name="Olive Oil Extra Virgin"
+          unit="Ltr"
+          stockQuantity={15}
+          showStock={true}
+        />
+      )
+
+      expect(screen.getByText(/15 Ltr/)).toBeDefined()
+    })
+  })
+
+  describe("ProductSelector Component", () => {
+    const mockProducts = [
+      { id: "p1", name: "Acacia Honey", unit: "Kg", buying_cost: 500, wholesale_price: 650, retail_price: 800, dealer_id: "d1" },
+      { id: "p2", name: "Almond Giri", unit: "Kg", buying_cost: 700, wholesale_price: 850, retail_price: 1000, dealer_id: "d1" },
+      { id: "p3", name: "Mustard Oil", unit: "Ltr", buying_cost: 150, wholesale_price: 180, retail_price: 220, dealer_id: "d2" },
+    ] as any
+
+    it("renders trigger and allows selecting a product via accessible select", () => {
+      const handleSelect = vi.fn()
+      render(
+        <ProductSelector
+          products={mockProducts}
+          selectedProductId=""
+          onSelectProduct={handleSelect}
+        />
+      )
+
+      const select = screen.getByDisplayValue("Select Product")
+      fireEvent.change(select, { target: { value: "p1" } })
+
+      expect(handleSelect).toHaveBeenCalledWith("p1", expect.objectContaining({ name: "Acacia Honey" }))
+    })
+
+    it("filters products by dealer ID when filterByDealerId is passed", () => {
+      render(
+        <ProductSelector
+          products={mockProducts}
+          selectedProductId=""
+          onSelectProduct={() => {}}
+          filterByDealerId="d2"
+        />
+      )
+
+      const select = screen.getByDisplayValue("Select Product")
+      const options = select.querySelectorAll("option")
+      // 1 placeholder + 1 product for d2 = 2 options
+      expect(options.length).toBe(2)
+      expect(screen.getByRole("option", { name: "Mustard Oil (Ltr)" })).toBeDefined()
+      expect(screen.queryByRole("option", { name: "Acacia Honey (Kg)" })).toBeNull()
+    })
+
+    it("displays selected product identity inside the trigger button", () => {
+      render(
+        <ProductSelector
+          products={mockProducts}
+          selectedProductId="p1"
+          onSelectProduct={() => {}}
+        />
+      )
+
+      expect(screen.getByText("Acacia Honey")).toBeDefined()
+      expect(screen.getByLabelText("Clear product selection")).toBeDefined()
+    })
+
+    it("clears selection when clear button is clicked", () => {
+      const handleSelect = vi.fn()
+      render(
+        <ProductSelector
+          products={mockProducts}
+          selectedProductId="p1"
+          onSelectProduct={handleSelect}
+        />
+      )
+
+      fireEvent.click(screen.getByLabelText("Clear product selection"))
+      expect(handleSelect).toHaveBeenCalledWith("", undefined)
+    })
+  })
+
+  describe("ProductFormFields Component", () => {
+    it("renders all form inputs and computes live dual margin preview", () => {
+      const handleChange = vi.fn()
+      render(
+        <ProductFormFields
+          values={{
+            name: "Pure Shilajit",
+            category: "Other Products",
+            dealerId: "d1",
+            unit: "g",
+            buyingCost: "1000",
+            wholesalePrice: "1400",
+            retailPrice: "1800",
+          }}
+          onChange={handleChange}
+          dealers={[{ id: "d1", name: "Kashmir Valley Suppliers" }]}
+        />
+      )
+
+      expect(screen.getByLabelText(/Product Name/i)).toBeDefined()
+      expect(screen.getByLabelText(/Category/i)).toBeDefined()
+      expect(screen.getByLabelText(/Dealer/i)).toBeDefined()
+      expect(screen.getByLabelText(/Unit/i)).toBeDefined()
+      expect(screen.getByLabelText(/Buying/i)).toBeDefined()
+      expect(screen.getByLabelText(/Wholesale/i)).toBeDefined()
+      expect(screen.getByLabelText(/Retail/i)).toBeDefined()
+
+      // Wholesale Profit = 1400 - 1000 = 400 (40%)
+      expect(screen.getByText(/₹400\.00/)).toBeDefined()
+      expect(screen.getByText(/\(40%\)/)).toBeDefined()
+
+      // Retail Profit = 1800 - 1000 = 800 (80%)
+      expect(screen.getByText(/₹800\.00/)).toBeDefined()
+      expect(screen.getByText(/\(80%\)/)).toBeDefined()
+    })
+
+    it("triggers onChange with field and updated value", () => {
+      const handleChange = vi.fn()
+      render(
+        <ProductFormFields
+          values={{
+            name: "",
+            category: "Honey",
+            dealerId: "",
+            unit: "Kg",
+            buyingCost: "",
+            wholesalePrice: "",
+            retailPrice: "",
+          }}
+          onChange={handleChange}
+          dealers={[{ id: "d1", name: "Dealer 1" }]}
+        />
+      )
+
+      fireEvent.change(screen.getByLabelText(/Product Name/i), {
+        target: { value: "Sidr Honey Raw" },
+      })
+      expect(handleChange).toHaveBeenCalledWith("name", "Sidr Honey Raw")
     })
   })
 })

@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom"
 import { Eye, Pencil, Trash2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
 import type { Product } from "@/services/products"
-import { getProductCategory, getProductStockStatus, getProductImageUrl } from "@/lib/productCategories"
+import { getProductStockStatus } from "@/lib/productCategories"
 import { calculateDualProfit } from "@/lib/productPricing"
+import { ProductIdentity } from "@/components/products"
 
 export type SortOption =
   | "name_asc"
@@ -170,7 +171,6 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
           {/* Table Body */}
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {products.map((product) => {
-              const cat = getProductCategory(product)
               const stock = Number(product.stock_quantity) || 0
               const stockInfo = getProductStockStatus(stock)
               const dual = calculateDualProfit(
@@ -178,7 +178,6 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                 product.wholesale_price,
                 product.retail_price
               )
-              const imageUrl = getProductImageUrl(product)
 
               return (
                 <tr
@@ -187,41 +186,13 @@ export const ProductTableView: React.FC<ProductTableViewProps> = ({
                 >
                   {/* Product (Photo, Name, Category) */}
                   <td className={`${isCompact ? "py-1.5 px-3" : "py-3 px-4"}`}>
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className={`${
-                          isCompact ? "w-6 h-6" : "w-10 h-10"
-                        } rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 overflow-hidden p-0.5`}
-                      >
-                        <img
-                          src={imageUrl}
-                          alt={product.name}
-                          className="w-full h-full object-contain"
-                          loading="lazy"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none"
-                          }}
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          to={`/products/${product.id}`}
-                          className={`font-bold text-[#0F172A] hover:text-[#2563EB] truncate block transition-colors ${
-                            isCompact ? "text-xs leading-tight" : "text-sm"
-                          }`}
-                          title={product.name}
-                        >
-                          {product.name}
-                        </Link>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span
-                            className={`text-[9px] font-semibold px-1.5 py-0.2 rounded border leading-none shrink-0 ${cat.badgeClass}`}
-                          >
-                            {cat.shortName}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    <ProductIdentity
+                      product={product}
+                      size={isCompact ? "xs" : "sm"}
+                      linkToDetail={true}
+                      showCategory={true}
+                      showUnit={false}
+                    />
                   </td>
 
                   {/* Dealer */}
