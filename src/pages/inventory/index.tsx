@@ -2,6 +2,7 @@ import { useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
 import { getProducts, type Product } from "@/services/products"
+import { ProductIdentity } from "@/components/products"
 import {
   PageHeader,
   PageContainer,
@@ -65,9 +66,13 @@ export default function InventoryPage() {
         mobileSpan: "full",
         mobileOrder: 1,
         cell: ({ row }) => (
-          <span className="font-semibold text-[#0F172A] whitespace-nowrap">
-            {row.name}
-          </span>
+          <ProductIdentity
+            product={row}
+            size="sm"
+            linkToDetail={true}
+            showCategory={true}
+            showUnit={false}
+          />
         ),
       },
       {

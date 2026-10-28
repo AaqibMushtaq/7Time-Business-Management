@@ -10,6 +10,7 @@ import {
 import { calculateWholesaleSale } from "@/lib/wholesaleCalculations"
 import { getResellers } from "@/services/resellers"
 import { getProducts } from "@/services/products"
+import { ProductIdentity } from "@/components/products"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -206,9 +207,13 @@ export default function WholesaleSalesPage() {
         accessorFn: (row) => row.product?.name || "—",
         sortable: true,
         cell: ({ row }) => (
-          <span className="text-[#0F172A]">
-            {row.product?.name || "—"}
-          </span>
+          <ProductIdentity
+            product={row.product}
+            size="sm"
+            linkToDetail={Boolean(row.product?.id)}
+            showCategory={true}
+            showUnit={false}
+          />
         ),
       },
       {

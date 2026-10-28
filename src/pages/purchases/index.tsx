@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatDate, formatMoney } from "@/lib/utils"
+import { ProductIdentity, ProductSelector } from "@/components/products"
 import {
   PageContainer,
   PageHeader,
@@ -157,6 +158,7 @@ export default function PurchasesPage() {
 
   // Filter products by selected dealer
   const dealerProducts = products?.filter((p) => p.dealer_id === dealerId) || []
+  const selectedProduct = useMemo(() => products?.find((p) => p.id === productId) || null, [products, productId])
 
   // Auto-fill buying rate when product is selected
   const handleProductSelect = (id: string) => {
@@ -342,9 +344,15 @@ export default function PurchasesPage() {
         mobileSpan: "full",
         mobileOrder: 4,
         cell: ({ row }) => (
-          <span className="font-semibold text-[#0F172A] break-words">
-            {row.product?.name || "—"}
-          </span>
+          <ProductIdentity
+            product={row.product}
+            name={row.product?.name}
+            unit={row.product?.unit}
+            size="sm"
+            linkToDetail={Boolean(row.product?.id)}
+            showCategory={true}
+            showUnit={true}
+          />
         ),
       },
       {
@@ -668,20 +676,17 @@ export default function PurchasesPage() {
             <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
               Product
             </Label>
-            <select
-              required
+            <ProductSelector
+              id="purchase-product-select"
+              aria-label="Select Product"
+              products={dealerProducts}
+              selectedProductId={productId}
+              onSelectProduct={(id) => handleProductSelect(id)}
               disabled={!dealerId}
-              className="flex h-10 w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] focus:outline-none focus:ring-1 focus:ring-[#2563EB]/20 focus:border-[#2563EB] disabled:opacity-50 transition-colors"
-              value={productId}
-              onChange={(e) => handleProductSelect(e.target.value)}
-            >
-              <option value="" disabled>Select Product</option>
-              {dealerProducts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.unit})
-                </option>
-              ))}
-            </select>
+              placeholder={dealerId ? "Search dealer products..." : "Select dealer first..."}
+              showPricing={true}
+              showStock={true}
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -750,6 +755,22 @@ export default function PurchasesPage() {
               <AlertTriangle className="h-4 w-4 shrink-0 text-[#B42318]" />
               <span>
                 Amount paid ({formatMoney(paidNum)}) cannot exceed total purchase amount ({formatMoney(totalAmount)}).
+              </span>
+            </div>
+          )}
+
+          {/* Selected Product Identity Confirmation */}
+          {selectedProduct && (
+            <div className="col-span-1 sm:col-span-2 lg:col-span-4 bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 flex items-center justify-between flex-wrap gap-2">
+              <ProductIdentity
+                product={selectedProduct}
+                size="sm"
+                showCategory={true}
+                showUnit={true}
+                showStock={true}
+              />
+              <span className="text-xs text-slate-500 font-mono">
+                Catalog Cost: <strong className="text-slate-800">{formatMoney(selectedProduct.buying_cost)}</strong>
               </span>
             </div>
           )}

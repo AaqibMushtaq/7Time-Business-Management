@@ -1,5 +1,5 @@
 
-export function HoneyJarIcon({ className = "w-10 h-10" }: { className?: string }) {
+function HoneyJarIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <defs>
@@ -46,7 +46,7 @@ export function HoneyJarIcon({ className = "w-10 h-10" }: { className?: string }
   )
 }
 
-export function SaffronIcon({ className = "w-10 h-10" }: { className?: string }) {
+function SaffronIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <defs>
@@ -85,7 +85,7 @@ export function SaffronIcon({ className = "w-10 h-10" }: { className?: string })
   )
 }
 
-export function OilBottleIcon({ className = "w-10 h-10" }: { className?: string }) {
+function OilBottleIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <defs>
@@ -119,7 +119,7 @@ export function OilBottleIcon({ className = "w-10 h-10" }: { className?: string 
   )
 }
 
-export function DatesIcon({ className = "w-10 h-10" }: { className?: string }) {
+function DatesIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <defs>
@@ -154,7 +154,7 @@ export function DatesIcon({ className = "w-10 h-10" }: { className?: string }) {
   )
 }
 
-export function AlmondsIcon({ className = "w-10 h-10" }: { className?: string }) {
+function AlmondsIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <defs>
@@ -189,7 +189,7 @@ export function AlmondsIcon({ className = "w-10 h-10" }: { className?: string })
   )
 }
 
-export function PistachioIcon({ className = "w-10 h-10" }: { className?: string }) {
+function PistachioIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <defs>
@@ -227,7 +227,7 @@ export function PistachioIcon({ className = "w-10 h-10" }: { className?: string 
   )
 }
 
-export function SpicesIcon({ className = "w-10 h-10" }: { className?: string }) {
+function SpicesIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <ellipse cx="32" cy="56" rx="18" ry="3.5" fill="#000000" fillOpacity="0.08" />
@@ -242,7 +242,7 @@ export function SpicesIcon({ className = "w-10 h-10" }: { className?: string }) 
   )
 }
 
-export function BeverageIcon({ className = "w-10 h-10" }: { className?: string }) {
+function BeverageIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <ellipse cx="32" cy="58" rx="14" ry="3" fill="#000000" fillOpacity="0.08" />
@@ -264,7 +264,7 @@ export function BeverageIcon({ className = "w-10 h-10" }: { className?: string }
   )
 }
 
-export function DefaultProductIcon({ className = "w-10 h-10" }: { className?: string }) {
+function DefaultProductIcon({ className = "w-10 h-10" }: { className?: string }) {
   return (
     <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <ellipse cx="32" cy="56" rx="16" ry="3.5" fill="#000000" fillOpacity="0.08" />
