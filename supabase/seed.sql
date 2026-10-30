@@ -11,19 +11,29 @@ INSERT INTO reseller_customers (id, name, phone, address) VALUES
 ('33333333-3333-3333-3333-333333333333', 'Ishfaq ATM', NULL, NULL)
 ON CONFLICT DO NOTHING;
 
--- 3. Delivery Customers
-INSERT INTO delivery_customers (id, name, phone, address) VALUES
-('44444444-4444-4444-4444-444444444444', 'naeem Uncle', NULL, NULL)
-ON CONFLICT DO NOTHING;
+-- 3. Delivery Customers (guarded for legacy schema compatibility)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'delivery_customers') THEN
+        INSERT INTO delivery_customers (id, name, phone, address) VALUES
+        ('44444444-4444-4444-4444-444444444444', 'naeem Uncle', NULL, NULL)
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
 
--- 4. Delivery Routes
-INSERT INTO delivery_routes (id, name, fare) VALUES
-(uuid_generate_v4(), 'Khrew To Sheesha', 500.00),
-(uuid_generate_v4(), 'Khrew To Lal chowk', 350.00),
-(uuid_generate_v4(), 'Khrew To Batwara', 300.00),
-(uuid_generate_v4(), 'Khrew To Sonwara', 350.00),
-(uuid_generate_v4(), 'No Order', 0.00)
-ON CONFLICT DO NOTHING;
+-- 4. Delivery Routes (guarded for legacy schema compatibility)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'delivery_routes') THEN
+        INSERT INTO delivery_routes (id, name, fare) VALUES
+        (uuid_generate_v4(), 'Khrew To Sheesha', 500.00),
+        (uuid_generate_v4(), 'Khrew To Lal chowk', 350.00),
+        (uuid_generate_v4(), 'Khrew To Batwara', 300.00),
+        (uuid_generate_v4(), 'Khrew To Sonwara', 350.00),
+        (uuid_generate_v4(), 'No Order', 0.00)
+        ON CONFLICT DO NOTHING;
+    END IF;
+END $$;
 
 -- 5. Products (AL INFAQ TRADERS)
 -- We set stock_quantity to the values provided, assuming they were bought at some point.
