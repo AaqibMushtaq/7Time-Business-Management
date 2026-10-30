@@ -128,6 +128,7 @@ export interface ZakatEvaluationOptions {
   goldRateStatus?: RateSourceStatus
   historicalRateResolver?: (date: string) => number | null
   config?: Partial<HanafiZakatConfig>
+  valuationSourceDescription?: string
 }
 
 export interface ZakatEvaluationOutput {
@@ -148,6 +149,7 @@ export interface ZakatEvaluationOutput {
   daysRemainingInHawl: number | null
   estimatedZakatDue: number
   rateSourceStatus: RateSourceStatus
+  valuationSourceDescription?: string
   isProvisionalRate: boolean
   hasHistoricalRateGaps: boolean
   notesAndDisclaimers: string[]
@@ -859,6 +861,7 @@ export function evaluateHanafiZakat(options: ZakatEvaluationOptions): ZakatEvalu
     daysRemainingInHawl,
     estimatedZakatDue,
     rateSourceStatus: activeRateStatus,
+    valuationSourceDescription: options.valuationSourceDescription,
     isProvisionalRate,
     hasHistoricalRateGaps,
     notesAndDisclaimers,

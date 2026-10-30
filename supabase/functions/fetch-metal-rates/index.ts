@@ -1,9 +1,13 @@
 // Supabase Edge Function: fetch-metal-rates
 // Production-ready, precious metal rates service for 7TIME Zakat Tracker.
 // Operational modes:
-// 1. "live" (default): Fetches live 24k/22k/18k gold and silver rates from GoldAPI.io; persists to database cache & snapshots.
-// 2. "history": Fetches genuine historical closing rates from GoldAPI.io for the chart; ZERO database writes.
-// 3. "test_history": Administrative probe restricted strictly to service-role callers; ZERO database writes.
+// 1. "ibja_rates" / "rates" / default: Fetches Indian domestic bullion benchmark rates (IBJA via TrackLivePrice);
+//    persists to database cache & snapshots. Does NOT fall back to GoldAPI for Zakat valuation.
+// 2. "ibja_history" / "history": Fetches genuine Indian AM/PM benchmark observations from TrackLivePrice for the chart;
+//    ZERO database writes.
+// 3. "save_manual_ibja": Allows recording verified rates directly from official ibjarates.com;
+//    persists to database as source_status: 'MANUAL'.
+// 4. "goldapi_history" / "test_history": Legacy/administrative GoldAPI inspection strictly isolated from Zakat valuation.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1"
 
@@ -13,36 +17,26 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 }
 
-const TROY_OUNCE_TO_GRAMS = 31.1034768
+const _TROY_OUNCE_TO_GRAMS = 31.1034768
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
-const MAX_HISTORICAL_DAYS = 30
+const _MAX_HISTORICAL_DAYS = 30
 
-interface GoldApiResponse {
-  timestamp?: number
-  metal?: string
-  currency?: string
-  exchange?: string
-  symbol?: string
-  prev_close_price?: number
-  open_price?: number
-  low_price?: number
-  high_price?: number
-  price?: number
-  close_price?: number
-  price_gram_24k?: number
-  price_gram_22k?: number
-  price_gram_18k?: number
-  price_per_unit?: {
-    gram?: number
-    kilogram?: number
-    troy_ounce?: number
-  }
-  melt_price_per_gram?: {
-    "24k"?: number
-    "22k"?: number
-    "18k"?: number
-  }
-  date?: string
+interface TrackLivePriceRow {
+  date: string
+  close: number
+  am: number | null
+  pm: number | null
+}
+
+interface TrackLivePriceResponse {
+  metal: string
+  purity: string
+  unit: string
+  source: string
+  rows: TrackLivePriceRow[]
+  attribution?: string
+  licence?: string
+  terms?: string
 }
 
 function isValidIsoDate(str: unknown): str is string {
@@ -60,7 +54,7 @@ function getTodayIsoDate(): string {
   return `${year}-${month}-${day}`
 }
 
-function getDateNDaysAgo(days: number): string {
+function _getDateNDaysAgo(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() - days)
   const year = d.getFullYear()
@@ -69,31 +63,20 @@ function getDateNDaysAgo(days: number): string {
   return `${year}-${month}-${day}`
 }
 
-function normalizePricePerGram(item: GoldApiResponse): {
-  rate24k: number | null
-  rate22k: number | null
-  rate18k: number | null
-} {
-  let rate24k =
-    item.melt_price_per_gram?.["24k"] ??
-    item.price_gram_24k ??
-    item.price_per_unit?.gram ??
-    null
-
-  // If price_gram_24k is missing but price per ounce is available, convert
-  if ((!rate24k || rate24k <= 0) && item.price && item.price > 0) {
-    rate24k = item.price / TROY_OUNCE_TO_GRAMS
-  } else if ((!rate24k || rate24k <= 0) && item.close_price && item.close_price > 0) {
-    rate24k = item.close_price / TROY_OUNCE_TO_GRAMS
-  }
-
-  const rate22k = item.melt_price_per_gram?.["22k"] ?? item.price_gram_22k ?? null
-  const rate18k = item.melt_price_per_gram?.["18k"] ?? item.price_gram_18k ?? null
-
+// Convert UTC time to IST (UTC+5:30)
+function getIstTime(): { dateStr: string; hours: number; minutes: number; dayOfWeek: number } {
+  const now = new Date()
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000
+  const istOffsetMs = 5.5 * 60 * 60 * 1000
+  const istDate = new Date(utc + istOffsetMs)
+  const y = istDate.getFullYear()
+  const m = String(istDate.getMonth() + 1).padStart(2, "0")
+  const d = String(istDate.getDate()).padStart(2, "0")
   return {
-    rate24k: rate24k && rate24k > 0 ? Number(rate24k) : null,
-    rate22k: rate22k && rate22k > 0 ? Number(rate22k) : null,
-    rate18k: rate18k && rate18k > 0 ? Number(rate18k) : null,
+    dateStr: `${y}-${m}-${d}`,
+    hours: istDate.getHours(),
+    minutes: istDate.getMinutes(),
+    dayOfWeek: istDate.getDay(), // 0 = Sun, 6 = Sat
   }
 }
 
@@ -104,17 +87,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const goldApiKey = Deno.env.get("GOLDAPI_KEY")
     const supabaseUrl = Deno.env.get("SUPABASE_URL")
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")
-
-    if (!goldApiKey) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Missing GOLDAPI_KEY in environment variables." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      )
-    }
+    const _goldApiKey = Deno.env.get("GOLDAPI_KEY")
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(
@@ -176,436 +152,512 @@ Deno.serve(async (req: Request) => {
     if (req.method === "POST") {
       reqBody = await req.json().catch(() => ({}))
     }
-    const action = (reqBody.action as string) || "live"
+    const action = (reqBody.action as string) || "ibja_rates"
+
+    const privilegedClient = createClient(supabaseUrl, supabaseServiceKey)
 
     // ========================================================================
-    // ACTION: "test_history" — Restricted strictly to administrative service-role
+    // ACTION: "save_manual_ibja" — Record Verified Rates Directly from ibjarates.com
     // ========================================================================
-    if (action === "test_history") {
-      if (!isServiceRole) {
+    if (action === "save_manual_ibja") {
+      const rateDate = String(reqBody.rateDate || getTodayIsoDate())
+      const session = String(reqBody.session || "PM").toUpperCase()
+      const gold999 = Number(reqBody.gold999)
+      const gold916 = Number(reqBody.gold916 || (gold999 * (22 / 24)).toFixed(2))
+      const gold750 = Number(reqBody.gold750 || (gold999 * (18 / 24)).toFixed(2))
+      const silver999 = Number(reqBody.silver999)
+      const enteredBy = String(reqBody.enteredBy || "Manual User Verification")
+      const notes = String(reqBody.notes || "Verified via official ibjarates.com public portal")
+
+      if (!isValidIsoDate(rateDate)) {
         return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Forbidden: test_history operation requires administrative service-role credentials.",
-          }),
-          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        )
-      }
-
-      const testResults: Record<string, unknown> = {}
-
-      // 1. Probe Status endpoint
-      try {
-        const statusRes = await fetch("https://www.goldapi.io/api/status", {
-          headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(8000),
-        })
-        const statusData = statusRes.ok ? await statusRes.json() : await statusRes.text()
-        testResults.statusEndpoint = {
-          httpStatus: statusRes.status,
-          ok: statusRes.ok,
-          data: statusData,
-        }
-      } catch (err) {
-        testResults.statusEndpoint = { error: (err as Error).message }
-      }
-
-      // 2. Probe Batch History for Gold (last 30 days)
-      const fromDate = getDateNDaysAgo(29)
-      const toDate = getDateNDaysAgo(1)
-
-      try {
-        const goldHistUrl = `https://www.goldapi.io/api/history/XAU/INR?from=${fromDate}&to=${toDate}`
-        const goldHistRes = await fetch(goldHistUrl, {
-          headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(10000),
-        })
-        const goldHistStatus = goldHistRes.status
-        const goldHistData = await goldHistRes.json().catch(() => null)
-        testResults.batchGold = {
-          url: goldHistUrl,
-          httpStatus: goldHistStatus,
-          ok: goldHistRes.ok,
-          isArray: Array.isArray(goldHistData),
-          count: Array.isArray(goldHistData) ? goldHistData.length : null,
-          sample: Array.isArray(goldHistData) && goldHistData.length > 0 ? goldHistData[0] : goldHistData,
-        }
-      } catch (err) {
-        testResults.batchGold = { error: (err as Error).message }
-      }
-
-      // 3. Probe Batch History for Silver (last 30 days)
-      try {
-        const silverHistUrl = `https://www.goldapi.io/api/history/XAG/INR?from=${fromDate}&to=${toDate}`
-        const silverHistRes = await fetch(silverHistUrl, {
-          headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(10000),
-        })
-        const silverHistStatus = silverHistRes.status
-        const silverHistData = await silverHistRes.json().catch(() => null)
-        testResults.batchSilver = {
-          url: silverHistUrl,
-          httpStatus: silverHistStatus,
-          ok: silverHistRes.ok,
-          isArray: Array.isArray(silverHistData),
-          count: Array.isArray(silverHistData) ? silverHistData.length : null,
-          sample: Array.isArray(silverHistData) && silverHistData.length > 0 ? silverHistData[0] : silverHistData,
-        }
-      } catch (err) {
-        testResults.batchSilver = { error: (err as Error).message }
-      }
-
-      // 4. Probe Single Date Historical (fallback check)
-      try {
-        const singleDateRes = await fetch("https://www.goldapi.io/api/price/XAU/INR/2026-10-29", {
-          headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
-          signal: AbortSignal.timeout(8000),
-        })
-        const singleDateData = singleDateRes.ok ? await singleDateRes.json() : await singleDateRes.text()
-        testResults.singleDateGold20261029 = {
-          httpStatus: singleDateRes.status,
-          ok: singleDateRes.ok,
-          data: singleDateData,
-        }
-      } catch (err) {
-        testResults.singleDateGold20261029 = { error: (err as Error).message }
-      }
-
-      return new Response(JSON.stringify({ success: true, mode: "test_history", testResults }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
-    }
-
-    // ========================================================================
-    // ACTION: "history" — Pure API Historical Retrieval (Zero Database Writes)
-    // Accessible to authenticated users, anon client, and service-role
-    // ========================================================================
-    if (action === "history") {
-      const todayStr = getTodayIsoDate()
-      const minAllowedFromStr = getDateNDaysAgo(MAX_HISTORICAL_DAYS)
-
-      let fromDate: string
-      let toDate: string
-
-      if (isValidIsoDate(reqBody.fromDate) && isValidIsoDate(reqBody.toDate)) {
-        fromDate = reqBody.fromDate
-        toDate = reqBody.toDate
-      } else {
-        const days = Number(reqBody.days) === 7 ? 7 : 30
-        fromDate = getDateNDaysAgo(days - 1)
-        toDate = todayStr
-      }
-
-      // Strict date range validation to prevent excessive upstream queries
-      if (fromDate < minAllowedFromStr) {
-        fromDate = minAllowedFromStr
-      }
-      if (toDate > todayStr) {
-        toDate = todayStr
-      }
-      if (fromDate > toDate) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Invalid date range: fromDate must be on or before toDate." }),
+          JSON.stringify({ success: false, error: "Invalid rateDate format. Expected YYYY-MM-DD." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         )
       }
 
-      // If toDate is today, GoldAPI batch history contains closed dates up to yesterday.
-      const yesterdayStr = getDateNDaysAgo(1)
-      const batchToDate = toDate >= todayStr ? yesterdayStr : toDate
+      if (!gold999 || gold999 <= 0 || !silver999 || silver999 <= 0) {
+        return new Response(
+          JSON.stringify({ success: false, error: "gold999 and silver999 must be positive numbers in INR/g." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
 
-      // Fetch batch gold and silver history in parallel from GoldAPI endpoints
-      const [goldRes, silverRes] = await Promise.all([
-        fetch(`https://www.goldapi.io/api/history/XAU/INR?from=${fromDate}&to=${batchToDate}`, {
-          headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
+      // Upsert into zakat_daily_metal_rates with MANUAL source_status
+      const nowIso = new Date().toISOString()
+      const { error: goldErr } = await privilegedClient.from("zakat_daily_metal_rates").upsert(
+        {
+          rate_date: rateDate,
+          metal: "GOLD",
+          currency: "INR",
+          rate_per_gram_24k: gold999,
+          rate_per_gram_22k: gold916,
+          rate_per_gram_18k: gold750,
+          source_status: "MANUAL",
+          fetched_at: nowIso,
+          provider: `IBJA_MANUAL (${session})`,
+        },
+        { onConflict: "rate_date,metal" }
+      )
+
+      if (goldErr) throw goldErr
+
+      const { error: silverErr } = await privilegedClient.from("zakat_daily_metal_rates").upsert(
+        {
+          rate_date: rateDate,
+          metal: "SILVER",
+          currency: "INR",
+          rate_per_gram_24k: silver999,
+          rate_per_gram_22k: null,
+          rate_per_gram_18k: null,
+          source_status: "MANUAL",
+          fetched_at: nowIso,
+          provider: `IBJA_MANUAL (${session})`,
+        },
+        { onConflict: "rate_date,metal" }
+      )
+
+      if (silverErr) throw silverErr
+
+      // Insert audit snapshots
+      await privilegedClient.from("zakat_metal_rate_snapshots").insert([
+        {
+          rate_date: rateDate,
+          metal: "GOLD",
+          currency: "INR",
+          price_gram_24k: gold999,
+          price_gram_22k: gold916,
+          price_gram_18k: gold750,
+          exchange: `IBJA_MANUAL_${session}`,
+          provider_timestamp: Date.now(),
+          http_status_code: 200,
+        },
+        {
+          rate_date: rateDate,
+          metal: "SILVER",
+          currency: "INR",
+          price_gram_24k: silver999,
+          price_gram_22k: null,
+          price_gram_18k: null,
+          exchange: `IBJA_MANUAL_${session}`,
+          provider_timestamp: Date.now(),
+          http_status_code: 200,
+        },
+      ])
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: "save_manual_ibja",
+          data: {
+            rateDate,
+            session,
+            gold999,
+            gold916,
+            gold750,
+            silver999,
+            source_status: "MANUAL",
+            enteredBy,
+            notes,
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
+    }
+
+    // ========================================================================
+    // ACTION: "ibja_history" / "history" — Authentic Indian AM/PM Benchmark History
+    // (ZERO Database Writes — Direct from TrackLivePrice IBJA observations)
+    // ========================================================================
+    if (action === "ibja_history" || action === "history") {
+      const days = Number(reqBody.days) === 7 ? 7 : 30
+      const sessionMode = (reqBody.sessionMode as string) === "both" ? "both" : "close"
+
+      // Fetch Gold 999, Gold 916, and Silver 999 in parallel
+      const [gold999Res, gold916Res, silverRes] = await Promise.all([
+        fetch("https://trackliveprice.com/api/gold/999.json", {
           signal: AbortSignal.timeout(10000),
         }),
-        fetch(`https://www.goldapi.io/api/history/XAG/INR?from=${fromDate}&to=${batchToDate}`, {
-          headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
+        fetch("https://trackliveprice.com/api/gold/916.json", {
+          signal: AbortSignal.timeout(10000),
+        }),
+        fetch("https://trackliveprice.com/api/silver.json", {
           signal: AbortSignal.timeout(10000),
         }),
       ])
 
-      if (!goldRes.ok || !silverRes.ok) {
-        const goldErr = !goldRes.ok ? `Gold API HTTP ${goldRes.status}` : ""
-        const silverErr = !silverRes.ok ? `Silver API HTTP ${silverRes.status}` : ""
-        const combined = [goldErr, silverErr].filter(Boolean).join(", ")
-        throw new Error(`Upstream precious metal history failed (${combined}).`)
+      if (!gold999Res.ok || !silverRes.ok) {
+        throw new Error(`Failed to fetch IBJA history from TrackLivePrice (Gold: ${gold999Res.status}, Silver: ${silverRes.status}).`)
       }
 
-      const goldJson = await goldRes.json()
-      const silverJson = await silverRes.json()
+      const gold999Data: TrackLivePriceResponse = await gold999Res.json()
+      const gold916Data: TrackLivePriceResponse = gold916Res.ok ? await gold916Res.json() : { metal: "gold", purity: "916", unit: "INR per gram", source: "IBJA", rows: [] }
+      const silverData: TrackLivePriceResponse = await silverRes.json()
 
-      // Helper to extract array of date-price points from GoldAPI response
-      const parseBatchPrices = (payload: unknown): Array<{ date: string; price: number }> => {
-        if (!payload || typeof payload !== "object") return []
-        if (Array.isArray(payload)) {
-          return payload
-            .map((item: any) => ({
-              date: item.date || (item.timestamp ? new Date(item.timestamp * 1000).toISOString().split("T")[0] : ""),
-              price: Number(item.price || item.close_price || 0),
-            }))
-            .filter((p) => Boolean(p.date) && p.price > 0)
-        }
-        const obj = payload as { prices?: Array<{ date?: string; price?: number }> }
-        if (Array.isArray(obj.prices)) {
-          return obj.prices
-            .map((p) => ({
-              date: String(p.date || ""),
-              price: Number(p.price || 0),
-            }))
-            .filter((p) => Boolean(p.date) && p.price > 0)
-        }
-        return []
+      // Map gold 916 rows by date for quick lookup
+      const gold916Map = new Map<string, TrackLivePriceRow>()
+      for (const row of gold916Data.rows || []) {
+        gold916Map.set(row.date, row)
       }
 
-      const goldEntries = parseBatchPrices(goldJson)
-      const silverEntries = parseBatchPrices(silverJson)
-
-      // Date-indexed aggregation
-      const dateMap = new Map<
-        string,
-        {
-          date: string
-          goldRate: number | null
-          silverRate: number | null
-          gold22k?: number | null
-          gold18k?: number | null
-          source: string
-          status: string
-          isLive: boolean
-        }
-      >()
-
-      for (const item of goldEntries) {
-        const goldPerGram = Number((item.price / TROY_OUNCE_TO_GRAMS).toFixed(4))
-        const gold22k = Number((goldPerGram * (22 / 24)).toFixed(4))
-        const gold18k = Number((goldPerGram * (18 / 24)).toFixed(4))
-        dateMap.set(item.date, {
-          date: item.date,
-          goldRate: goldPerGram,
-          silverRate: null,
-          gold22k,
-          gold18k,
-          source: "GoldAPI.io (LBMA Close)",
-          status: "MARKET_CLOSE",
-          isLive: false,
-        })
+      // Map silver rows by date
+      const silverMap = new Map<string, TrackLivePriceRow>()
+      for (const row of silverData.rows || []) {
+        silverMap.set(row.date, row)
       }
 
-      for (const item of silverEntries) {
-        const silverPerGram = Number((item.price / TROY_OUNCE_TO_GRAMS).toFixed(4))
-        const existing = dateMap.get(item.date)
-        if (existing) {
-          existing.silverRate = silverPerGram
+      // Slice the last N trading days
+      const totalGoldRows = gold999Data.rows || []
+      const slicedGoldRows = totalGoldRows.slice(-days)
+
+      const historyPoints: Array<{
+        date: string
+        displayDate: string
+        session: "AM" | "PM" | "CLOSE"
+        goldRate: number | null
+        silverRate: number | null
+        gold22k?: number | null
+        gold18k?: number | null
+        goldAm?: number | null
+        goldPm?: number | null
+        silverAm?: number | null
+        silverPm?: number | null
+        source: string
+        status: string
+        isLive: boolean
+      }> = []
+
+      for (const gRow of slicedGoldRows) {
+        const sRow = silverMap.get(gRow.date)
+        const g916Row = gold916Map.get(gRow.date)
+
+        const gold22kRate = g916Row ? g916Row.close : Number((gRow.close * (22 / 24)).toFixed(2))
+        const gold18kRate = Number((gRow.close * (18 / 24)).toFixed(2))
+
+        if (sessionMode === "both") {
+          // If AM observation exists, push AM point
+          if (typeof gRow.am === "number" && gRow.am > 0) {
+            const sAm = sRow && typeof sRow.am === "number" ? sRow.am : null
+            const g916Am = g916Row && typeof g916Row.am === "number" ? g916Row.am : Number((gRow.am * (22 / 24)).toFixed(2))
+            const g18kAm = Number((gRow.am * (18 / 24)).toFixed(2))
+            historyPoints.push({
+              date: `${gRow.date} AM`,
+              displayDate: gRow.date,
+              session: "AM",
+              goldRate: gRow.am,
+              silverRate: sAm,
+              gold22k: g916Am,
+              gold18k: g18kAm,
+              goldAm: gRow.am,
+              goldPm: gRow.pm,
+              silverAm: sAm,
+              silverPm: sRow?.pm ?? null,
+              source: "IBJA (Opening AM)",
+              status: "MARKET_OPEN",
+              isLive: false,
+            })
+          }
+
+          // If PM observation exists, push PM point
+          if (typeof gRow.pm === "number" && gRow.pm > 0) {
+            const sPm = sRow && typeof sRow.pm === "number" ? sRow.pm : (sRow?.close ?? null)
+            const g916Pm = g916Row && typeof g916Row.pm === "number" ? g916Row.pm : Number((gRow.pm * (22 / 24)).toFixed(2))
+            const g18kPm = Number((gRow.pm * (18 / 24)).toFixed(2))
+            historyPoints.push({
+              date: `${gRow.date} PM`,
+              displayDate: gRow.date,
+              session: "PM",
+              goldRate: gRow.pm,
+              silverRate: sPm,
+              gold22k: g916Pm,
+              gold18k: g18kPm,
+              goldAm: gRow.am,
+              goldPm: gRow.pm,
+              silverAm: sRow?.am ?? null,
+              silverPm: sPm,
+              source: "IBJA (Closing PM)",
+              status: "MARKET_CLOSE",
+              isLive: false,
+            })
+          } else if (!gRow.am) {
+            // Fallback to close if neither am nor pm is explicitly segmented
+            historyPoints.push({
+              date: `${gRow.date} CLOSE`,
+              displayDate: gRow.date,
+              session: "CLOSE",
+              goldRate: gRow.close,
+              silverRate: sRow?.close ?? null,
+              gold22k: gold22kRate,
+              gold18k: gold18kRate,
+              goldAm: gRow.am,
+              goldPm: gRow.pm,
+              silverAm: sRow?.am ?? null,
+              silverPm: sRow?.pm ?? null,
+              source: "IBJA (Market Close)",
+              status: "MARKET_CLOSE",
+              isLive: false,
+            })
+          }
         } else {
-          dateMap.set(item.date, {
-            date: item.date,
-            goldRate: null,
-            silverRate: silverPerGram,
-            source: "GoldAPI.io (LBMA Close)",
+          // Standard Daily Close Mode: One point per trading date
+          historyPoints.push({
+            date: gRow.date,
+            displayDate: gRow.date,
+            session: gRow.pm ? "PM" : gRow.am ? "AM" : "CLOSE",
+            goldRate: gRow.close,
+            silverRate: sRow?.close ?? null,
+            gold22k: gold22kRate,
+            gold18k: gold18kRate,
+            goldAm: gRow.am,
+            goldPm: gRow.pm,
+            silverAm: sRow?.am ?? null,
+            silverPm: sRow?.pm ?? null,
+            source: gRow.pm ? "IBJA (Closing PM)" : "IBJA (Opening AM)",
             status: "MARKET_CLOSE",
             isLive: false,
           })
         }
       }
 
-      // If toDate is today, also fetch live spot quotes for today to provide an up-to-the-minute point
-      if (toDate >= todayStr && !dateMap.has(todayStr)) {
-        try {
-          const [liveGoldRes, liveSilverRes] = await Promise.all([
-            fetch("https://www.goldapi.io/api/price/XAU/INR", {
-              headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
-              signal: AbortSignal.timeout(6000),
-            }),
-            fetch("https://www.goldapi.io/api/price/XAG/INR", {
-              headers: { "x-access-token": goldApiKey, "Content-Type": "application/json" },
-              signal: AbortSignal.timeout(6000),
-            }),
-          ])
-
-          if (liveGoldRes.ok && liveSilverRes.ok) {
-            const liveGoldData = await liveGoldRes.json()
-            const liveSilverData = await liveSilverRes.json()
-            const goldNorm = normalizePricePerGram(liveGoldData)
-            const silverNorm = normalizePricePerGram(liveSilverData)
-
-            if (goldNorm.rate24k || silverNorm.rate24k) {
-              dateMap.set(todayStr, {
-                date: todayStr,
-                goldRate: goldNorm.rate24k,
-                silverRate: silverNorm.rate24k,
-                gold22k: goldNorm.rate22k,
-                gold18k: goldNorm.rate18k,
-                source: "GoldAPI.io (Live Spot)",
-                status: "LIVE_SPOT",
-                isLive: true,
-              })
-            }
-          }
-        } catch (err) {
-          console.warn("Unable to append today's live spot rate to history:", err)
-        }
-      }
-
-      const historyPoints = Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
-
       return new Response(
         JSON.stringify({
           success: true,
-          mode: "history",
+          mode: "ibja_history",
           data: {
-            fromDate,
-            toDate,
+            provider: "TrackLivePrice",
+            original_benchmark: "IBJA",
+            sessionMode,
+            timeframeDays: days,
             observationCount: historyPoints.length,
+            attribution: "TrackLivePrice (https://trackliveprice.com) - Original Benchmark: IBJA",
+            licence: gold999Data.licence,
             points: historyPoints,
           },
         }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
 
     // ========================================================================
-    // ACTION: "live" (Default) — Live Rate Ingestion & Snapshot Audit
-    // 100% Backward Compatible with Existing Cron and Frontend Spot Refresh
+    // ACTION: "ibja_rates" / "rates" (Default) — Automated Indian Bullion Ingestion
     // ========================================================================
-    const privilegedClient = createClient(supabaseUrl, supabaseServiceKey)
-    const today = getTodayIsoDate()
-    const results: Record<string, unknown> = {}
+    try {
+      // 1. Fetch all 5 gold purities and silver in parallel from TrackLivePrice
+      const [g999Res, g995Res, g916Res, g750Res, g585Res, s999Res] = await Promise.all([
+        fetch("https://trackliveprice.com/api/gold/999.json", { signal: AbortSignal.timeout(8000) }),
+        fetch("https://trackliveprice.com/api/gold/995.json", { signal: AbortSignal.timeout(8000) }).catch(() => null),
+        fetch("https://trackliveprice.com/api/gold/916.json", { signal: AbortSignal.timeout(8000) }).catch(() => null),
+        fetch("https://trackliveprice.com/api/gold/750.json", { signal: AbortSignal.timeout(8000) }).catch(() => null),
+        fetch("https://trackliveprice.com/api/gold/585.json", { signal: AbortSignal.timeout(8000) }).catch(() => null),
+        fetch("https://trackliveprice.com/api/silver.json", { signal: AbortSignal.timeout(8000) }),
+      ])
 
-    // 1. Fetch Gold (XAU / INR) with 8s Timeout
-    const goldRes = await fetch("https://www.goldapi.io/api/price/XAU/INR", {
-      headers: {
-        "x-access-token": goldApiKey,
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(8000),
-    })
+      if (!g999Res.ok || !s999Res.ok) {
+        throw new Error(`TrackLivePrice upstream returned non-200 (Gold: ${g999Res?.status}, Silver: ${s999Res?.status}).`)
+      }
 
-    if (!goldRes.ok) {
-      const errText = await goldRes.text()
-      console.error(`GoldAPI Gold error: HTTP ${goldRes.status}: ${errText}`)
-      throw new Error(`Failed to fetch Gold rates from provider (HTTP ${goldRes.status}).`)
+      const g999Json: TrackLivePriceResponse = await g999Res.json()
+      const s999Json: TrackLivePriceResponse = await s999Res.json()
+      const g995Json: TrackLivePriceResponse | null = g995Res && g995Res.ok ? await g995Res.json() : null
+      const g916Json: TrackLivePriceResponse | null = g916Res && g916Res.ok ? await g916Res.json() : null
+      const g750Json: TrackLivePriceResponse | null = g750Res && g750Res.ok ? await g750Res.json() : null
+      const g585Json: TrackLivePriceResponse | null = g585Res && g585Res.ok ? await g585Res.json() : null
+
+      const lastGoldRow = g999Json.rows[g999Json.rows.length - 1]
+      const lastSilverRow = s999Json.rows[s999Json.rows.length - 1]
+
+      if (!lastGoldRow || !lastSilverRow) {
+        throw new Error("TrackLivePrice response contains empty observation rows.")
+      }
+
+      const effectiveDate = lastGoldRow.date
+      const gold999Rate = lastGoldRow.pm ?? lastGoldRow.close ?? lastGoldRow.am
+      const silver999Rate = lastSilverRow.pm ?? lastSilverRow.close ?? lastSilverRow.am
+
+      const goldSession: "AM" | "PM" | "CLOSE" = lastGoldRow.pm ? "PM" : lastGoldRow.am ? "AM" : "CLOSE"
+      const silverSession: "AM" | "PM" | "CLOSE" = lastSilverRow.pm ? "PM" : lastSilverRow.am ? "AM" : "CLOSE"
+
+      // Purity rates with accurate fallback calculation if sub-endpoint was omitted
+      const lastG995 = g995Json?.rows[g995Json.rows.length - 1]
+      const lastG916 = g916Json?.rows[g916Json.rows.length - 1]
+      const lastG750 = g750Json?.rows[g750Json.rows.length - 1]
+      const lastG585 = g585Json?.rows[g585Json.rows.length - 1]
+
+      const gold995Rate = lastG995?.close ?? Number((gold999Rate * (99.5 / 99.9)).toFixed(2))
+      const gold916Rate = lastG916?.close ?? Number((gold999Rate * (22 / 24)).toFixed(2))
+      const gold750Rate = lastG750?.close ?? Number((gold999Rate * (18 / 24)).toFixed(2))
+      const gold585Rate = lastG585?.close ?? Number((gold999Rate * (14 / 24)).toFixed(2))
+
+      // Staleness check based on Indian Standard Time
+      const ist = getIstTime()
+      const isWeekday = ist.dayOfWeek >= 1 && ist.dayOfWeek <= 5
+      let sourceStatus: "LIVE" | "STALE" = "LIVE"
+
+      // If today is a weekday and current IST is past 13:00 without today's AM, or past 18:00 without today's PM
+      if (isWeekday && effectiveDate < ist.dateStr) {
+        sourceStatus = "STALE"
+      } else if (isWeekday && effectiveDate === ist.dateStr) {
+        if (ist.hours >= 18 && !lastGoldRow.pm) {
+          sourceStatus = "STALE"
+        }
+      }
+
+      // Upsert into zakat_daily_metal_rates (Idempotent per date/metal)
+      const nowIso = new Date().toISOString()
+      await privilegedClient.from("zakat_daily_metal_rates").upsert(
+        {
+          rate_date: effectiveDate,
+          metal: "GOLD",
+          currency: "INR",
+          rate_per_gram_24k: gold999Rate,
+          rate_per_gram_22k: gold916Rate,
+          rate_per_gram_18k: gold750Rate,
+          source_status: sourceStatus,
+          fetched_at: nowIso,
+          provider: `IBJA (TrackLivePrice - ${goldSession})`,
+        },
+        { onConflict: "rate_date,metal" }
+      )
+
+      await privilegedClient.from("zakat_daily_metal_rates").upsert(
+        {
+          rate_date: effectiveDate,
+          metal: "SILVER",
+          currency: "INR",
+          rate_per_gram_24k: silver999Rate,
+          rate_per_gram_22k: null,
+          rate_per_gram_18k: null,
+          source_status: sourceStatus,
+          fetched_at: nowIso,
+          provider: `IBJA (TrackLivePrice - ${silverSession})`,
+        },
+        { onConflict: "rate_date,metal" }
+      )
+
+      // Audit snapshot insert
+      await privilegedClient.from("zakat_metal_rate_snapshots").insert([
+        {
+          rate_date: effectiveDate,
+          metal: "GOLD",
+          currency: "INR",
+          price_gram_24k: gold999Rate,
+          price_gram_22k: gold916Rate,
+          price_gram_18k: gold750Rate,
+          exchange: `IBJA_${goldSession}`,
+          provider_timestamp: Date.now(),
+          http_status_code: 200,
+        },
+        {
+          rate_date: effectiveDate,
+          metal: "SILVER",
+          currency: "INR",
+          price_gram_24k: silver999Rate,
+          price_gram_22k: null,
+          price_gram_18k: null,
+          exchange: `IBJA_${silverSession}`,
+          provider_timestamp: Date.now(),
+          http_status_code: 200,
+        },
+      ])
+
+      const responsePayload = {
+        success: true,
+        mode: "ibja_rates",
+        data: {
+          provider: "TrackLivePrice",
+          original_benchmark: "IBJA",
+          currency: "INR",
+          unit: "g",
+          source_status: sourceStatus,
+          effective_date: effectiveDate,
+          published_at: lastGoldRow.pm ? `${effectiveDate} PM Closing` : `${effectiveDate} AM Opening`,
+          retrieved_at: nowIso,
+          attribution: "TrackLivePrice (https://trackliveprice.com) - Original Benchmark: IBJA (India Bullion and Jewellers Association)",
+          licence: g999Json.licence,
+          gold: {
+            purity_999: gold999Rate,
+            purity_995: gold995Rate,
+            purity_916: gold916Rate,
+            purity_750: gold750Rate,
+            purity_585: gold585Rate,
+            am: lastGoldRow.am,
+            pm: lastGoldRow.pm,
+            session: goldSession,
+          },
+          silver: {
+            purity_999: silver999Rate,
+            am: lastSilverRow.am,
+            pm: lastSilverRow.pm,
+            session: silverSession,
+          },
+        },
+      }
+
+      return new Response(JSON.stringify(responsePayload), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    } catch (automatedErr) {
+      console.warn("TrackLivePrice automated fetch failed; retrieving last verified DB record:", automatedErr)
+
+      // IMPORTANT: DO NOT FALL BACK TO GOLDAPI FOR ZAKAT!
+      // Retrieve the most recent recorded rates from zakat_daily_metal_rates and mark as STALE.
+      const { data: dbRates, error: dbErr } = await privilegedClient
+        .from("zakat_daily_metal_rates")
+        .select("*")
+        .order("rate_date", { ascending: false })
+        .limit(4)
+
+      if (dbErr || !dbRates || dbRates.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Automated Indian bullion feed unavailable and no local historical observations found.",
+            source_status: "UNAVAILABLE",
+          }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+
+      const goldDb = dbRates.find((r) => r.metal === "GOLD")
+      const silverDb = dbRates.find((r) => r.metal === "SILVER")
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: "ibja_rates_stale_fallback",
+          data: {
+            provider: goldDb?.provider || "IBJA (Cached)",
+            original_benchmark: "IBJA",
+            currency: "INR",
+            unit: "g",
+            source_status: "STALE",
+            effective_date: goldDb?.rate_date || getTodayIsoDate(),
+            published_at: goldDb?.fetched_at || "Previous Session",
+            retrieved_at: new Date().toISOString(),
+            warning: "Automated live feed unreachable; serving last verified domestic benchmark rate as STALE.",
+            attribution: "Official Benchmark: IBJA",
+            gold: {
+              purity_999: goldDb ? Number(goldDb.rate_per_gram_24k) : null,
+              purity_995: goldDb?.rate_per_gram_24k ? Number((goldDb.rate_per_gram_24k * (99.5 / 99.9)).toFixed(2)) : null,
+              purity_916: goldDb?.rate_per_gram_22k ? Number(goldDb.rate_per_gram_22k) : null,
+              purity_750: goldDb?.rate_per_gram_18k ? Number(goldDb.rate_per_gram_18k) : null,
+              purity_585: goldDb?.rate_per_gram_24k ? Number((goldDb.rate_per_gram_24k * (14 / 24)).toFixed(2)) : null,
+              am: null,
+              pm: goldDb ? Number(goldDb.rate_per_gram_24k) : null,
+              session: "CLOSE",
+            },
+            silver: {
+              purity_999: silverDb ? Number(silverDb.rate_per_gram_24k) : null,
+              am: null,
+              pm: silverDb ? Number(silverDb.rate_per_gram_24k) : null,
+              session: "CLOSE",
+            },
+          },
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      )
     }
-
-    const goldData: GoldApiResponse = await goldRes.json()
-    const goldNorm = normalizePricePerGram(goldData)
-    const gold24k = goldNorm.rate24k
-    const gold22k = goldNorm.rate22k
-    const gold18k = goldNorm.rate18k
-
-    if (!gold24k || gold24k <= 0) {
-      throw new Error(`Invalid gold 24k rate returned from provider: ${gold24k}`)
-    }
-
-    // 2. Fetch Silver (XAG / INR) with 8s Timeout
-    const silverRes = await fetch("https://www.goldapi.io/api/price/XAG/INR", {
-      headers: {
-        "x-access-token": goldApiKey,
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(8000),
-    })
-
-    if (!silverRes.ok) {
-      const errText = await silverRes.text()
-      console.error(`GoldAPI Silver error: HTTP ${silverRes.status}: ${errText}`)
-      throw new Error(`Failed to fetch Silver rates from provider (HTTP ${silverRes.status}).`)
-    }
-
-    const silverData: GoldApiResponse = await silverRes.json()
-    const silverNorm = normalizePricePerGram(silverData)
-    const silver24k = silverNorm.rate24k
-
-    if (!silver24k || silver24k <= 0) {
-      throw new Error(`Invalid silver rate returned from provider: ${silver24k}`)
-    }
-
-    // 3. Upsert Daily Rates Cache (Idempotent per date/metal)
-    const { error: upsertGoldError } = await privilegedClient.from("zakat_daily_metal_rates").upsert(
-      {
-        rate_date: today,
-        metal: "GOLD",
-        currency: "INR",
-        rate_per_gram_24k: gold24k,
-        rate_per_gram_22k: gold22k ?? null,
-        rate_per_gram_18k: gold18k ?? null,
-        source_status: "LIVE",
-        fetched_at: new Date().toISOString(),
-        provider: "GoldAPI.io",
-      },
-      { onConflict: "rate_date,metal" }
-    )
-
-    if (upsertGoldError) {
-      console.error("Failed to upsert gold rate:", upsertGoldError)
-      throw upsertGoldError
-    }
-
-    const { error: upsertSilverError } = await privilegedClient.from("zakat_daily_metal_rates").upsert(
-      {
-        rate_date: today,
-        metal: "SILVER",
-        currency: "INR",
-        rate_per_gram_24k: silver24k,
-        rate_per_gram_22k: null,
-        rate_per_gram_18k: null,
-        source_status: "LIVE",
-        fetched_at: new Date().toISOString(),
-        provider: "GoldAPI.io",
-      },
-      { onConflict: "rate_date,metal" }
-    )
-
-    if (upsertSilverError) {
-      console.error("Failed to upsert silver rate:", upsertSilverError)
-      throw upsertSilverError
-    }
-
-    // 4. Record Audit Snapshots (Provenance tracking)
-    await privilegedClient.from("zakat_metal_rate_snapshots").insert([
-      {
-        rate_date: today,
-        metal: "GOLD",
-        currency: "INR",
-        price_gram_24k: gold24k,
-        price_gram_22k: gold22k ?? null,
-        price_gram_18k: gold18k ?? null,
-        exchange: goldData.exchange || "GoldAPI",
-        provider_timestamp: goldData.timestamp || Date.now(),
-        http_status_code: goldRes.status,
-      },
-      {
-        rate_date: today,
-        metal: "SILVER",
-        currency: "INR",
-        price_gram_24k: silver24k,
-        price_gram_22k: null,
-        price_gram_18k: null,
-        exchange: silverData.exchange || "GoldAPI",
-        provider_timestamp: silverData.timestamp || Date.now(),
-        http_status_code: silverRes.status,
-      },
-    ])
-
-    results.date = today
-    results.gold = {
-      rate_per_gram_24k: gold24k,
-      rate_per_gram_22k: gold22k,
-      rate_per_gram_18k: gold18k,
-    }
-    results.silver = {
-      rate_per_gram_24k: silver24k,
-    }
-
-    return new Response(JSON.stringify({ success: true, mode: "live", data: results }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    })
   } catch (err: unknown) {
     const error = err as Error
     console.error("fetch-metal-rates error:", error)

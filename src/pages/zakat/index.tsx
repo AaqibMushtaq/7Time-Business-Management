@@ -5,12 +5,17 @@ import {
   fetchWealthEntries,
   fetchUserSettings,
   fetchDailyMetalRates,
+  fetchIndianBullionRates,
+  fetchSrinagarLocalRates,
+  getValuationSourcePreference,
+  setValuationSourcePreference,
+  getActiveSrinagarLocalRate,
   triggerRemoteRatesRefresh,
   evaluateLiveUserZakat,
   deleteOrdinaryEntry,
   deletePairedConversion,
 } from "@/services/zakatService"
-import type { ZakatWealthEntryRow } from "@/types/zakat"
+import type { ZakatWealthEntryRow, ValuationSourceMode } from "@/types/zakat"
 import {
   PageContainer,
   PageHeader,
@@ -27,6 +32,8 @@ import { AddEntryModal } from "./AddEntryModal"
 import { TransferModal } from "./TransferModal"
 import { SettingsModal } from "./SettingsModal"
 import { HistoricalRatesChart } from "./HistoricalRatesChart"
+import { ManualIbjaModal } from "./ManualIbjaModal"
+import { SrinagarResaleModal } from "./SrinagarResaleModal"
 import {
   Coins,
   Plus,
@@ -39,6 +46,8 @@ import {
   Clock,
   Sparkles,
   Trash2,
+  AlertTriangle,
+  MapPin,
 } from "lucide-react"
 
 export default function ZakatPage() {
@@ -50,10 +59,16 @@ export default function ZakatPage() {
   const [activeTab, setActiveTab] = useState<"ledger" | "breakdown" | "hawl">("ledger")
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL")
 
+  // Valuation Source State
+  const [valuationMode, setValuationMode] = useState<ValuationSourceMode>(() => getValuationSourcePreference())
+  const [activeSrinagarRateId, setActiveSrinagarRateId] = useState<string | null>(() => getActiveSrinagarLocalRate()?.id || null)
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
+  const [isManualIbjaModalOpen, setIsManualIbjaModalOpen] = useState(false)
+  const [isSrinagarModalOpen, setIsSrinagarModalOpen] = useState(false)
 
   // Deletion States
   const [entryToDelete, setEntryToDelete] = useState<ZakatWealthEntryRow | null>(null)
@@ -86,15 +101,37 @@ export default function ZakatPage() {
   })
 
   const {
+    data: indianRates,
+  } = useQuery({
+    queryKey: ["zakat-indian-rates"],
+    queryFn: () => fetchIndianBullionRates(),
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const {
+    data: srinagarQuotes = [],
+  } = useQuery({
+    queryKey: ["srinagar-rates"],
+    queryFn: () => fetchSrinagarLocalRates(),
+  })
+
+  const {
     data: evaluation,
     isLoading: evalLoading,
     isError: evalError,
     refetch: refetchEval,
   } = useQuery({
-    queryKey: ["zakat-evaluation", userId],
-    queryFn: () => evaluateLiveUserZakat(userId),
+    queryKey: ["zakat-evaluation", userId, valuationMode, activeSrinagarRateId],
+    queryFn: () => evaluateLiveUserZakat(userId, undefined, valuationMode, activeSrinagarRateId || undefined),
     enabled: Boolean(userId),
+    placeholderData: (prev) => prev,
   })
+
+  const handleValuationModeChange = (mode: ValuationSourceMode) => {
+    setValuationMode(mode)
+    setValuationSourcePreference(mode)
+    queryClient.invalidateQueries({ queryKey: ["zakat-evaluation"] })
+  }
 
   // Delete Mutations
   const deleteMutation = useMutation({
@@ -116,11 +153,17 @@ export default function ZakatPage() {
   const refreshRatesMutation = useMutation({
     mutationFn: async () => {
       await triggerRemoteRatesRefresh()
-      return fetchDailyMetalRates()
+      const [stdRates, ibjaData] = await Promise.all([
+        fetchDailyMetalRates(),
+        fetchIndianBullionRates(),
+      ])
+      return { stdRates, ibjaData }
     },
-    onSuccess: (data) => {
-      queryClient.setQueryData(["zakat-rates"], data)
+    onSuccess: ({ stdRates, ibjaData }) => {
+      queryClient.setQueryData(["zakat-rates"], stdRates)
+      queryClient.setQueryData(["zakat-indian-rates"], ibjaData)
       queryClient.invalidateQueries({ queryKey: ["zakat-evaluation"] })
+      queryClient.invalidateQueries({ queryKey: ["zakat-historical-rates"] })
     },
   })
 
@@ -198,47 +241,151 @@ export default function ZakatPage() {
         }
       />
 
-      {/* 2. Precious Metals Live Rate Cards & Refresh Header */}
+      {/* 2. Precious Metals Benchmark & Valuation Source Selector */}
       <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-1">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0">
-              <Coins className="h-4 w-4" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                  Precious Metal Spot Rates
-                </h4>
-                <span
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    rateStatus === "LIVE"
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      : rateStatus === "STALE"
-                      ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : "bg-rose-50 text-rose-700 border-rose-200"
+        {/* Top Controls: Valuation Mode Selector and Refresh */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 px-1">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-bold text-slate-700">Valuation Source:</span>
+              <div className="inline-flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleValuationModeChange("IBJA_BENCHMARK")}
+                  className={`px-2.5 py-1 font-semibold rounded-md transition-all cursor-pointer ${
+                    valuationMode === "IBJA_BENCHMARK"
+                      ? "bg-white text-blue-700 shadow-2xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
                   }`}
+                  data-testid="val-source-ibja-benchmark"
                 >
-                  {rateStatus === "LIVE" ? "● LIVE RATES" : rateStatus === "STALE" ? "⚠ STALE RATES" : "✕ RATES UNAVAILABLE"}
-                </span>
+                  🇮🇳 IBJA National Benchmark
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleValuationModeChange("SRINAGAR_LOCAL")}
+                  className={`px-2.5 py-1 font-semibold rounded-md transition-all cursor-pointer ${
+                    valuationMode === "SRINAGAR_LOCAL"
+                      ? "bg-white text-purple-700 shadow-2xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  data-testid="val-source-srinagar-local"
+                >
+                  📍 Srinagar Local Resale
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleValuationModeChange("IBJA_MANUAL")}
+                  className={`px-2.5 py-1 font-semibold rounded-md transition-all cursor-pointer ${
+                    valuationMode === "IBJA_MANUAL"
+                      ? "bg-white text-amber-700 shadow-2xs font-bold"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                  data-testid="val-source-ibja-manual"
+                >
+                  ✍ Manual IBJA Entry
+                </button>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">
-                Real-time bullion spot quotes from GoldAPI.io • Standardized in INR per gram
-              </p>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  rateStatus === "LIVE"
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : rateStatus === "STALE"
+                    ? "bg-amber-50 text-amber-700 border-amber-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                }`}
+              >
+                {rateStatus === "LIVE" ? "● LIVE RATES" : rateStatus === "STALE" ? "⚠ STALE RATES" : "✕ RATES UNAVAILABLE"}
+              </span>
             </div>
+            <p className="text-[11px] text-slate-500">
+              {valuationMode === "IBJA_BENCHMARK"
+                ? "Official India Bullion and Jewellers Association (IBJA) domestic benchmarks via TrackLivePrice • Standardized in INR per gram"
+                : valuationMode === "SRINAGAR_LOCAL"
+                ? "Local Kashmir Sarafa buy-back/scrap quotes (excluding making charges and jewel markup)"
+                : "Manually recorded domestic rates verified from official ibjarates.com portal"}
+            </p>
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refreshRatesMutation.mutate()}
-            disabled={ratesLoading || refreshRatesMutation.isPending}
-            className="text-xs h-8 cursor-pointer shrink-0"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${ratesLoading || refreshRatesMutation.isPending ? "animate-spin" : ""}`} />
-            {refreshRatesMutation.isPending ? "Fetching Live Rates..." : "Refresh Spot Rates"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {valuationMode === "SRINAGAR_LOCAL" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSrinagarModalOpen(true)}
+                className="text-xs h-8 cursor-pointer text-purple-700 border-purple-200 hover:bg-purple-50"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add Srinagar Quote
+              </Button>
+            )}
+            {valuationMode === "IBJA_MANUAL" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsManualIbjaModalOpen(true)}
+                className="text-xs h-8 cursor-pointer text-amber-800 border-amber-200 hover:bg-amber-50"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Enter IBJA Rate
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => refreshRatesMutation.mutate()}
+              disabled={ratesLoading || refreshRatesMutation.isPending}
+              className="text-xs h-8 cursor-pointer shrink-0"
+            >
+              <RefreshCw
+                className={`h-3.5 w-3.5 mr-1.5 ${
+                  ratesLoading || refreshRatesMutation.isPending ? "animate-spin" : ""
+                }`}
+              />
+              {refreshRatesMutation.isPending ? "Fetching..." : "Refresh Benchmark Rates"}
+            </Button>
+          </div>
         </div>
+
+        {/* Stale Rate Banner */}
+        {rateStatus === "STALE" && (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Domestic Benchmark Rates are Stale:</strong> Market feed has not published today&apos;s session yet. Using most recent recorded close.
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsManualIbjaModalOpen(true)}
+              className="text-xs h-7 border-amber-300 text-amber-900 hover:bg-amber-100 cursor-pointer shrink-0"
+            >
+              Verify & Enter from ibjarates.com
+            </Button>
+          </div>
+        )}
+
+        {/* Active Srinagar Quote Banner when active */}
+        {valuationMode === "SRINAGAR_LOCAL" && srinagarQuotes.length > 0 && (
+          <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-purple-900">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-purple-600 shrink-0" />
+              <span>
+                Active Quote: <strong>{srinagarQuotes[0].jewellerName}</strong> ({srinagarQuotes[0].metal} {srinagarQuotes[0].purity}) @ <strong>₹{srinagarQuotes[0].buyBackRate.toLocaleString("en-IN")}/g</strong> • Verified: {srinagarQuotes[0].verifiedAt}
+              </span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsSrinagarModalOpen(true)}
+              className="text-xs h-7 border-purple-300 text-purple-900 hover:bg-purple-100 cursor-pointer shrink-0"
+            >
+              Change Quote
+            </Button>
+          </div>
+        )}
 
         {/* Live Metal Price Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -250,20 +397,20 @@ export default function ZakatPage() {
                 <span className="text-xs font-bold text-slate-800">Gold Bullion (24k)</span>
               </div>
               <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                Pure 999
+                {indianRates?.gold?.session ? `IBJA ${indianRates.gold.session} Session` : "Pure 999"}
               </span>
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
               <span className="text-2xl font-black text-slate-900 tracking-tight">
                 {rates?.goldRate ? `₹${rates.goldRate.toLocaleString("en-IN")}/g` : "Pending fetch"}
               </span>
-              <span className="text-xs text-slate-500 font-medium">Gold 24k</span>
+              <span className="text-xs text-slate-500 font-medium">Gold 24k (₹{(rates?.goldRate ? rates.goldRate * 10 : 0).toLocaleString("en-IN")}/10g)</span>
             </div>
             <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
               <span>
-                22k: <strong className="text-slate-700 font-semibold">{rates?.goldRate ? `₹${Math.round(rates.goldRate * (22 / 24)).toLocaleString("en-IN")}/g` : "—"}</strong>
+                22k (916): <strong className="text-slate-700 font-semibold">{indianRates?.gold?.purity_916 ? `₹${Math.round(indianRates.gold.purity_916).toLocaleString("en-IN")}/g` : rates?.goldRate ? `₹${Math.round(rates.goldRate * (22 / 24)).toLocaleString("en-IN")}/g` : "—"}</strong>
                 {" • "}
-                18k: <strong className="text-slate-700 font-semibold">{rates?.goldRate ? `₹${Math.round(rates.goldRate * (18 / 24)).toLocaleString("en-IN")}/g` : "—"}</strong>
+                18k (750): <strong className="text-slate-700 font-semibold">{indianRates?.gold?.purity_750 ? `₹${Math.round(indianRates.gold.purity_750).toLocaleString("en-IN")}/g` : rates?.goldRate ? `₹${Math.round(rates.goldRate * (18 / 24)).toLocaleString("en-IN")}/g` : "—"}</strong>
               </span>
               <span className="text-slate-400 text-[10px]">
                 Nisab (87.48g): <strong className="text-slate-600">{rates?.goldRate ? `₹${Math.round(rates.goldRate * 87.48).toLocaleString("en-IN")}` : "—"}</strong>
@@ -279,14 +426,14 @@ export default function ZakatPage() {
                 <span className="text-xs font-bold text-slate-800">Silver Bullion (Pure)</span>
               </div>
               <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                Fine 999
+                {indianRates?.silver?.session ? `IBJA ${indianRates.silver.session} Session` : "Fine 999"}
               </span>
             </div>
             <div className="mt-2.5 flex items-baseline gap-2">
               <span className="text-2xl font-black text-slate-900 tracking-tight">
                 {rates?.silverRate ? `₹${rates.silverRate.toLocaleString("en-IN")}/g` : "Pending fetch"}
               </span>
-              <span className="text-xs text-slate-500 font-medium">Pure Silver</span>
+              <span className="text-xs text-slate-500 font-medium">Pure Silver (₹{(rates?.silverRate ? rates.silverRate * 1000 : 0).toLocaleString("en-IN")}/kg)</span>
             </div>
             <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
               <span>
@@ -321,15 +468,22 @@ export default function ZakatPage() {
               : "Awaiting Rates"
           }
           subtitle={
-            isNisabMet ? (
-              <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                <CheckCircle2 className="h-3 w-3 inline" /> Nisab threshold satisfied
-              </span>
-            ) : (
-              <span className="text-slate-500 font-medium">
-                ₹{Math.abs(Math.round(evaluation?.amountAboveOrBelowNisab ?? 0)).toLocaleString("en-IN")} below threshold
-              </span>
-            )
+            <div className="space-y-0.5">
+              {isNisabMet ? (
+                <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 inline" /> Nisab threshold satisfied
+                </span>
+              ) : (
+                <span className="text-slate-500 font-medium">
+                  ₹{Math.abs(Math.round(evaluation?.amountAboveOrBelowNisab ?? 0)).toLocaleString("en-IN")} below threshold
+                </span>
+              )}
+              {evaluation?.valuationSourceDescription && (
+                <span className="text-[10px] text-slate-400 block truncate">
+                  Basis: {evaluation.valuationSourceDescription}
+                </span>
+              )}
+            </div>
           }
           icon={Scale}
           variant={isNisabMet ? "green" : "default"}
@@ -640,6 +794,21 @@ export default function ZakatPage() {
         onClose={() => setIsSettingsModalOpen(false)}
         userId={userId}
         currentSettings={settings}
+      />
+
+      <ManualIbjaModal
+        isOpen={isManualIbjaModalOpen}
+        onClose={() => setIsManualIbjaModalOpen(false)}
+      />
+
+      <SrinagarResaleModal
+        isOpen={isSrinagarModalOpen}
+        onClose={() => setIsSrinagarModalOpen(false)}
+        onSuccess={() => {
+          setValuationMode("SRINAGAR_LOCAL")
+          const active = getActiveSrinagarLocalRate()
+          if (active) setActiveSrinagarRateId(active.id)
+        }}
       />
 
       <ConfirmDialog

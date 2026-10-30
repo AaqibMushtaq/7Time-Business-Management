@@ -111,9 +111,92 @@ export interface HistoricalMetalRatePoint {
   silverRate: number | null
   gold22k?: number | null
   gold18k?: number | null
+  gold995?: number | null
+  gold585?: number | null
+  session?: "AM" | "PM" | "CLOSE"
+  goldAm?: number | null
+  goldPm?: number | null
+  silverAm?: number | null
+  silverPm?: number | null
   source: string
   status: string
   isLive?: boolean
+}
+
+// ----------------------------------------------------------------------------
+// Normalized Indian Bullion & Valuation Source Contracts
+// ----------------------------------------------------------------------------
+
+export type ValuationSourceMode = "IBJA_BENCHMARK" | "SRINAGAR_LOCAL" | "IBJA_MANUAL"
+
+export interface NormalizedMetalRate {
+  provider: string
+  original_benchmark: string
+  metal: "GOLD" | "SILVER"
+  purity: "999" | "995" | "916" | "750" | "585"
+  rate: number // INR per gram
+  currency: "INR"
+  unit: "g"
+  session: "AM" | "PM" | "CLOSE"
+  effective_date: string // YYYY-MM-DD
+  published_at: string
+  retrieved_at: string
+  source_status: RateSourceStatus
+}
+
+export interface IndianBullionRatesResponse {
+  provider: string
+  original_benchmark: string
+  currency: "INR"
+  unit: "g"
+  source_status: RateSourceStatus
+  effective_date: string
+  published_at: string
+  retrieved_at: string
+  attribution: string
+  gold: {
+    purity_999: number | null
+    purity_995: number | null
+    purity_916: number | null
+    purity_750: number | null
+    purity_585: number | null
+    am: number | null
+    pm: number | null
+    session: "AM" | "PM" | "CLOSE"
+  }
+  silver: {
+    purity_999: number | null
+    am: number | null
+    pm: number | null
+    session: "AM" | "PM" | "CLOSE"
+  }
+}
+
+export interface SrinagarLocalRate {
+  id: string
+  jewellerName: string
+  metal: "GOLD" | "SILVER"
+  purity: "999" | "995" | "916" | "750" | "585"
+  buyBackRate: number // INR per gram
+  currency: "INR"
+  unit: "g"
+  verifiedAt: string // ISO date or date-time string
+  enteredBy: string
+  verificationNote?: string
+}
+
+export interface ManualIbjaRateEntry {
+  rateDate: string // YYYY-MM-DD
+  session: "AM" | "PM"
+  gold999: number
+  gold995?: number
+  gold916?: number
+  gold750?: number
+  gold585?: number
+  silver999: number
+  verifiedFromUrl?: string
+  enteredBy: string
+  notes?: string
 }
 
 // ----------------------------------------------------------------------------

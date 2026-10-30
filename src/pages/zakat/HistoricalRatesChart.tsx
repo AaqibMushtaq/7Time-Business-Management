@@ -23,6 +23,8 @@ import {
   TrendingDown,
   ArrowUpRight,
   ArrowDownRight,
+  Clock,
+  Activity,
 } from "lucide-react"
 
 interface HistoricalRatesChartProps {
@@ -32,6 +34,7 @@ interface HistoricalRatesChartProps {
 export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartProps) {
   const [timeframe, setTimeframe] = useState<7 | 30>(30)
   const [selectedMetal, setSelectedMetal] = useState<"BOTH" | "GOLD" | "SILVER">("BOTH")
+  const [sessionMode, setSessionMode] = useState<"close" | "both">("close")
   const [includeLiveSpot, setIncludeLiveSpot] = useState<boolean>(true)
 
   const {
@@ -41,8 +44,8 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
     refetch,
     isFetching,
   } = useQuery({
-    queryKey: ["zakat-historical-rates", timeframe],
-    queryFn: () => fetchHistoricalMetalRates(timeframe),
+    queryKey: ["zakat-historical-rates", timeframe, sessionMode],
+    queryFn: () => fetchHistoricalMetalRates(timeframe, sessionMode),
     staleTime: 5 * 60 * 1000,
   })
 
@@ -136,7 +139,7 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
               Precious Metal Rate History
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Historical spot price progression (INR per gram) from GoldAPI.io
+              Indian domestic benchmark rates (INR per gram) • IBJA via TrackLivePrice
             </p>
           </div>
         </div>
@@ -218,18 +221,31 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all cursor-pointer ${
               includeLiveSpot
                 ? "bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs font-semibold"
-                : "bg-slate-50 text-slate-500 border-slate-200 hover:text-slate-800"
+                : "bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900"
             }`}
             data-testid="toggle-live-prices"
             aria-pressed={includeLiveSpot}
-            title={includeLiveSpot ? "Toggle OFF to show only market close" : "Toggle ON to include live spot quote"}
+            title={includeLiveSpot ? "Hide live spot quote" : "Show live spot quote"}
           >
-            <span
-              className={`w-2 h-2 rounded-full ${
-                includeLiveSpot ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-              }`}
-            />
-            Live Spot
+            <Activity className="h-3.5 w-3.5 text-emerald-600" />
+            {includeLiveSpot ? "Live Spot: On" : "Live Spot: Off"}
+          </button>
+
+          {/* AM / PM Session Toggle */}
+          <button
+            type="button"
+            onClick={() => setSessionMode((prev) => (prev === "close" ? "both" : "close"))}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all cursor-pointer ${
+              sessionMode === "both"
+                ? "bg-indigo-50 text-indigo-800 border-indigo-300 shadow-2xs font-semibold"
+                : "bg-slate-50 text-slate-600 border-slate-200 hover:text-slate-900"
+            }`}
+            data-testid="toggle-session-mode"
+            aria-pressed={sessionMode === "both"}
+            title={sessionMode === "both" ? "Switch to daily close" : "Switch to show both AM & PM sessions"}
+          >
+            <Clock className="h-3.5 w-3.5 text-indigo-600" />
+            {sessionMode === "both" ? "AM & PM Sessions" : "Daily Close (PM)"}
           </button>
 
           {/* Refresh Action */}
@@ -254,7 +270,7 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
           data-testid="chart-loading-state"
         >
           <RefreshCw className="h-5 w-5 animate-spin text-blue-500" />
-          <span className="text-xs font-medium">Loading historical precious metal rates from GoldAPI.io...</span>
+          <span className="text-xs font-medium">Loading historical precious metal rates from IBJA domestic benchmark...</span>
         </div>
       ) : isError ? (
         <div
@@ -591,15 +607,15 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-xs text-slate-500 gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-semibold text-slate-700">Valuation Source:</span>
-            <span className="bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 text-[11px]">
-              <Info className="h-3 w-3 text-slate-400" />
-              International Spot (INR) via GoldAPI.io
+            <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 text-[11px]">
+              <Info className="h-3 w-3 text-amber-600" />
+              IBJA Domestic Bullion Benchmark (via TrackLivePrice)
             </span>
             {latestPoint && (
               <span className="text-slate-400 text-[11px]">
-                • Latest rate date: <strong className="text-slate-600">{latestPoint.date}</strong>{" "}
-                {latestPoint.isLive || latestPoint.status === "LIVE_SPOT" ? (
-                  <span className="text-emerald-600 font-semibold">(Live Spot Quote)</span>
+                • Latest observation: <strong className="text-slate-600">{latestPoint.date}</strong>{" "}
+                {latestPoint.session ? (
+                  <span className="text-blue-600 font-semibold">({latestPoint.session} Session)</span>
                 ) : (
                   <span className="text-slate-500 font-medium">(Market Close)</span>
                 )}
@@ -608,8 +624,25 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
           </div>
         </div>
 
-        <p className="text-[10px] text-slate-400 italic leading-relaxed">
-          These are international spot prices in INR from GoldAPI.io. They do not include local Kashmir/Indian retail jeweller making charges or GST.
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          Authentic Indian domestic benchmark rates published by the <strong>India Bullion and Jewellers Association (IBJA)</strong> in INR per gram (exclusive of 3% GST and making charges). Open dataset provided by{" "}
+          <a
+            href="https://trackliveprice.com/methodology/#data"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline font-medium"
+          >
+            TrackLivePrice
+          </a>{" "}
+          under free reuse attribution licence. Secondary verification via official{" "}
+          <a
+            href="https://ibjarates.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline font-medium"
+          >
+            ibjarates.com
+          </a>.
         </p>
       </div>
     </div>
@@ -617,22 +650,30 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
 }
 
 function formatChartDate(dateStr: string): string {
-  if (!dateStr || !dateStr.includes("-")) return dateStr
-  const [year, month, day] = dateStr.split("-").map(Number)
+  if (!dateStr) return ""
+  const parts = dateStr.split(" ")
+  const rawDate = parts[0]
+  const sessionTag = parts[1] ? ` ${parts[1]}` : ""
+  if (!rawDate.includes("-")) return dateStr
+  const [year, month, day] = rawDate.split("-").map(Number)
   const d = new Date(year, month - 1, day)
-  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+  return `${d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}${sessionTag}`
 }
 
 function formatTooltipDate(dateStr: string): string {
-  if (!dateStr || !dateStr.includes("-")) return dateStr
-  const [year, month, day] = dateStr.split("-").map(Number)
+  if (!dateStr) return ""
+  const parts = dateStr.split(" ")
+  const rawDate = parts[0]
+  const sessionTag = parts[1] ? ` (${parts[1]} Session)` : ""
+  if (!rawDate.includes("-")) return dateStr
+  const [year, month, day] = rawDate.split("-").map(Number)
   const d = new Date(year, month - 1, day)
-  return d.toLocaleDateString("en-IN", {
+  return `${d.toLocaleDateString("en-IN", {
     weekday: "short",
     day: "numeric",
     month: "short",
     year: "numeric",
-  })
+  })}${sessionTag}`
 }
 
 interface CustomTooltipProps {
@@ -647,6 +688,7 @@ export function CustomTooltip({ active, payload, label, fullData = [] }: CustomT
 
   const point = payload[0]?.payload as HistoricalMetalRatePoint | undefined
   const isLive = Boolean(point?.isLive || point?.status === "LIVE_SPOT")
+  const session = point?.session || (label?.includes("AM") ? "AM" : label?.includes("PM") ? "PM" : "CLOSE")
 
   // Calculate day-over-day change against previous day in fullData
   let dailyGoldChange = null
@@ -669,6 +711,24 @@ export function CustomTooltip({ active, payload, label, fullData = [] }: CustomT
     }
   }
 
+  const badgeText = isLive
+    ? "Live Spot Quote"
+    : session === "AM"
+    ? "IBJA Opening (AM)"
+    : session === "PM"
+    ? "IBJA Closing (PM)"
+    : "Market Close"
+
+  const badgeClass = isLive
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : session === "AM"
+    ? "bg-amber-50 text-amber-700 border-amber-200"
+    : session === "PM"
+    ? "bg-blue-50 text-blue-700 border-blue-200"
+    : "bg-slate-100 text-slate-600 border-slate-200"
+
+  const sourceText = point?.source || (isLive ? "IBJA Domestic (Live Quote)" : "IBJA via TrackLivePrice")
+
   return (
     <div
       className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-lg text-xs space-y-2 animate-in fade-in-50 duration-100 min-w-56"
@@ -676,15 +736,9 @@ export function CustomTooltip({ active, payload, label, fullData = [] }: CustomT
     >
       <div className="font-bold text-slate-800 border-b border-slate-100 pb-1.5 flex items-center justify-between gap-3">
         <span>{formatTooltipDate(label || "")}</span>
-        {isLive ? (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            Live Spot Quote
-          </span>
-        ) : (
-          <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
-            LBMA Close
-          </span>
-        )}
+        <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeClass}`}>
+          {badgeText}
+        </span>
       </div>
 
       <div className="space-y-1.5">
@@ -705,7 +759,7 @@ export function CustomTooltip({ active, payload, label, fullData = [] }: CustomT
                 <span className="font-bold text-slate-900">
                   {typeof item.value === "number"
                     ? `₹${item.value.toLocaleString("en-IN", {
-                        minimumFractionDigits: 2,
+                        minimumFractionDigits: 1,
                         maximumFractionDigits: 4,
                       })}/g`
                     : "Unavailable"}
@@ -727,8 +781,10 @@ export function CustomTooltip({ active, payload, label, fullData = [] }: CustomT
       </div>
 
       <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-100 flex items-center justify-between">
-        <span>Source: {isLive ? "GoldAPI.io (Live Spot)" : "GoldAPI.io (LBMA Market Close)"}</span>
-        {isLive && <span className="text-[10px] text-emerald-600 font-semibold">Real-time</span>}
+        <span>Source: {sourceText}</span>
+        <span className="text-[10px] text-slate-500 font-medium">
+          {isLive ? "Real-time" : "Domestic Benchmark"}
+        </span>
       </div>
     </div>
   )

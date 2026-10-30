@@ -16,6 +16,12 @@ import {
   deletePairedConversion,
   fetchDailyMetalRates,
   fetchHistoricalMetalRates,
+  fetchIndianBullionRates,
+  saveManualIbjaRates,
+  fetchSrinagarLocalRates,
+  saveSrinagarLocalRate,
+  deleteSrinagarLocalRate,
+  getActiveSrinagarLocalRate,
   fetchUserSettings,
   saveUserSettings,
   fetchHawlRecords,
@@ -412,7 +418,7 @@ describe("zakatService & Adapter Layer", () => {
       const result = await fetchHistoricalMetalRates(30)
 
       expect(supabase.functions.invoke).toHaveBeenCalledWith("fetch-metal-rates", {
-        body: { action: "history", days: 30 },
+        body: { action: "ibja_history", days: 30, sessionMode: "close" },
       })
       expect(result).toHaveLength(2)
       expect(result[0].goldRate).toBe(11900.5)
@@ -437,7 +443,7 @@ describe("zakatService & Adapter Layer", () => {
       const result = await fetchHistoricalMetalRates(7)
 
       expect(supabase.functions.invoke).toHaveBeenCalledWith("fetch-metal-rates", {
-        body: { action: "history", days: 7 },
+        body: { action: "ibja_history", days: 7, sessionMode: "close" },
       })
       expect(result).toEqual([])
     })
@@ -768,6 +774,230 @@ describe("zakatService & Adapter Layer", () => {
           correction_of_entry_id: null,
         })
       ).rejects.toThrow("Cannot create conversion entries directly. Use createPairedConversion().")
+    })
+  })
+
+  describe("Indian Bullion & Valuation Workflows", () => {
+    it("fetchIndianBullionRates calls edge function with action: 'ibja_rates' and returns all 5 gold purities and silver", async () => {
+      const mockPayload = {
+        provider: "TrackLivePrice",
+        original_benchmark: "IBJA",
+        currency: "INR",
+        unit: "g",
+        source_status: "LIVE",
+        effective_date: "2026-10-30",
+        published_at: "2026-10-30 PM Closing",
+        retrieved_at: "2026-10-30T17:00:00Z",
+        attribution: "TrackLivePrice (https://trackliveprice.com) - Original Benchmark: IBJA",
+        gold: {
+          purity_999: 14005.4,
+          purity_995: 13949.3,
+          purity_916: 12828.9,
+          purity_750: 10504.1,
+          purity_585: 8193.2,
+          am: 14089.1,
+          pm: 14005.4,
+          session: "PM",
+        },
+        silver: {
+          purity_999: 181.34,
+          am: 183.8,
+          pm: 181.34,
+          session: "PM",
+        },
+      }
+
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: { success: true, mode: "ibja_rates", data: mockPayload },
+        error: null,
+      })
+
+      const rates = await fetchIndianBullionRates()
+      expect(supabase.functions.invoke).toHaveBeenCalledWith("fetch-metal-rates", {
+        body: { action: "ibja_rates" },
+      })
+      expect(rates).not.toBeNull()
+      expect(rates?.gold.purity_999).toBe(14005.4)
+      expect(rates?.gold.purity_995).toBe(13949.3)
+      expect(rates?.gold.purity_916).toBe(12828.9)
+      expect(rates?.gold.purity_750).toBe(10504.1)
+      expect(rates?.gold.purity_585).toBe(8193.2)
+      expect(rates?.silver.purity_999).toBe(181.34)
+      expect(rates?.gold.session).toBe("PM")
+    })
+
+    it("saveManualIbjaRates invokes edge function with action: 'save_manual_ibja'", async () => {
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: { success: true, mode: "save_manual_ibja" },
+        error: null,
+      })
+
+      const ok = await saveManualIbjaRates({
+        rateDate: "2026-10-30",
+        session: "PM",
+        gold999: 14005.4,
+        gold916: 12828.9,
+        silver999: 181.34,
+        enteredBy: "Test Auditor",
+        notes: "Verified against ibjarates.com",
+      })
+
+      expect(supabase.functions.invoke).toHaveBeenCalledWith("fetch-metal-rates", {
+        body: {
+          action: "save_manual_ibja",
+          rateDate: "2026-10-30",
+          session: "PM",
+          gold999: 14005.4,
+          gold916: 12828.9,
+          silver999: 181.34,
+          enteredBy: "Test Auditor",
+          notes: "Verified against ibjarates.com",
+        },
+      })
+      expect(ok).toBe(true)
+    })
+
+    it("manages Srinagar local resale rates in localStorage", () => {
+      localStorage.clear()
+      expect(fetchSrinagarLocalRates()).toEqual([])
+
+      const created = saveSrinagarLocalRate({
+        jewellerName: "Sarafa Jeweller Lal Chowk",
+        metal: "GOLD",
+        purity: "916",
+        buyBackRate: 12400.0,
+        verifiedAt: "2026-10-30",
+        enteredBy: "Aaqib",
+        verificationNote: "Verified resale rate for hallmarked 22k jewellery",
+      })
+
+      expect(created.id).toBeDefined()
+      expect(created.currency).toBe("INR")
+      expect(created.unit).toBe("g")
+
+      const list = fetchSrinagarLocalRates()
+      expect(list).toHaveLength(1)
+      expect(list[0].jewellerName).toBe("Sarafa Jeweller Lal Chowk")
+
+      const active = getActiveSrinagarLocalRate()
+      expect(active?.id).toBe(created.id)
+
+      deleteSrinagarLocalRate(created.id)
+      expect(fetchSrinagarLocalRates()).toEqual([])
+    })
+
+    it("evaluates live Zakat using Srinagar local resale quote when selected", async () => {
+      localStorage.clear()
+      const srinagarQuote = saveSrinagarLocalRate({
+        jewellerName: "Zaina Kadal Jewellers",
+        metal: "GOLD",
+        purity: "999",
+        buyBackRate: 13500.0,
+        verifiedAt: "2026-10-30",
+        enteredBy: "Aaqib",
+      })
+
+      const mockEntries: ZakatWealthEntryRow[] = [
+        {
+          id: "entry-1",
+          user_id: "user-1",
+          entry_date: "2026-10-01",
+          entry_type: "ACQUIRED",
+          category: "GOLD",
+          source: "Gold Bar",
+          amount_inr: 0,
+          quantity: 100, // 100g 24k gold
+          purity_carat: 24,
+          linked_entry_id: null,
+          description: "100g Gold",
+          notes: null,
+          correction_of_entry_id: null,
+          created_at: "2026-10-01T00:00:00Z",
+          updated_at: "2026-10-01T00:00:00Z",
+        },
+      ]
+
+      const mockSelectEntries = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: mockEntries, error: null }),
+          }),
+        }),
+      })
+
+      const mockSelectSettings = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          maybeSingle: vi.fn().mockResolvedValue({
+            data: {
+              user_id: "user-1",
+              preferred_nisab_standard: "GOLD",
+              silver_nisab_grams: 612.36,
+              gold_nisab_grams: 87.48,
+              hijri_day_offset: 0,
+              custom_hawl_start_date: null,
+              is_hawl_start_date_confirmed: false,
+            },
+            error: null,
+          }),
+        }),
+      })
+
+      const mockSelectRates = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          order: vi.fn().mockReturnValue({
+            limit: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  rate_date: "2026-10-30",
+                  metal: "GOLD",
+                  rate_per_gram_24k: 14000.0,
+                  source_status: "LIVE",
+                },
+                {
+                  rate_date: "2026-10-30",
+                  metal: "SILVER",
+                  rate_per_gram_24k: 180.0,
+                  source_status: "LIVE",
+                },
+              ],
+              error: null,
+            }),
+          }),
+        }),
+        order: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue({
+            data: [
+              {
+                rate_date: "2026-10-30",
+                metal: "GOLD",
+                rate_per_gram_24k: 14000.0,
+                source_status: "LIVE",
+              },
+              {
+                rate_date: "2026-10-30",
+                metal: "SILVER",
+                rate_per_gram_24k: 180.0,
+                source_status: "LIVE",
+              },
+            ],
+            error: null,
+          }),
+        }),
+      })
+
+      vi.mocked(supabase.from).mockImplementation((table: string) => {
+        if (table === "zakat_wealth_entries") return { select: mockSelectEntries } as any
+        if (table === "zakat_user_settings") return { select: mockSelectSettings } as any
+        if (table === "zakat_daily_metal_rates") return { select: mockSelectRates } as any
+        return {} as any
+      })
+
+      const result = await evaluateLiveUserZakat("user-1", "2026-10-30", "SRINAGAR_LOCAL", srinagarQuote.id)
+
+      // Gold revalued at 100g * 13500 (Srinagar quote) = 1,350,000 INR (instead of 14000 national benchmark)
+      expect(result.balances.goldValuation).toBe(1350000)
+      expect(result.valuationSourceDescription).toContain("Srinagar Local Resale Quote")
+      expect(result.valuationSourceDescription).toContain("Zaina Kadal Jewellers")
     })
   })
 })
