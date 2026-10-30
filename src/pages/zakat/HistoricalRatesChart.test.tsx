@@ -263,17 +263,25 @@ describe("HistoricalRatesChart Component", () => {
     })
   })
 
-  it("renders CustomTooltip with localized date and formatted currency values", () => {
+  it("renders CustomTooltip with localized date and formatted currency values for market close", () => {
     const mockPayload = [
       {
         name: "Gold (24k INR/g)",
         value: 11943.5651,
         color: "#2563EB",
+        payload: {
+          isLive: false,
+          status: "MARKET_CLOSE",
+        },
       },
       {
         name: "Silver (Pure INR/g)",
         value: 150.4976,
         color: "#D97706",
+        payload: {
+          isLive: false,
+          status: "MARKET_CLOSE",
+        },
       },
     ]
 
@@ -283,6 +291,27 @@ describe("HistoricalRatesChart Component", () => {
     expect(screen.getByText(/30 Oct.*2026/)).toBeDefined()
     expect(screen.getByText(/11,943\.5651/)).toBeDefined()
     expect(screen.getByText(/150\.4976/)).toBeDefined()
-    expect(screen.getByText(/Source: International Spot via GoldAPI\.io/)).toBeDefined()
+    expect(screen.getByText(/Source: GoldAPI\.io \(LBMA Market Close\)/)).toBeDefined()
+  })
+
+  it("renders CustomTooltip with Live Spot badge when point is live quote", () => {
+    const mockPayload = [
+      {
+        name: "Gold (24k INR/g)",
+        value: 11943.5651,
+        color: "#2563EB",
+        payload: {
+          isLive: true,
+          status: "LIVE_SPOT",
+        },
+      },
+    ]
+
+    render(<CustomTooltip active={true} payload={mockPayload} label="2026-10-30" />)
+
+    expect(screen.getByTestId("chart-custom-tooltip")).toBeDefined()
+    expect(screen.getByText("Live Spot Quote")).toBeDefined()
+    expect(screen.getByText(/Source: GoldAPI\.io \(Live Spot\)/)).toBeDefined()
+    expect(screen.getByText("Real-time")).toBeDefined()
   })
 })

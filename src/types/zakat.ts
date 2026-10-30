@@ -113,6 +113,7 @@ export interface HistoricalMetalRatePoint {
   gold18k?: number | null
   source: string
   status: string
+  isLive?: boolean
 }
 
 // ----------------------------------------------------------------------------

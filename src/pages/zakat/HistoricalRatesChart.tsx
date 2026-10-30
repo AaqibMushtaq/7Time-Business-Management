@@ -160,7 +160,7 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
           <AlertCircle className="h-6 w-6 text-rose-500" />
           <h4 className="text-xs font-bold text-rose-900">Failed to load historical rate data</h4>
           <p className="text-[11px] text-rose-600 max-w-xs">
-            Could not retrieve historical precious metal records from the database.
+            Could not retrieve historical precious metal records from market feed.
           </p>
           <Button
             variant="outline"
@@ -315,7 +315,12 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
           </span>
           {latestPoint && (
             <span className="text-slate-400">
-              • Latest rate date: <strong className="text-slate-600">{latestPoint.date}</strong>
+              • Latest rate date: <strong className="text-slate-600">{latestPoint.date}</strong>{" "}
+              {latestPoint.isLive || latestPoint.status === "LIVE_SPOT" ? (
+                <span className="text-emerald-600 font-semibold">(Live Spot Quote)</span>
+              ) : (
+                <span className="text-slate-500 font-medium">(Market Close)</span>
+              )}
             </span>
           )}
         </div>
@@ -349,6 +354,9 @@ function formatTooltipDate(dateStr: string): string {
 export function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null
 
+  const point = payload[0]?.payload
+  const isLive = Boolean(point?.isLive || point?.status === "LIVE_SPOT")
+
   return (
     <div
       className="bg-white p-3 rounded-xl border border-slate-200 shadow-md text-xs space-y-1.5 animate-in fade-in-50 duration-100"
@@ -356,7 +364,13 @@ export function CustomTooltip({ active, payload, label }: any) {
     >
       <div className="font-bold text-slate-800 border-b border-slate-100 pb-1 flex items-center justify-between gap-4">
         <span>Date: {formatTooltipDate(label)}</span>
-        <span className="text-[10px] text-slate-400 font-normal">INR / gram</span>
+        {isLive ? (
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Live Spot Quote
+          </span>
+        ) : (
+          <span className="text-[10px] text-slate-400 font-normal">INR / gram</span>
+        )}
       </div>
       {payload.map((item: any) => (
         <div key={item.name} className="flex items-center justify-between gap-4">
@@ -377,8 +391,9 @@ export function CustomTooltip({ active, payload, label }: any) {
           </span>
         </div>
       ))}
-      <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-        Source: International Spot via GoldAPI.io
+      <div className="text-[10px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
+        <span>Source: {isLive ? "GoldAPI.io (Live Spot)" : "GoldAPI.io (LBMA Market Close)"}</span>
+        {isLive && <span className="text-[10px] text-emerald-600 font-medium">Real-time</span>}
       </div>
     </div>
   )

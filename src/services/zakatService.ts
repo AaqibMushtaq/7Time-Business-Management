@@ -192,53 +192,20 @@ export async function triggerRemoteRatesRefresh(): Promise<boolean> {
 export async function fetchHistoricalMetalRates(
   days: 7 | 30 = 30
 ): Promise<HistoricalMetalRatePoint[]> {
-  // Use local calendar date boundaries to prevent UTC off-by-one errors
-  const cutoff = new Date()
-  cutoff.setDate(cutoff.getDate() - days)
-  const y = cutoff.getFullYear()
-  const m = String(cutoff.getMonth() + 1).padStart(2, "0")
-  const d = String(cutoff.getDate()).padStart(2, "0")
-  const cutoffStr = `${y}-${m}-${d}`
-
-  const { data, error } = await supabase
-    .from("zakat_daily_metal_rates")
-    .select("*")
-    .gte("rate_date", cutoffStr)
-    .order("rate_date", { ascending: true })
+  const { data, error } = await supabase.functions.invoke("fetch-metal-rates", {
+    body: { action: "history", days },
+  })
 
   if (error) {
-    console.error("fetchHistoricalMetalRates error:", error)
+    console.error("fetchHistoricalMetalRates Edge Function error:", error)
     throw error
   }
 
-  const rows = (data || []) as ZakatDailyMetalRateRow[]
-  const dateMap = new Map<string, HistoricalMetalRatePoint>()
-
-  for (const row of rows) {
-    let point = dateMap.get(row.rate_date)
-    if (!point) {
-      point = {
-        date: row.rate_date,
-        goldRate: null,
-        silverRate: null,
-        gold22k: null,
-        gold18k: null,
-        source: row.provider || "GoldAPI.io",
-        status: row.source_status || "LIVE",
-      }
-      dateMap.set(row.rate_date, point)
-    }
-
-    if (row.metal === "GOLD") {
-      point.goldRate = Number(row.rate_per_gram_24k)
-      point.gold22k = row.rate_per_gram_22k ? Number(row.rate_per_gram_22k) : null
-      point.gold18k = row.rate_per_gram_18k ? Number(row.rate_per_gram_18k) : null
-    } else if (row.metal === "SILVER") {
-      point.silverRate = Number(row.rate_per_gram_24k)
-    }
+  if (!data?.success || !data?.data?.points) {
+    throw new Error(data?.error || "Failed to retrieve historical precious metal rates.")
   }
 
-  return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+  return data.data.points as HistoricalMetalRatePoint[]
 }
 
 // ----------------------------------------------------------------------------
