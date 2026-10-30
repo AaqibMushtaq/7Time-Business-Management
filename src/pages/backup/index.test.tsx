@@ -12,8 +12,8 @@ vi.mock("@/lib/supabase", () => ({
 describe("BackupPage Component", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    global.URL.createObjectURL = vi.fn(() => "mock-blob-url")
-    global.URL.revokeObjectURL = vi.fn()
+    window.URL.createObjectURL = vi.fn(() => "mock-blob-url")
+    window.URL.revokeObjectURL = vi.fn()
   })
 
   it("renders backup and restore interface cards", () => {
