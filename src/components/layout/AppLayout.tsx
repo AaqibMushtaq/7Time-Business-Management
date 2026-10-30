@@ -17,7 +17,8 @@ import {
   X,
   RefreshCw,
   Sparkles,
-  Calculator
+  Calculator,
+  Coins
 } from "lucide-react"
 import { Button } from "../ui/button"
 import { UpdateNotificationBanner } from "../common/UpdateNotificationBanner"
@@ -46,6 +47,7 @@ const navGroups = [
     name: "PERSONAL LEDGER",
     items: [
       { name: "Personal Ledger", href: "/local-customers", icon: Users },
+      { name: "Zakat Tracker", href: "/zakat", icon: Coins },
     ]
   },
   {

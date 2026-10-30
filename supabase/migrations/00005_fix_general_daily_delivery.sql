@@ -44,6 +44,14 @@ CREATE INDEX IF NOT EXISTS idx_general_daily_records_date ON public.general_dail
 CREATE INDEX IF NOT EXISTS idx_general_delivery_entries_record_id ON public.general_delivery_entries (daily_record_id);
 
 -- 4. Automatically update `updated_at` triggers
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 DROP TRIGGER IF EXISTS trg_general_daily_records_updated_at ON public.general_daily_records;
 CREATE TRIGGER trg_general_daily_records_updated_at
 BEFORE UPDATE ON public.general_daily_records
