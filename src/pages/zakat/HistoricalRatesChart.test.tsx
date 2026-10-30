@@ -95,7 +95,7 @@ describe("HistoricalRatesChart Component", () => {
     expect(screen.getByTestId("filter-both-metals")).toBeDefined()
     expect(screen.getByTestId("filter-gold-only")).toBeDefined()
     expect(screen.getByTestId("filter-silver-only")).toBeDefined()
-    expect(screen.getByText(/International Spot \(INR\) via GoldAPI\.io/i)).toBeDefined()
+    expect(screen.getByText(/Indian domestic benchmark rates \(INR per gram\) • IBJA via TrackLivePrice/i)).toBeDefined()
   })
 
   it("renders available data immediately when 1 historical date exists without requiring 2 dates", async () => {
@@ -178,13 +178,13 @@ describe("HistoricalRatesChart Component", () => {
     )
 
     await waitFor(() => {
-      expect(zakatService.fetchHistoricalMetalRates).toHaveBeenCalledWith(30)
+      expect(zakatService.fetchHistoricalMetalRates).toHaveBeenCalledWith(30, "close")
     })
 
     fireEvent.click(screen.getByTestId("filter-7-days"))
 
     await waitFor(() => {
-      expect(zakatService.fetchHistoricalMetalRates).toHaveBeenCalledWith(7)
+      expect(zakatService.fetchHistoricalMetalRates).toHaveBeenCalledWith(7, "close")
     })
   })
 
@@ -291,7 +291,8 @@ describe("HistoricalRatesChart Component", () => {
     expect(screen.getByText(/30 Oct.*2026/)).toBeDefined()
     expect(screen.getByText(/11,943\.5651/)).toBeDefined()
     expect(screen.getByText(/150\.4976/)).toBeDefined()
-    expect(screen.getByText(/Source: GoldAPI\.io \(LBMA Market Close\)/)).toBeDefined()
+    expect(screen.getByText(/Source: IBJA via TrackLivePrice/)).toBeDefined()
+    expect(screen.getByText("Domestic Benchmark")).toBeDefined()
   })
 
   it("renders CustomTooltip with Live Spot badge when point is live quote", () => {
@@ -311,7 +312,7 @@ describe("HistoricalRatesChart Component", () => {
 
     expect(screen.getByTestId("chart-custom-tooltip")).toBeDefined()
     expect(screen.getByText("Live Spot Quote")).toBeDefined()
-    expect(screen.getByText(/Source: GoldAPI\.io \(Live Spot\)/)).toBeDefined()
+    expect(screen.getByText(/Source: IBJA Domestic \(Live Quote\)/)).toBeDefined()
     expect(screen.getByText("Real-time")).toBeDefined()
   })
 
@@ -359,6 +360,30 @@ describe("HistoricalRatesChart Component", () => {
 
     fireEvent.click(liveToggle)
     expect(liveToggle.getAttribute("aria-pressed")).toBe("false")
+  })
+
+  it("toggles between Daily Close and AM & PM sessions mode", async () => {
+    vi.mocked(zakatService.fetchHistoricalMetalRates).mockResolvedValue(mockMultiDayData)
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <HistoricalRatesChart />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("toggle-session-mode")).toBeDefined()
+    })
+
+    const sessionToggle = screen.getByTestId("toggle-session-mode")
+    expect(sessionToggle.getAttribute("aria-pressed")).toBe("false")
+
+    fireEvent.click(sessionToggle)
+    expect(sessionToggle.getAttribute("aria-pressed")).toBe("true")
+
+    await waitFor(() => {
+      expect(zakatService.fetchHistoricalMetalRates).toHaveBeenCalledWith(30, "both")
+    })
   })
 
   it("renders performance insight cards with calculated period metrics", async () => {

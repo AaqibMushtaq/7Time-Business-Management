@@ -14,17 +14,40 @@ vi.mock("@/components/auth/useAuth", () => ({
 }))
 
 // Mock zakatService
-vi.mock("@/services/zakatService", () => ({
-  fetchWealthEntries: vi.fn(),
-  fetchUserSettings: vi.fn(),
-  fetchDailyMetalRates: vi.fn(),
-  evaluateLiveUserZakat: vi.fn(),
-  deleteOrdinaryEntry: vi.fn(),
-  deletePairedConversion: vi.fn(),
-  insertOrdinaryEntry: vi.fn(),
-  createPairedConversion: vi.fn(),
-  saveUserSettings: vi.fn(),
-}))
+vi.mock("@/services/zakatService", async (importOriginal) => {
+  const actual = await importOriginal<typeof zakatService>()
+  return {
+    ...actual,
+    fetchWealthEntries: vi.fn(),
+    fetchUserSettings: vi.fn(),
+    fetchDailyMetalRates: vi.fn(),
+    fetchIndianBullionRates: vi.fn().mockResolvedValue({
+      gold999: { purity: "24k", purity_carat: 24, rate: 8000.0, session: "PM", unit: "INR_PER_GRAM", effective_date: "2026-10-30" },
+      gold916: { purity: "22k", purity_carat: 22, rate: 7333.3, session: "PM", unit: "INR_PER_GRAM", effective_date: "2026-10-30" },
+      gold750: { purity: "18k", purity_carat: 18, rate: 6000.0, session: "PM", unit: "INR_PER_GRAM", effective_date: "2026-10-30" },
+      gold585: { purity: "14k", purity_carat: 14, rate: 4680.0, session: "PM", unit: "INR_PER_GRAM", effective_date: "2026-10-30" },
+      silver999: { purity: "999", purity_carat: null, rate: 90.0, session: "PM", unit: "INR_PER_GRAM", effective_date: "2026-10-30" },
+      currency: "INR",
+      effective_date: "2026-10-30",
+      source_status: "LIVE",
+      provider: "IBJA via TrackLivePrice",
+      retrieved_at: "2026-10-30T17:00:00Z",
+    }),
+    fetchSrinagarLocalRates: vi.fn().mockReturnValue([]),
+    getActiveSrinagarLocalRate: vi.fn().mockReturnValue(null),
+    getValuationSourcePreference: vi.fn().mockReturnValue("IBJA_BENCHMARK"),
+    setValuationSourcePreference: vi.fn(),
+    evaluateLiveUserZakat: vi.fn(),
+    deleteOrdinaryEntry: vi.fn(),
+    deletePairedConversion: vi.fn(),
+    insertOrdinaryEntry: vi.fn(),
+    createPairedConversion: vi.fn(),
+    saveUserSettings: vi.fn(),
+    saveManualIbjaRates: vi.fn(),
+    saveSrinagarLocalRate: vi.fn(),
+    deleteSrinagarLocalRate: vi.fn(),
+  }
+})
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -344,6 +367,117 @@ describe("ZakatPage Component", () => {
     await waitFor(() => {
       expect(screen.getByText("Failed to Load Zakat Tracker")).toBeDefined()
       expect(screen.getByRole("button", { name: /retry/i })).toBeDefined()
+    })
+  })
+
+  it("renders valuation source selector pills and switches between modes", async () => {
+    vi.mocked(zakatService.fetchWealthEntries).mockResolvedValue(mockEntries)
+    vi.mocked(zakatService.fetchUserSettings).mockResolvedValue(mockSettings)
+    vi.mocked(zakatService.fetchDailyMetalRates).mockResolvedValue(mockRates)
+    vi.mocked(zakatService.evaluateLiveUserZakat).mockResolvedValue(mockEvaluation)
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <ZakatPage />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("val-source-ibja-benchmark")).toBeDefined()
+      expect(screen.getByTestId("val-source-srinagar-local")).toBeDefined()
+      expect(screen.getByTestId("val-source-ibja-manual")).toBeDefined()
+    })
+
+    // Click Srinagar Local Resale
+    fireEvent.click(screen.getByTestId("val-source-srinagar-local"))
+    expect(zakatService.setValuationSourcePreference).toHaveBeenCalledWith("SRINAGAR_LOCAL")
+    await waitFor(() => {
+      expect(screen.getByText("Add Srinagar Quote")).toBeDefined()
+    })
+
+    // Click Manual IBJA Entry
+    fireEvent.click(screen.getByTestId("val-source-ibja-manual"))
+    expect(zakatService.setValuationSourcePreference).toHaveBeenCalledWith("IBJA_MANUAL")
+    await waitFor(() => {
+      expect(screen.getByText("Enter IBJA Rate")).toBeDefined()
+    })
+  })
+
+  it("opens SrinagarResaleModal when Add Srinagar Quote is clicked", async () => {
+    vi.mocked(zakatService.fetchWealthEntries).mockResolvedValue(mockEntries)
+    vi.mocked(zakatService.fetchUserSettings).mockResolvedValue(mockSettings)
+    vi.mocked(zakatService.fetchDailyMetalRates).mockResolvedValue(mockRates)
+    vi.mocked(zakatService.evaluateLiveUserZakat).mockResolvedValue(mockEvaluation)
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <ZakatPage />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("val-source-srinagar-local")).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByTestId("val-source-srinagar-local"))
+    const addQuoteBtn = await screen.findByText("Add Srinagar Quote")
+    fireEvent.click(addQuoteBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Record Srinagar Local Jeweller Resale Quote")).toBeDefined()
+      expect(screen.getByLabelText(/Jeweller \/ Sarafa Shop Name/i)).toBeDefined()
+    })
+  })
+
+  it("opens ManualIbjaModal when Enter IBJA Rate is clicked", async () => {
+    vi.mocked(zakatService.fetchWealthEntries).mockResolvedValue(mockEntries)
+    vi.mocked(zakatService.fetchUserSettings).mockResolvedValue(mockSettings)
+    vi.mocked(zakatService.fetchDailyMetalRates).mockResolvedValue(mockRates)
+    vi.mocked(zakatService.evaluateLiveUserZakat).mockResolvedValue(mockEvaluation)
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <ZakatPage />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("val-source-ibja-manual")).toBeDefined()
+    })
+
+    fireEvent.click(screen.getByTestId("val-source-ibja-manual"))
+    const enterRateBtn = await screen.findByText("Enter IBJA Rate")
+    fireEvent.click(enterRateBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText("Record Verified IBJA Benchmark Rates")).toBeDefined()
+      expect(screen.getByText(/Official Benchmark Source:/i)).toBeDefined()
+    })
+  })
+
+  it("displays stale warning banner when rate status is STALE", async () => {
+    vi.mocked(zakatService.fetchWealthEntries).mockResolvedValue(mockEntries)
+    vi.mocked(zakatService.fetchUserSettings).mockResolvedValue(mockSettings)
+    vi.mocked(zakatService.fetchDailyMetalRates).mockResolvedValue({
+      ...mockRates,
+      goldStatus: "STALE",
+      silverStatus: "STALE",
+    })
+    vi.mocked(zakatService.evaluateLiveUserZakat).mockResolvedValue({
+      ...mockEvaluation,
+      rateSourceStatus: "STALE",
+    })
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <ZakatPage />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText("⚠ STALE RATES")).toBeDefined()
+      expect(screen.getByText(/Domestic Benchmark Rates are Stale/i)).toBeDefined()
+      expect(screen.getByText("Verify & Enter from ibjarates.com")).toBeDefined()
     })
   })
 })
