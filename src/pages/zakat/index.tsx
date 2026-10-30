@@ -198,57 +198,106 @@ export default function ZakatPage() {
         }
       />
 
-      {/* 2. Precious Metals Live Rate Banner */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0">
-            <Coins className="h-5 w-5" />
+      {/* 2. Precious Metals Live Rate Cards & Refresh Header */}
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 shrink-0">
+              <Coins className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                  Precious Metal Spot Rates
+                </h4>
+                <span
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    rateStatus === "LIVE"
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : rateStatus === "STALE"
+                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                      : "bg-rose-50 text-rose-700 border-rose-200"
+                  }`}
+                >
+                  {rateStatus === "LIVE" ? "● LIVE RATES" : rateStatus === "STALE" ? "⚠ STALE RATES" : "✕ RATES UNAVAILABLE"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Real-time bullion spot quotes from GoldAPI.io • Standardized in INR per gram
+              </p>
+            </div>
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-900 uppercase tracking-wide">
-                Precious Metal Spot Rates
-              </span>
-              <span
-                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                  rateStatus === "LIVE"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : rateStatus === "STALE"
-                    ? "bg-amber-50 text-amber-700 border-amber-200"
-                    : "bg-rose-50 text-rose-700 border-rose-200"
-                }`}
-              >
-                {rateStatus === "LIVE" ? "● LIVE RATES" : rateStatus === "STALE" ? "⚠ STALE RATES" : "✕ RATES UNAVAILABLE"}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refreshRatesMutation.mutate()}
+            disabled={ratesLoading || refreshRatesMutation.isPending}
+            className="text-xs h-8 cursor-pointer shrink-0"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${ratesLoading || refreshRatesMutation.isPending ? "animate-spin" : ""}`} />
+            {refreshRatesMutation.isPending ? "Fetching Live Rates..." : "Refresh Spot Rates"}
+          </Button>
+        </div>
+
+        {/* Live Metal Price Cards Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Gold 24k Live Card */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block" />
+                <span className="text-xs font-bold text-slate-800">Gold Bullion (24k)</span>
+              </div>
+              <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
+                Pure 999
               </span>
             </div>
-            <div className="flex items-center gap-4 mt-1 text-xs text-slate-600 flex-wrap">
-              <span>
-                Gold 24k:{" "}
-                <strong className="text-slate-900 font-bold">
-                  {rates?.goldRate ? `₹${rates.goldRate.toLocaleString("en-IN")}/g` : "Pending fetch"}
-                </strong>
+            <div className="mt-2.5 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-900 tracking-tight">
+                {rates?.goldRate ? `₹${rates.goldRate.toLocaleString("en-IN")}/g` : "Pending fetch"}
               </span>
-              <span>•</span>
+              <span className="text-xs text-slate-500 font-medium">Gold 24k</span>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
               <span>
-                Pure Silver:{" "}
-                <strong className="text-slate-900 font-bold">
-                  {rates?.silverRate ? `₹${rates.silverRate.toLocaleString("en-IN")}/g` : "Pending fetch"}
-                </strong>
+                22k: <strong className="text-slate-700 font-semibold">{rates?.goldRate ? `₹${Math.round(rates.goldRate * (22 / 24)).toLocaleString("en-IN")}/g` : "—"}</strong>
+                {" • "}
+                18k: <strong className="text-slate-700 font-semibold">{rates?.goldRate ? `₹${Math.round(rates.goldRate * (18 / 24)).toLocaleString("en-IN")}/g` : "—"}</strong>
+              </span>
+              <span className="text-slate-400 text-[10px]">
+                Nisab (87.48g): <strong className="text-slate-600">{rates?.goldRate ? `₹${Math.round(rates.goldRate * 87.48).toLocaleString("en-IN")}` : "—"}</strong>
+              </span>
+            </div>
+          </div>
+
+          {/* Silver Live Card */}
+          <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-2xs flex flex-col justify-between relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-600 inline-block" />
+                <span className="text-xs font-bold text-slate-800">Silver Bullion (Pure)</span>
+              </div>
+              <span className="text-[10px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                Fine 999
+              </span>
+            </div>
+            <div className="mt-2.5 flex items-baseline gap-2">
+              <span className="text-2xl font-black text-slate-900 tracking-tight">
+                {rates?.silverRate ? `₹${rates.silverRate.toLocaleString("en-IN")}/g` : "Pending fetch"}
+              </span>
+              <span className="text-xs text-slate-500 font-medium">Pure Silver</span>
+            </div>
+            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 flex-wrap gap-2">
+              <span>
+                Standard: <strong className="text-slate-700 font-semibold">Primary Hanafi Nisab Standard</strong>
+              </span>
+              <span className="text-slate-400 text-[10px]">
+                Nisab (612.36g): <strong className="text-slate-600">{rates?.silverRate ? `₹${Math.round(rates.silverRate * 612.36).toLocaleString("en-IN")}` : "—"}</strong>
               </span>
             </div>
           </div>
         </div>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => refreshRatesMutation.mutate()}
-          disabled={ratesLoading || refreshRatesMutation.isPending}
-          className="text-xs shrink-0 self-end md:self-auto cursor-pointer"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${ratesLoading || refreshRatesMutation.isPending ? "animate-spin" : ""}`} />
-          {refreshRatesMutation.isPending ? "Fetching Live Rates..." : "Refresh Spot Rates"}
-        </Button>
       </div>
 
       {/* 2b. Precious Metal Rate History Chart */}

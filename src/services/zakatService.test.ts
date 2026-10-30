@@ -26,10 +26,14 @@ import {
 vi.mock("../lib/supabase", () => {
   const mockFrom = vi.fn()
   const mockRpc = vi.fn()
+  const mockFunctions = {
+    invoke: vi.fn(),
+  }
   return {
     supabase: {
       from: mockFrom,
       rpc: mockRpc,
+      functions: mockFunctions,
     },
   }
 })
@@ -367,103 +371,93 @@ describe("zakatService & Adapter Layer", () => {
   })
 
   describe("fetchHistoricalMetalRates", () => {
-    it("fetches and pivots daily metal rates chronologically", async () => {
-      const mockRows: ZakatDailyMetalRateRow[] = [
+    it("invokes fetch-metal-rates Edge Function with action: 'history' and requested days", async () => {
+      const mockPoints: HistoricalMetalRatePoint[] = [
         {
-          id: "1",
-          rate_date: "2026-10-25",
-          metal: "GOLD",
-          currency: "INR",
-          rate_per_gram_24k: 11900.5,
-          rate_per_gram_22k: 10900.0,
-          rate_per_gram_18k: 8900.0,
-          source_status: "LIVE",
-          fetched_at: "2026-10-25T06:00:00Z",
-          provider: "GoldAPI.io",
+          date: "2026-10-25",
+          goldRate: 11900.5,
+          silverRate: 149.5,
+          gold22k: 10900.0,
+          gold18k: 8900.0,
+          source: "GoldAPI.io (LBMA Close)",
+          status: "MARKET_CLOSE",
+          isLive: false,
         },
         {
-          id: "2",
-          rate_date: "2026-10-25",
-          metal: "SILVER",
-          currency: "INR",
-          rate_per_gram_24k: 149.5,
-          rate_per_gram_22k: null,
-          rate_per_gram_18k: null,
-          source_status: "LIVE",
-          fetched_at: "2026-10-25T06:00:00Z",
-          provider: "GoldAPI.io",
+          date: "2026-10-30",
+          goldRate: 11943.5651,
+          silverRate: 150.4976,
+          gold22k: 10948.268,
+          gold18k: 8957.6738,
+          source: "GoldAPI.io (Live Spot)",
+          status: "LIVE_SPOT",
+          isLive: true,
         },
       ]
 
-      const mockOrder = vi.fn().mockResolvedValue({ data: mockRows, error: null })
-      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
-      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
-      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: {
+          success: true,
+          mode: "history",
+          data: {
+            fromDate: "2026-10-01",
+            toDate: "2026-10-30",
+            observationCount: 2,
+            points: mockPoints,
+          },
+        },
+        error: null,
+      })
 
       const result = await fetchHistoricalMetalRates(30)
 
-      expect(supabase.from).toHaveBeenCalledWith("zakat_daily_metal_rates")
-      expect(mockSelect).toHaveBeenCalledWith("*")
-      expect(mockGte).toHaveBeenCalled()
-      expect(mockOrder).toHaveBeenCalledWith("rate_date", { ascending: true })
-      expect(result).toHaveLength(1)
-      expect(result[0]).toEqual({
-        date: "2026-10-25",
-        goldRate: 11900.5,
-        silverRate: 149.5,
-        gold22k: 10900.0,
-        gold18k: 8900.0,
-        source: "GoldAPI.io",
-        status: "LIVE",
+      expect(supabase.functions.invoke).toHaveBeenCalledWith("fetch-metal-rates", {
+        body: { action: "history", days: 30 },
       })
+      expect(result).toHaveLength(2)
+      expect(result[0].goldRate).toBe(11900.5)
+      expect(result[1].isLive).toBe(true)
     })
 
-    it("handles missing historical rates without zero interpolation", async () => {
-      const mockRows: ZakatDailyMetalRateRow[] = [
-        {
-          id: "1",
-          rate_date: "2026-10-26",
-          metal: "GOLD",
-          currency: "INR",
-          rate_per_gram_24k: 12000.0,
-          rate_per_gram_22k: null,
-          rate_per_gram_18k: null,
-          source_status: "LIVE",
-          fetched_at: "2026-10-26T06:00:00Z",
-          provider: "GoldAPI.io",
+    it("supports 7-day timeframe", async () => {
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: {
+          success: true,
+          mode: "history",
+          data: {
+            fromDate: "2026-10-24",
+            toDate: "2026-10-30",
+            observationCount: 0,
+            points: [],
+          },
         },
-      ]
-
-      const mockOrder = vi.fn().mockResolvedValue({ data: mockRows, error: null })
-      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
-      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
-      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+        error: null,
+      })
 
       const result = await fetchHistoricalMetalRates(7)
-      expect(result[0].goldRate).toBe(12000.0)
-      expect(result[0].silverRate).toBeNull() // null, NOT 0
+
+      expect(supabase.functions.invoke).toHaveBeenCalledWith("fetch-metal-rates", {
+        body: { action: "history", days: 7 },
+      })
+      expect(result).toEqual([])
     })
 
-    it("calculates 7-day and 30-day date boundaries formatted as YYYY-MM-DD", async () => {
-      const mockOrder = vi.fn().mockResolvedValue({ data: [], error: null })
-      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
-      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
-      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+    it("throws error when edge function invocation returns an error", async () => {
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: null,
+        error: new Error("Network timeout"),
+      })
 
-      await fetchHistoricalMetalRates(7)
-      expect(mockGte).toHaveBeenCalledWith("rate_date", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
-
-      await fetchHistoricalMetalRates(30)
-      expect(mockGte).toHaveBeenCalledWith("rate_date", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
+      await expect(fetchHistoricalMetalRates(30)).rejects.toThrow("Network timeout")
     })
 
-    it("throws error when database query fails", async () => {
-      const mockOrder = vi.fn().mockResolvedValue({ data: null, error: new Error("DB Error") })
-      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
-      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
-      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+    it("throws error when response payload indicates success: false", async () => {
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: { success: false, error: "Upstream rate limit exceeded" },
+        error: null,
+      })
 
-      await expect(fetchHistoricalMetalRates(30)).rejects.toThrow("DB Error")
+      await expect(fetchHistoricalMetalRates(30)).rejects.toThrow("Upstream rate limit exceeded")
     })
   })
 
