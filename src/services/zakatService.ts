@@ -174,6 +174,20 @@ export async function fetchDailyMetalRates(date?: string): Promise<{
   }
 }
 
+export async function triggerRemoteRatesRefresh(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase.functions.invoke("fetch-metal-rates")
+    if (error) {
+      console.warn("fetch-metal-rates Edge Function error:", error)
+      return false
+    }
+    return Boolean(data?.success)
+  } catch (err) {
+    console.warn("triggerRemoteRatesRefresh error:", err)
+    return false
+  }
+}
+
 // ----------------------------------------------------------------------------
 // 4. User Settings
 // ----------------------------------------------------------------------------

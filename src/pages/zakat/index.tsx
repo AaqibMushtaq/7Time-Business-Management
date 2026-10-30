@@ -5,6 +5,7 @@ import {
   fetchWealthEntries,
   fetchUserSettings,
   fetchDailyMetalRates,
+  triggerRemoteRatesRefresh,
   evaluateLiveUserZakat,
   deleteOrdinaryEntry,
   deletePairedConversion,
@@ -107,6 +108,18 @@ export default function ZakatPage() {
       queryClient.invalidateQueries({ queryKey: ["zakat-entries"] })
       queryClient.invalidateQueries({ queryKey: ["zakat-evaluation"] })
       setEntryToDelete(null)
+    },
+  })
+
+  // Refresh Spot Rates Mutation (triggers Edge Function, then updates query cache)
+  const refreshRatesMutation = useMutation({
+    mutationFn: async () => {
+      await triggerRemoteRatesRefresh()
+      return fetchDailyMetalRates()
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["zakat-rates"], data)
+      queryClient.invalidateQueries({ queryKey: ["zakat-evaluation"] })
     },
   })
 
@@ -228,12 +241,12 @@ export default function ZakatPage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => refetchRates()}
-          disabled={ratesLoading}
+          onClick={() => refreshRatesMutation.mutate()}
+          disabled={ratesLoading || refreshRatesMutation.isPending}
           className="text-xs shrink-0 self-end md:self-auto cursor-pointer"
         >
-          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${ratesLoading ? "animate-spin" : ""}`} />
-          Refresh Spot Rates
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${ratesLoading || refreshRatesMutation.isPending ? "animate-spin" : ""}`} />
+          {refreshRatesMutation.isPending ? "Fetching Live Rates..." : "Refresh Spot Rates"}
         </Button>
       </div>
 
