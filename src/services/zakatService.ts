@@ -20,6 +20,7 @@ import {
   type CreatePairedConversionParams,
   type CreatePairedConversionResult,
   type DeletePairedConversionResult,
+  type HistoricalMetalRatePoint,
 } from "../types/zakat"
 
 // ----------------------------------------------------------------------------
@@ -186,6 +187,54 @@ export async function triggerRemoteRatesRefresh(): Promise<boolean> {
     console.warn("triggerRemoteRatesRefresh error:", err)
     return false
   }
+}
+
+export async function fetchHistoricalMetalRates(
+  days: 7 | 30 = 30
+): Promise<HistoricalMetalRatePoint[]> {
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - days)
+  const cutoffStr = cutoff.toISOString().split("T")[0]
+
+  const { data, error } = await supabase
+    .from("zakat_daily_metal_rates")
+    .select("*")
+    .gte("rate_date", cutoffStr)
+    .order("rate_date", { ascending: true })
+
+  if (error) {
+    console.error("fetchHistoricalMetalRates error:", error)
+    throw error
+  }
+
+  const rows = (data || []) as ZakatDailyMetalRateRow[]
+  const dateMap = new Map<string, HistoricalMetalRatePoint>()
+
+  for (const row of rows) {
+    let point = dateMap.get(row.rate_date)
+    if (!point) {
+      point = {
+        date: row.rate_date,
+        goldRate: null,
+        silverRate: null,
+        gold22k: null,
+        gold18k: null,
+        source: row.provider || "GoldAPI.io",
+        status: row.source_status || "LIVE",
+      }
+      dateMap.set(row.rate_date, point)
+    }
+
+    if (row.metal === "GOLD") {
+      point.goldRate = Number(row.rate_per_gram_24k)
+      point.gold22k = row.rate_per_gram_22k ? Number(row.rate_per_gram_22k) : null
+      point.gold18k = row.rate_per_gram_18k ? Number(row.rate_per_gram_18k) : null
+    } else if (row.metal === "SILVER") {
+      point.silverRate = Number(row.rate_per_gram_24k)
+    }
+  }
+
+  return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date))
 }
 
 // ----------------------------------------------------------------------------

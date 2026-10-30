@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import { AddEntryModal } from "./AddEntryModal"
 import { TransferModal } from "./TransferModal"
 import { SettingsModal } from "./SettingsModal"
+import { HistoricalRatesChart } from "./HistoricalRatesChart"
 import {
   Coins,
   Plus,
@@ -249,6 +250,9 @@ export default function ZakatPage() {
           {refreshRatesMutation.isPending ? "Fetching Live Rates..." : "Refresh Spot Rates"}
         </Button>
       </div>
+
+      {/* 2b. Precious Metal Rate History Chart */}
+      <HistoricalRatesChart />
 
       {/* 3. Core Metric Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

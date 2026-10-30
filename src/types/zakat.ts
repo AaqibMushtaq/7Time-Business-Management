@@ -105,6 +105,16 @@ export interface ZakatMetalRateSnapshotRow {
   fetched_at: string
 }
 
+export interface HistoricalMetalRatePoint {
+  date: string
+  goldRate: number | null
+  silverRate: number | null
+  gold22k?: number | null
+  gold18k?: number | null
+  source: string
+  status: string
+}
+
 // ----------------------------------------------------------------------------
 // RPC Parameters & Response Types
 // ----------------------------------------------------------------------------

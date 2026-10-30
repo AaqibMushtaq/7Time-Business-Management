@@ -15,6 +15,7 @@ import {
   createPairedConversion,
   deletePairedConversion,
   fetchDailyMetalRates,
+  fetchHistoricalMetalRates,
   fetchUserSettings,
   saveUserSettings,
   fetchHawlRecords,
@@ -362,6 +363,94 @@ describe("zakatService & Adapter Layer", () => {
         goldStatus: "UNAVAILABLE",
         silverStatus: "UNAVAILABLE",
       })
+    })
+  })
+
+  describe("fetchHistoricalMetalRates", () => {
+    it("fetches and pivots daily metal rates chronologically", async () => {
+      const mockRows: ZakatDailyMetalRateRow[] = [
+        {
+          id: "1",
+          rate_date: "2026-10-25",
+          metal: "GOLD",
+          currency: "INR",
+          rate_per_gram_24k: 11900.5,
+          rate_per_gram_22k: 10900.0,
+          rate_per_gram_18k: 8900.0,
+          source_status: "LIVE",
+          fetched_at: "2026-10-25T06:00:00Z",
+          provider: "GoldAPI.io",
+        },
+        {
+          id: "2",
+          rate_date: "2026-10-25",
+          metal: "SILVER",
+          currency: "INR",
+          rate_per_gram_24k: 149.5,
+          rate_per_gram_22k: null,
+          rate_per_gram_18k: null,
+          source_status: "LIVE",
+          fetched_at: "2026-10-25T06:00:00Z",
+          provider: "GoldAPI.io",
+        },
+      ]
+
+      const mockOrder = vi.fn().mockResolvedValue({ data: mockRows, error: null })
+      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
+      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
+      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+
+      const result = await fetchHistoricalMetalRates(30)
+
+      expect(supabase.from).toHaveBeenCalledWith("zakat_daily_metal_rates")
+      expect(mockSelect).toHaveBeenCalledWith("*")
+      expect(mockGte).toHaveBeenCalled()
+      expect(mockOrder).toHaveBeenCalledWith("rate_date", { ascending: true })
+      expect(result).toHaveLength(1)
+      expect(result[0]).toEqual({
+        date: "2026-10-25",
+        goldRate: 11900.5,
+        silverRate: 149.5,
+        gold22k: 10900.0,
+        gold18k: 8900.0,
+        source: "GoldAPI.io",
+        status: "LIVE",
+      })
+    })
+
+    it("handles missing historical rates without zero interpolation", async () => {
+      const mockRows: ZakatDailyMetalRateRow[] = [
+        {
+          id: "1",
+          rate_date: "2026-10-26",
+          metal: "GOLD",
+          currency: "INR",
+          rate_per_gram_24k: 12000.0,
+          rate_per_gram_22k: null,
+          rate_per_gram_18k: null,
+          source_status: "LIVE",
+          fetched_at: "2026-10-26T06:00:00Z",
+          provider: "GoldAPI.io",
+        },
+      ]
+
+      const mockOrder = vi.fn().mockResolvedValue({ data: mockRows, error: null })
+      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
+      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
+      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+
+      const result = await fetchHistoricalMetalRates(7)
+      expect(result[0].goldRate).toBe(12000.0)
+      expect(result[0].silverRate).toBeNull() // null, NOT 0
+    })
+
+    it("throws error when database query fails", async () => {
+      const mockOrder = vi.fn().mockResolvedValue({ data: null, error: new Error("DB Error") })
+      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
+      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
+      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+
+      await expect(fetchHistoricalMetalRates(30)).rejects.toThrow("DB Error")
     })
   })
 
