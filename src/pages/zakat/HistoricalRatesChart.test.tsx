@@ -314,4 +314,68 @@ describe("HistoricalRatesChart Component", () => {
     expect(screen.getByText(/Source: GoldAPI\.io \(Live Spot\)/)).toBeDefined()
     expect(screen.getByText("Real-time")).toBeDefined()
   })
+
+  it("calculates day-over-day percentage change in CustomTooltip when fullData is available", () => {
+    const mockPayload = [
+      {
+        name: "Gold (24k INR/g)",
+        value: 11900.0,
+        color: "#2563EB",
+        payload: {
+          goldRate: 11900.0,
+          date: "2026-10-25",
+        },
+      },
+    ]
+
+    render(
+      <CustomTooltip
+        active={true}
+        payload={mockPayload}
+        label="2026-10-25"
+        fullData={mockMultiDayData}
+      />
+    )
+
+    // 11900 vs previous 11850.5 -> +0.42%
+    expect(screen.getByText("+0.42%")).toBeDefined()
+  })
+
+  it("toggles Live Spot prices filter on and off", async () => {
+    vi.mocked(zakatService.fetchHistoricalMetalRates).mockResolvedValue(mockMultiDayData)
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <HistoricalRatesChart />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("toggle-live-prices")).toBeDefined()
+    })
+
+    const liveToggle = screen.getByTestId("toggle-live-prices")
+    expect(liveToggle.getAttribute("aria-pressed")).toBe("true")
+
+    fireEvent.click(liveToggle)
+    expect(liveToggle.getAttribute("aria-pressed")).toBe("false")
+  })
+
+  it("renders performance insight cards with calculated period metrics", async () => {
+    vi.mocked(zakatService.fetchHistoricalMetalRates).mockResolvedValue(mockMultiDayData)
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <HistoricalRatesChart />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("performance-insights-grid")).toBeDefined()
+      expect(screen.getByText("Gold Period Change")).toBeDefined()
+      expect(screen.getByText("Silver Period Change")).toBeDefined()
+      expect(screen.getByText("Period High")).toBeDefined()
+      expect(screen.getByText("Period Low")).toBeDefined()
+    })
+  })
 })
