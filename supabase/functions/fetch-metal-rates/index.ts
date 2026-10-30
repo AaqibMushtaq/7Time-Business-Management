@@ -17,9 +17,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
 }
 
-const _TROY_OUNCE_TO_GRAMS = 31.1034768
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/
-const _MAX_HISTORICAL_DAYS = 30
 
 interface TrackLivePriceRow {
   date: string
@@ -54,14 +52,6 @@ function getTodayIsoDate(): string {
   return `${year}-${month}-${day}`
 }
 
-function _getDateNDaysAgo(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() - days)
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const day = String(d.getDate()).padStart(2, "0")
-  return `${year}-${month}-${day}`
-}
 
 // Convert UTC time to IST (UTC+5:30)
 function getIstTime(): { dateStr: string; hours: number; minutes: number; dayOfWeek: number } {
@@ -90,7 +80,6 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")
-    const _goldApiKey = Deno.env.get("GOLDAPI_KEY")
 
     if (!supabaseUrl || !supabaseServiceKey) {
       return new Response(

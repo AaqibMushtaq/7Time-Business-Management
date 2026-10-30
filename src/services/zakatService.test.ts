@@ -6,6 +6,7 @@ import {
   type ZakatDailyMetalRateRow,
   type ZakatUserSettingsRow,
   type ZakatHawlRecordRow,
+  type HistoricalMetalRatePoint,
 } from "../types/zakat"
 import {
   fetchWealthEntries,

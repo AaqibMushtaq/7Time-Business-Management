@@ -97,6 +97,9 @@ describe("ZakatPage Component", () => {
     daysRemainingInHawl: 0,
     estimatedZakatDue: 6875,
     rateSourceStatus: "LIVE",
+    isProvisionalRate: false,
+    hasHistoricalRateGaps: false,
+    notesAndDisclaimers: [],
   }
 
   const mockRates = {
