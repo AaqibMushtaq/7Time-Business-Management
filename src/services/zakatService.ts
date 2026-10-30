@@ -192,9 +192,13 @@ export async function triggerRemoteRatesRefresh(): Promise<boolean> {
 export async function fetchHistoricalMetalRates(
   days: 7 | 30 = 30
 ): Promise<HistoricalMetalRatePoint[]> {
+  // Use local calendar date boundaries to prevent UTC off-by-one errors
   const cutoff = new Date()
   cutoff.setDate(cutoff.getDate() - days)
-  const cutoffStr = cutoff.toISOString().split("T")[0]
+  const y = cutoff.getFullYear()
+  const m = String(cutoff.getMonth() + 1).padStart(2, "0")
+  const d = String(cutoff.getDate()).padStart(2, "0")
+  const cutoffStr = `${y}-${m}-${d}`
 
   const { data, error } = await supabase
     .from("zakat_daily_metal_rates")

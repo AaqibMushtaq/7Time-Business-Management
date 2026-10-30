@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { HistoricalRatesChart } from "./HistoricalRatesChart"
+import { HistoricalRatesChart, CustomTooltip } from "./HistoricalRatesChart"
 import * as zakatService from "@/services/zakatService"
 import type { HistoricalMetalRatePoint } from "@/types/zakat"
 
@@ -68,8 +68,8 @@ const mockMultiDayData: HistoricalMetalRatePoint[] = [
   },
   {
     date: "2026-10-30",
-    goldRate: 12050.91,
-    silverRate: 151.88,
+    goldRate: 11943.5651,
+    silverRate: 150.4976,
     source: "GoldAPI.io",
     status: "LIVE",
   },
@@ -80,7 +80,7 @@ describe("HistoricalRatesChart Component", () => {
     vi.clearAllMocks()
   })
 
-  it("renders header, controls, and valuation source footer", async () => {
+  it("renders chart header and controls", async () => {
     vi.mocked(zakatService.fetchHistoricalMetalRates).mockResolvedValue(mockMultiDayData)
 
     render(
@@ -98,12 +98,12 @@ describe("HistoricalRatesChart Component", () => {
     expect(screen.getByText(/International Spot \(INR\) via GoldAPI\.io/i)).toBeDefined()
   })
 
-  it("renders honest empty state when fewer than 2 records are available (single data point)", async () => {
+  it("renders available data immediately when 1 historical date exists without requiring 2 dates", async () => {
     const singlePointData: HistoricalMetalRatePoint[] = [
       {
         date: "2026-10-30",
-        goldRate: 12050.91,
-        silverRate: 151.8801,
+        goldRate: 11943.5651,
+        silverRate: 150.4976,
         source: "GoldAPI.io",
         status: "LIVE",
       },
@@ -118,15 +118,24 @@ describe("HistoricalRatesChart Component", () => {
     )
 
     await waitFor(() => {
-      expect(screen.getByTestId("chart-empty-state")).toBeDefined()
-      expect(screen.getByText("Insufficient Historical Data")).toBeDefined()
-      expect(screen.getByText(/Historical rate tracking began on/i)).toBeDefined()
-      expect(screen.getByText(/12,050\.91/)).toBeDefined()
-      expect(screen.getByText(/151\.88/)).toBeDefined()
+      // Must NOT render full empty state
+      expect(screen.queryByTestId("chart-empty-state")).toBeNull()
+      // MUST render active chart container with Recharts
+      expect(screen.getByTestId("chart-active-container")).toBeDefined()
+      expect(screen.getByTestId("mock-responsive-container")).toBeDefined()
+      // MUST render subtle single-day info banner
+      expect(screen.getByTestId("single-day-info-banner")).toBeDefined()
+      expect(
+        screen.getByText(
+          "Historical tracking has started. Only one day's rates are available; trend lines will develop as additional daily rates are collected."
+        )
+      ).toBeDefined()
+      // Footer shows latest rate date
+      expect(screen.getByText("2026-10-30")).toBeDefined()
     })
   })
 
-  it("renders empty state when zero records are returned", async () => {
+  it("renders full empty state ONLY when zero records are returned", async () => {
     vi.mocked(zakatService.fetchHistoricalMetalRates).mockResolvedValue([])
 
     render(
@@ -137,27 +146,13 @@ describe("HistoricalRatesChart Component", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("chart-empty-state")).toBeDefined()
-      expect(screen.getByText("Insufficient Historical Data")).toBeDefined()
+      expect(screen.getByText("No Historical Rates Recorded")).toBeDefined()
+      expect(screen.queryByTestId("chart-active-container")).toBeNull()
+      expect(screen.queryByTestId("single-day-info-banner")).toBeNull()
     })
   })
 
-  it("renders error state with retry button when query fails", async () => {
-    vi.mocked(zakatService.fetchHistoricalMetalRates).mockRejectedValue(new Error("Database disconnected"))
-
-    render(
-      <QueryClientProvider client={createTestQueryClient()}>
-        <HistoricalRatesChart />
-      </QueryClientProvider>
-    )
-
-    await waitFor(() => {
-      expect(screen.getByTestId("chart-error-state")).toBeDefined()
-      expect(screen.getByText("Failed to load historical rate data")).toBeDefined()
-      expect(screen.getByRole("button", { name: /retry/i })).toBeDefined()
-    })
-  })
-
-  it("renders active chart container when 2 or more distinct dates exist", async () => {
+  it("renders active chart with multi-day data without single-day info banner", async () => {
     vi.mocked(zakatService.fetchHistoricalMetalRates).mockResolvedValue(mockMultiDayData)
 
     render(
@@ -168,7 +163,8 @@ describe("HistoricalRatesChart Component", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("chart-active-container")).toBeDefined()
-      expect(screen.getByTestId("mock-responsive-container")).toBeDefined()
+      expect(screen.queryByTestId("chart-empty-state")).toBeNull()
+      expect(screen.queryByTestId("single-day-info-banner")).toBeNull()
     })
   })
 
@@ -247,6 +243,46 @@ describe("HistoricalRatesChart Component", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("chart-active-container")).toBeDefined()
+      expect(screen.queryByTestId("single-day-info-banner")).toBeNull()
     })
+  })
+
+  it("renders error state with retry button when query fails", async () => {
+    vi.mocked(zakatService.fetchHistoricalMetalRates).mockRejectedValue(new Error("Database disconnected"))
+
+    render(
+      <QueryClientProvider client={createTestQueryClient()}>
+        <HistoricalRatesChart />
+      </QueryClientProvider>
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chart-error-state")).toBeDefined()
+      expect(screen.getByText("Failed to load historical rate data")).toBeDefined()
+      expect(screen.getByRole("button", { name: /retry/i })).toBeDefined()
+    })
+  })
+
+  it("renders CustomTooltip with localized date and formatted currency values", () => {
+    const mockPayload = [
+      {
+        name: "Gold (24k INR/g)",
+        value: 11943.5651,
+        color: "#2563EB",
+      },
+      {
+        name: "Silver (Pure INR/g)",
+        value: 150.4976,
+        color: "#D97706",
+      },
+    ]
+
+    render(<CustomTooltip active={true} payload={mockPayload} label="2026-10-30" />)
+
+    expect(screen.getByTestId("chart-custom-tooltip")).toBeDefined()
+    expect(screen.getByText(/30 Oct.*2026/)).toBeDefined()
+    expect(screen.getByText(/11,943\.5651/)).toBeDefined()
+    expect(screen.getByText(/150\.4976/)).toBeDefined()
+    expect(screen.getByText(/Source: International Spot via GoldAPI\.io/)).toBeDefined()
   })
 })

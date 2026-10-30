@@ -34,7 +34,7 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
     staleTime: 5 * 60 * 1000,
   })
 
-  const hasData = chartData.length >= 2
+  const hasData = chartData.length > 0
   const singlePoint = chartData.length === 1 ? chartData[0] : null
   const latestPoint = chartData.length > 0 ? chartData[chartData.length - 1] : null
 
@@ -180,126 +180,128 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
             <Calendar className="h-5 w-5" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-slate-900">Insufficient Historical Data</h4>
+            <h4 className="text-xs font-bold text-slate-900">No Historical Rates Recorded</h4>
             <p className="text-[11px] text-slate-500 max-w-md mx-auto mt-0.5 leading-relaxed">
-              Historical rate tracking began on{" "}
-              <strong className="text-slate-700">{singlePoint?.date || "2026-10-30"}</strong>. Multi-day
-              trend charts will automatically appear as daily rate ingestion accumulates over consecutive
-              market days.
+              No precious metal price records were found in the selected timeframe ({timeframe} days).
+              Daily rates will appear automatically once ingested from market feeds.
             </p>
           </div>
-
+        </div>
+      ) : (
+        <div className="space-y-3">
           {singlePoint && (
-            <div className="inline-flex flex-wrap items-center justify-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 shadow-2xs">
-              <span className="text-[10px] font-semibold uppercase text-slate-400">
-                Latest Recorded Ingestion ({singlePoint.date}):
-              </span>
-              <span>
-                Gold 24k:{" "}
-                <strong className="text-blue-700 font-bold">
-                  {singlePoint.goldRate ? `₹${singlePoint.goldRate.toLocaleString("en-IN")}/g` : "—"}
-                </strong>
-              </span>
-              <span>•</span>
-              <span>
-                Silver:{" "}
-                <strong className="text-amber-700 font-bold">
-                  {singlePoint.silverRate ? `₹${singlePoint.silverRate.toLocaleString("en-IN")}/g` : "—"}
-                </strong>
+            <div
+              className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-xs text-blue-900"
+              data-testid="single-day-info-banner"
+            >
+              <Info className="h-4 w-4 text-blue-600 shrink-0" />
+              <span className="font-medium">
+                Historical tracking has started. Only one day&apos;s rates are available; trend lines will develop as additional daily rates are collected.
               </span>
             </div>
           )}
-        </div>
-      ) : (
-        <div className="h-64 w-full" data-testid="chart-active-container">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart
-              data={chartData}
-              margin={{ top: 10, right: selectedMetal === "BOTH" ? 15 : 10, left: 0, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-              <XAxis
-                dataKey="date"
-                tick={{ fontSize: 10, fill: "#64748B" }}
-                tickMargin={6}
-                stroke="#CBD5E1"
-              />
 
-              {/* Left Y-Axis: Gold (or Silver when Silver Only) */}
-              {selectedMetal !== "SILVER" ? (
-                <YAxis
-                  yAxisId="gold"
-                  orientation="left"
-                  tick={{ fontSize: 10, fill: "#2563EB" }}
-                  stroke="#2563EB"
-                  tickFormatter={(val) => `₹${Math.round(val).toLocaleString("en-IN")}`}
-                  domain={["auto", "auto"]}
+          <div className="h-64 w-full" data-testid="chart-active-container">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart
+                data={chartData}
+                margin={{ top: 10, right: selectedMetal === "BOTH" ? 15 : 10, left: 0, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
+                <XAxis
+                  dataKey="date"
+                  padding={{ left: 30, right: 30 }}
+                  tick={{ fontSize: 10, fill: "#64748B" }}
+                  tickMargin={6}
+                  stroke="#CBD5E1"
+                  tickFormatter={formatChartDate}
                 />
-              ) : (
-                <YAxis
-                  yAxisId="silver"
-                  orientation="left"
-                  tick={{ fontSize: 10, fill: "#D97706" }}
-                  stroke="#D97706"
-                  tickFormatter={(val) => `₹${Number(val).toFixed(1)}`}
-                  domain={["auto", "auto"]}
-                />
-              )}
 
-              {/* Right Y-Axis: Silver (when Both Metals selected) */}
-              {selectedMetal === "BOTH" && (
-                <YAxis
-                  yAxisId="silver"
-                  orientation="right"
-                  tick={{ fontSize: 10, fill: "#D97706" }}
-                  stroke="#D97706"
-                  tickFormatter={(val) => `₹${Number(val).toFixed(1)}`}
-                  domain={["auto", "auto"]}
-                />
-              )}
+                {/* Left Y-Axis: Gold (or Silver when Silver Only) */}
+                {selectedMetal !== "SILVER" ? (
+                  <YAxis
+                    yAxisId="gold"
+                    orientation="left"
+                    tick={{ fontSize: 10, fill: "#2563EB" }}
+                    stroke="#2563EB"
+                    tickFormatter={(val) => `₹${Math.round(val).toLocaleString("en-IN")}`}
+                    domain={[
+                      (min: number) => (isNaN(min) ? 0 : Math.floor(min * 0.95)),
+                      (max: number) => (isNaN(max) ? 100 : Math.ceil(max * 1.05)),
+                    ]}
+                  />
+                ) : (
+                  <YAxis
+                    yAxisId="silver"
+                    orientation="left"
+                    tick={{ fontSize: 10, fill: "#D97706" }}
+                    stroke="#D97706"
+                    tickFormatter={(val) => `₹${Number(val).toFixed(1)}`}
+                    domain={[
+                      (min: number) => (isNaN(min) ? 0 : Math.floor(min * 0.95)),
+                      (max: number) => (isNaN(max) ? 100 : Math.ceil(max * 1.05)),
+                    ]}
+                  />
+                )}
 
-              <Tooltip
-                content={<CustomTooltip />}
-                wrapperStyle={{ outline: "none" }}
-              />
-              <Legend
-                verticalAlign="top"
-                align="right"
-                iconType="circle"
-                wrapperStyle={{ paddingBottom: 8, fontSize: 11 }}
-              />
+                {/* Right Y-Axis: Silver (when Both Metals selected) */}
+                {selectedMetal === "BOTH" && (
+                  <YAxis
+                    yAxisId="silver"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: "#D97706" }}
+                    stroke="#D97706"
+                    tickFormatter={(val) => `₹${Number(val).toFixed(1)}`}
+                    domain={[
+                      (min: number) => (isNaN(min) ? 0 : Math.floor(min * 0.95)),
+                      (max: number) => (isNaN(max) ? 100 : Math.ceil(max * 1.05)),
+                    ]}
+                  />
+                )}
 
-              {/* Gold Series: Blue */}
-              {(selectedMetal === "BOTH" || selectedMetal === "GOLD") && (
-                <Line
-                  yAxisId="gold"
-                  type="monotone"
-                  dataKey="goldRate"
-                  name="Gold (24k INR/g)"
-                  stroke="#2563EB"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "#2563EB" }}
-                  activeDot={{ r: 5 }}
-                  connectNulls={false}
+                <Tooltip
+                  content={<CustomTooltip />}
+                  wrapperStyle={{ outline: "none" }}
                 />
-              )}
+                <Legend
+                  verticalAlign="top"
+                  align="right"
+                  iconType="circle"
+                  wrapperStyle={{ paddingBottom: 8, fontSize: 11 }}
+                />
 
-              {/* Silver Series: Amber */}
-              {(selectedMetal === "BOTH" || selectedMetal === "SILVER") && (
-                <Line
-                  yAxisId="silver"
-                  type="monotone"
-                  dataKey="silverRate"
-                  name="Silver (Pure INR/g)"
-                  stroke="#D97706"
-                  strokeWidth={2}
-                  dot={{ r: 3, fill: "#D97706" }}
-                  activeDot={{ r: 5 }}
-                  connectNulls={false}
-                />
-              )}
-            </LineChart>
-          </ResponsiveContainer>
+                {/* Gold Series: Blue */}
+                {(selectedMetal === "BOTH" || selectedMetal === "GOLD") && (
+                  <Line
+                    yAxisId="gold"
+                    type="monotone"
+                    dataKey="goldRate"
+                    name="Gold (24k INR/g)"
+                    stroke="#2563EB"
+                    strokeWidth={2}
+                    dot={{ r: 5, fill: "#2563EB", stroke: "#FFFFFF", strokeWidth: 1.5 }}
+                    activeDot={{ r: 7, stroke: "#2563EB", strokeWidth: 2 }}
+                    connectNulls={false}
+                  />
+                )}
+
+                {/* Silver Series: Amber */}
+                {(selectedMetal === "BOTH" || selectedMetal === "SILVER") && (
+                  <Line
+                    yAxisId="silver"
+                    type="monotone"
+                    dataKey="silverRate"
+                    name="Silver (Pure INR/g)"
+                    stroke="#D97706"
+                    strokeWidth={2}
+                    dot={{ r: 5, fill: "#D97706", stroke: "#FFFFFF", strokeWidth: 1.5 }}
+                    activeDot={{ r: 7, stroke: "#D97706", strokeWidth: 2 }}
+                    connectNulls={false}
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 
@@ -325,13 +327,35 @@ export function HistoricalRatesChart({ className = "" }: HistoricalRatesChartPro
   )
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function formatChartDate(dateStr: string): string {
+  if (!dateStr || !dateStr.includes("-")) return dateStr
+  const [year, month, day] = dateStr.split("-").map(Number)
+  const d = new Date(year, month - 1, day)
+  return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" })
+}
+
+function formatTooltipDate(dateStr: string): string {
+  if (!dateStr || !dateStr.includes("-")) return dateStr
+  const [year, month, day] = dateStr.split("-").map(Number)
+  const d = new Date(year, month - 1, day)
+  return d.toLocaleDateString("en-IN", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+export function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload || !payload.length) return null
 
   return (
-    <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-md text-xs space-y-1.5 animate-in fade-in-50 duration-100">
+    <div
+      className="bg-white p-3 rounded-xl border border-slate-200 shadow-md text-xs space-y-1.5 animate-in fade-in-50 duration-100"
+      data-testid="chart-custom-tooltip"
+    >
       <div className="font-bold text-slate-800 border-b border-slate-100 pb-1 flex items-center justify-between gap-4">
-        <span>Date: {label}</span>
+        <span>Date: {formatTooltipDate(label)}</span>
         <span className="text-[10px] text-slate-400 font-normal">INR / gram</span>
       </div>
       {payload.map((item: any) => (
@@ -344,7 +368,12 @@ function CustomTooltip({ active, payload, label }: any) {
             {item.name}:
           </span>
           <span className="font-bold text-slate-900">
-            {typeof item.value === "number" ? `₹${item.value.toLocaleString("en-IN")}/g` : "Unavailable"}
+            {typeof item.value === "number"
+              ? `₹${item.value.toLocaleString("en-IN", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 4,
+                })}/g`
+              : "Unavailable"}
           </span>
         </div>
       ))}

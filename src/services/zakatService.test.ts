@@ -444,6 +444,19 @@ describe("zakatService & Adapter Layer", () => {
       expect(result[0].silverRate).toBeNull() // null, NOT 0
     })
 
+    it("calculates 7-day and 30-day date boundaries formatted as YYYY-MM-DD", async () => {
+      const mockOrder = vi.fn().mockResolvedValue({ data: [], error: null })
+      const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
+      const mockSelect = vi.fn().mockReturnValue({ gte: mockGte })
+      vi.mocked(supabase.from).mockReturnValue({ select: mockSelect } as any)
+
+      await fetchHistoricalMetalRates(7)
+      expect(mockGte).toHaveBeenCalledWith("rate_date", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
+
+      await fetchHistoricalMetalRates(30)
+      expect(mockGte).toHaveBeenCalledWith("rate_date", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/))
+    })
+
     it("throws error when database query fails", async () => {
       const mockOrder = vi.fn().mockResolvedValue({ data: null, error: new Error("DB Error") })
       const mockGte = vi.fn().mockReturnValue({ order: mockOrder })
