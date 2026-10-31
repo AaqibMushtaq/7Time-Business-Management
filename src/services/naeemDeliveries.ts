@@ -178,10 +178,57 @@ export async function recordnaeemDelivery(record: Partial<naeemDailyRecord>) {
 }
 
 export async function recordnaeemPayment(payment: naeemPayment, allocations: naeemPaymentAllocation[]) {
-  const paymentId = payment.id || crypto.randomUUID()
+  const paymentId = payment.id || null
+  const allocationsPayload = (allocations || []).map(a => ({
+    id: a.id || null,
+    daily_record_id: a.daily_record_id,
+    allocated_amount: Number(a.allocated_amount)
+  }))
+
+  // 1. Primary path: Attempt atomic PostgreSQL RPC execution (transactional with automatic rollback)
+  if (typeof (supabase as any).rpc === "function") {
+    const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
+      "record_naeem_payment_with_allocations",
+      {
+        p_payment_id: paymentId,
+        p_payment_date: payment.payment_date,
+        p_amount: Number(payment.amount),
+        p_payment_method: payment.payment_method || "Cash",
+        p_reference_number: payment.reference_number?.trim() || null,
+        p_cheque_number: payment.cheque_number?.trim() || null,
+        p_cheque_date: payment.cheque_date || null,
+        p_bank_name: payment.bank_name?.trim() || null,
+        p_notes: payment.notes?.trim() || null,
+        p_workspace_id: payment.workspace_id || null,
+        p_allocations: allocationsPayload
+      }
+    )
+
+    if (!rpcError && rpcData) {
+      return rpcData as naeemPayment
+    }
+
+    if (rpcError) {
+      const isMissingRpc =
+        rpcError.code === "PGRST202" ||
+        rpcError.code === "42883" ||
+        (typeof rpcError.message === "string" &&
+          (rpcError.message.includes("Could not find the function") ||
+           rpcError.message.toLowerCase().includes("function record_naeem_payment_with_allocations") ||
+           rpcError.message.toLowerCase().includes("function public.record_naeem_payment_with_allocations")))
+
+      if (!isMissingRpc) {
+        // Business rule violations, constraint errors, or authorization failures MUST fail cleanly
+        throw new Error(rpcError.message || "Payment transaction failed")
+      }
+    }
+  }
+
+  // Fallback path for unmigrated mock/test environments
+  const fallbackPaymentId = payment.id || crypto.randomUUID()
   
   const paymentPayload: Record<string, any> = {
-    id: paymentId,
+    id: fallbackPaymentId,
     payment_date: payment.payment_date,
     amount: payment.amount,
     payment_method: payment.payment_method,
@@ -202,12 +249,21 @@ export async function recordnaeemPayment(payment: naeemPayment, allocations: nae
 
   if (pError) throw new Error(pError.message)
 
+  if (payment.id) {
+    const { error: delError } = await supabase
+      .from("naeem_payment_allocations")
+      .delete()
+      .eq("payment_id", fallbackPaymentId)
+
+    if (delError) throw new Error(delError.message)
+  }
+
   if (allocations.length > 0) {
     const allocsToInsert = allocations.map(a => {
       const item: Record<string, any> = {
         ...a,
-        id: crypto.randomUUID(),
-        payment_id: paymentId
+        id: a.id || crypto.randomUUID(),
+        payment_id: fallbackPaymentId
       }
       if (payment.workspace_id) {
         item.workspace_id = payment.workspace_id
