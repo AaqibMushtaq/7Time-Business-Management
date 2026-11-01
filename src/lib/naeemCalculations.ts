@@ -45,10 +45,78 @@ export interface NaeemSummary {
   creditBalance: number;
 }
 
+/**
+ * Determines whether a payment belongs to the accounting period of a given targetMonth (YYYY-MM).
+ *
+ * Rules:
+ * 1. If payment has allocations, inspect the months of the allocated deliveries:
+ *    - If any allocation is for targetMonth deliveries, it belongs to targetMonth.
+ *    - If ALL allocations are for deliveries prior to targetMonth (e.g. November cheque allocated
+ *      to October deliveries), it settled prior obligations; its accounting effect belongs to the
+ *      prior period and it must NOT be counted in targetMonth's receipts.
+ * 2. If payment has no delivery allocations, inspect cheque_date (for Cheques) or payment_date.
+ */
+export function isPaymentForMonth(
+  payment: naeemPayment,
+  targetMonth?: string,
+  currentMonthRecordIds?: Set<string>
+): boolean {
+  if (!targetMonth) return true;
+
+  const allocations = payment.allocations || [];
+
+  if (allocations.length > 0) {
+    const allocatedMonths = new Set<string>();
+    let hasCurrentMonthRecord = false;
+
+    for (const alloc of allocations) {
+      if (
+        currentMonthRecordIds &&
+        alloc.daily_record_id &&
+        currentMonthRecordIds.has(alloc.daily_record_id)
+      ) {
+        hasCurrentMonthRecord = true;
+      }
+      const dDate = (alloc as any).daily_record?.delivery_date || (alloc as any).delivery_date;
+      if (dDate) {
+        allocatedMonths.add(dDate.substring(0, 7));
+      }
+    }
+
+    if (hasCurrentMonthRecord || allocatedMonths.has(targetMonth)) {
+      return true;
+    }
+
+    if (allocatedMonths.size > 0) {
+      const allPrior = Array.from(allocatedMonths).every((m) => m < targetMonth);
+      if (allPrior) {
+        return false;
+      }
+    }
+
+    if (
+      payment.payment_method === "Cheque" &&
+      payment.cheque_date &&
+      payment.cheque_date.substring(0, 7) < targetMonth
+    ) {
+      return false;
+    }
+  }
+
+  // Direct receipts without delivery allocations (or advance payments):
+  const effectiveDate =
+    payment.payment_method === "Cheque" && payment.cheque_date
+      ? payment.cheque_date
+      : payment.payment_date;
+
+  return effectiveDate ? effectiveDate.startsWith(targetMonth) : false;
+}
+
 export function calculateSummary(
   balanceData: { opening_balance: number; is_manual_override: boolean } | undefined | null,
   processedRecords: ReturnType<typeof processRecords>,
-  payments: naeemPayment[] | undefined | null
+  payments: naeemPayment[] | undefined | null,
+  selectedMonth?: string
 ): NaeemSummary {
   const openingBalance = Number(balanceData?.opening_balance) || 0;
   const isManualOverride = balanceData?.is_manual_override === true;
@@ -60,20 +128,36 @@ export function calculateSummary(
 
   const totalDue = openingBalance + currentMonthBilled;
 
-  // Total payments received with payment_date in the selected month
-  const totalReceived = (payments || []).reduce(
+  const currentMonthRecordIds = new Set((processedRecords || []).map((r) => r.id));
+
+  // Determine active month (from selectedMonth or inferred from delivery records)
+  const activeMonth =
+    selectedMonth ||
+    (processedRecords && processedRecords.length > 0 && processedRecords[0].delivery_date
+      ? processedRecords[0].delivery_date.substring(0, 7)
+      : undefined);
+
+  // Payments belonging to this month's accounting period
+  const monthPayments = activeMonth
+    ? (payments || []).filter((p) =>
+        isPaymentForMonth(p, activeMonth, currentMonthRecordIds)
+      )
+    : payments || [];
+
+  // Total payments received during this month only
+  const totalReceived = monthPayments.reduce(
     (s, p) => s + (Number(p.amount) || 0),
     0
   );
 
-  // Amount allocated specifically to current month deliveries
+  // Amount allocated to this month's deliveries
   const allocatedToDeliveries = (processedRecords || []).reduce(
     (s, r) => s + (r.calculatedStatus === "No Order" ? 0 : Number(r.calculatedReceived) || 0),
     0
   );
 
-  // Total amount allocated from this month's payments (may include allocations to prior/other months' deliveries)
-  const paymentsAllocatedFromThisMonth = (payments || []).reduce((sum, p) => {
+  // Total amount allocated from this month's valid payments
+  const paymentsAllocatedFromThisMonth = monthPayments.reduce((sum, p) => {
     const pAlloc = (p.allocations || []).reduce(
       (aSum, a) => aSum + (Number(a.allocated_amount) || 0),
       0
@@ -81,10 +165,7 @@ export function calculateSummary(
     return sum + pAlloc;
   }, 0);
 
-  // Authoritative total allocated payments
   const paymentsAllocated = Math.max(paymentsAllocatedFromThisMonth, allocatedToDeliveries);
-
-  // Unallocated payment amount received this month (Advance / Credit)
   const unallocatedAdvance = Math.max(0, totalReceived - paymentsAllocated);
 
   // Current month unpaid delivery balance
@@ -94,7 +175,6 @@ export function calculateSummary(
   );
 
   // Outstanding obligations: genuine unpaid obligations remaining (Opening balance + Unpaid deliveries)
-  // An unallocated advance must not silently create a negative outstanding balance (Rules 4, 5, 6)
   const outstanding = Math.max(0, openingBalance + currentMonthDeliveryBalance);
 
   const noOrderDays = (processedRecords || []).filter(

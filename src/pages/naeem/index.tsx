@@ -2,12 +2,12 @@ import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { 
-  getnaeemRoutes, getnaeemRecords, getnaeemPayments, getnaeemMonthlyBalance,
+  getnaeemRoutes, getnaeemRecords, getAllnaeemPayments, getnaeemMonthlyBalance,
   recordnaeemDelivery, deletenaeemRecord, 
   recordnaeemPayment, deletenaeemPayment, upsertnaeemMonthlyBalance, deletenaeemMonthlyBalance,
   type naeemPaymentAllocation 
 } from "@/services/naeemDeliveries"
-import { processRecords, calculateSummary } from "@/lib/naeemCalculations"
+import { processRecords, calculateSummary, isPaymentForMonth } from "@/lib/naeemCalculations"
 import { getPreviousMonth, getNextMonth } from "@/lib/dateUtils"
 import { parseArithmeticExpression } from "@/lib/arithmeticParser"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -60,7 +60,8 @@ export default function NaeemUnclePage() {
   // Data Queries
   const { data: routes } = useQuery({ queryKey: ["naeemRoutes"], queryFn: getnaeemRoutes, retry: false })
   const { data: records, isLoading: recLoading, isError: recError } = useQuery({ queryKey: ["naeemRecords", selectedMonth], queryFn: () => getnaeemRecords(selectedMonth), retry: false })
-  const { data: payments, isLoading: payLoading, isError: payError } = useQuery({ queryKey: ["naeemPayments", selectedMonth], queryFn: () => getnaeemPayments(selectedMonth), retry: false })
+  const { data: allPayments, isLoading: payLoading, isError: payError } = useQuery({ queryKey: ["naeemPayments", "all"], queryFn: getAllnaeemPayments, retry: false })
+  const payments = allPayments
   const { data: balanceData, isLoading: balLoading, isError: balError } = useQuery({ 
     queryKey: ["naeemMonthlyBalance", selectedMonth], 
     retry: false,
@@ -118,9 +119,17 @@ export default function NaeemUnclePage() {
     return processRecords(records)
   }, [records])
 
+  const monthPayments = useMemo(() => {
+    return (allPayments || []).filter(p => isPaymentForMonth(p, selectedMonth))
+  }, [allPayments, selectedMonth])
+
+  const allTimePaymentsTotal = useMemo(() => {
+    return (allPayments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0)
+  }, [allPayments])
+
   const summary = useMemo(() => {
-    return calculateSummary(balanceData, processedRecords, payments)
-  }, [balanceData, processedRecords, payments])
+    return calculateSummary(balanceData, processedRecords, allPayments, selectedMonth)
+  }, [balanceData, processedRecords, allPayments, selectedMonth])
 
   const unpaidDeliveries = useMemo(() => {
     return processedRecords.filter(r => r.calculatedBalance > 0 && r.calculatedStatus !== "No Order")
@@ -349,152 +358,104 @@ export default function NaeemUnclePage() {
       )}
 
       {/* KPI SECTION */}
-      <div className="space-y-3.5">
-        {/* Row 1: Obligations & Outstanding */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
-          {/* Card 1: Opening Balance */}
-          <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div>
-                <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Opening Balance</p>
-                {balLoading ? (
-                  <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
-                ) : balError ? (
-                  <p className="text-base font-bold text-[#B42318] py-1">Error</p>
-                ) : (
-                  <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.openingBalance)}</p>
-                )}
-              </div>
-              <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#D9E0E8]">
-                <p className="text-xs text-[#52627A] font-medium truncate pr-2">
-                  {summary.isManualOverride
-                    ? "Manual override"
-                    : "Carried forward"}
-                </p>
-                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-[#2563EB] hover:bg-[#EBF2FE] -mr-2 cursor-pointer" onClick={() => { setBalanceInput(summary.openingBalance.toString()); setIsBalanceModalOpen(true); }}>
-                  Edit
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Card 2: Current Billed */}
-          <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div>
-                <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Current Billed</p>
-                {recLoading ? (
-                  <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
-                ) : recError ? (
-                  <p className="text-base font-bold text-[#B42318] py-1">Error</p>
-                ) : (
-                  <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.currentMonthBilled)}</p>
-                )}
-              </div>
-              <p className="text-xs text-[#52627A] font-medium mt-3 pt-2 border-t border-[#D9E0E8]">{displayMonthYear}</p>
-            </CardContent>
-          </Card>
-
-          {/* Card 3: Total Due */}
-          <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div>
-                <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Total Due</p>
-                {(balLoading || recLoading) ? (
-                  <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
-                ) : (balError || recError) ? (
-                  <p className="text-base font-bold text-[#B42318] py-1">Error</p>
-                ) : (
-                  <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.totalDue)}</p>
-                )}
-              </div>
-              <p className="text-xs text-[#52627A] font-medium mt-3 pt-2 border-t border-[#D9E0E8]">Opening + Billed</p>
-            </CardContent>
-          </Card>
-
-          {/* Card 4: Outstanding Balance */}
-          <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div>
-                <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Outstanding Balance</p>
-                {(balLoading || recLoading || payLoading) ? (
-                  <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
-                ) : (balError || recError || payError) ? (
-                  <p className="text-base font-bold text-[#B42318] py-1">Error</p>
-                ) : (
-                  <p className="text-2xl font-bold font-mono text-[#92400E]">{formatMoney(summary.outstanding)}</p>
-                )}
-              </div>
-              <p className={`text-xs font-bold mt-3 pt-2 border-t border-[#D9E0E8] ${summary.outstanding > 0 ? 'text-[#92400E]' : 'text-[#087443]'}`}>
-                {summary.outstanding > 0 ? `${summary.outstandingPercentage}% pending` : "Fully settled"}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Card 1: Opening Balance */}
+        <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+            <div>
+              <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Opening Balance</p>
+              {balLoading ? (
+                <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
+              ) : balError ? (
+                <p className="text-base font-bold text-[#B42318] py-1">Error</p>
+              ) : (
+                <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.openingBalance)}</p>
+              )}
+            </div>
+            <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#D9E0E8]">
+              <p className="text-xs text-[#52627A] font-medium truncate pr-2">
+                {summary.isManualOverride
+                  ? "Manual override"
+                  : "Carried forward"}
               </p>
-            </CardContent>
-          </Card>
-        </div>
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-[#2563EB] hover:bg-[#EBF2FE] -mr-2 cursor-pointer" onClick={() => { setBalanceInput(summary.openingBalance.toString()); setIsBalanceModalOpen(true); }}>
+                Edit
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Row 2: Payments & Settlements */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-          {/* Card 5: Payments Received This Month */}
-          <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div>
-                <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Payments Received</p>
-                {payLoading ? (
-                  <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
-                ) : payError ? (
-                  <p className="text-base font-bold text-[#B42318] py-1">Error</p>
-                ) : (
-                  <p className="text-2xl font-bold font-mono text-[#087443]">{formatMoney(summary.totalReceived)}</p>
-                )}
-              </div>
-              <p className="text-xs font-semibold text-[#087443] mt-3 pt-2 border-t border-[#D9E0E8]">
-                {payments?.length || 0} payment{(payments?.length || 0) === 1 ? "" : "s"} this month
-              </p>
-            </CardContent>
-          </Card>
+        {/* Card 2: Current Billed */}
+        <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+            <div>
+              <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Current Billed</p>
+              {recLoading ? (
+                <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
+              ) : recError ? (
+                <p className="text-base font-bold text-[#B42318] py-1">Error</p>
+              ) : (
+                <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.currentMonthBilled)}</p>
+              )}
+            </div>
+            <p className="text-xs text-[#52627A] font-medium mt-3 pt-2 border-t border-[#D9E0E8]">Current month billing</p>
+          </CardContent>
+        </Card>
 
-          {/* Card 6: Payments Allocated */}
-          <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div>
-                <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Payments Allocated</p>
-                {payLoading ? (
-                  <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
-                ) : payError ? (
-                  <p className="text-base font-bold text-[#B42318] py-1">Error</p>
-                ) : (
-                  <p className="text-2xl font-bold font-mono text-[#2563EB]">{formatMoney(summary.paymentsAllocated)}</p>
-                )}
-              </div>
-              <p className="text-xs text-[#52627A] font-medium mt-3 pt-2 border-t border-[#D9E0E8]">
-                {summary.allocatedToDeliveries > 0
-                  ? `${formatMoney(summary.allocatedToDeliveries)} applied to ${displayMonthYear}`
-                  : "Applied to deliveries"}
-              </p>
-            </CardContent>
-          </Card>
+        {/* Card 3: Total Due */}
+        <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+            <div>
+              <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Total Due</p>
+              {(balLoading || recLoading) ? (
+                <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
+              ) : (balError || recError) ? (
+                <p className="text-base font-bold text-[#B42318] py-1">Error</p>
+              ) : (
+                <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.totalDue)}</p>
+              )}
+            </div>
+            <p className="text-xs text-[#52627A] font-medium mt-3 pt-2 border-t border-[#D9E0E8]">Opening + Billed</p>
+          </CardContent>
+        </Card>
 
-          {/* Card 7: Unallocated Advance / Credit */}
-          <Card className={`shadow-xs border rounded-xl ${summary.unallocatedAdvance > 0 ? "border-[#A6F4C5] bg-[#EAF7EF]/20" : "border-[#D9E0E8] bg-white"}`}>
-            <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
-              <div>
-                <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Unallocated Advance / Credit</p>
-                {payLoading ? (
-                  <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
-                ) : payError ? (
-                  <p className="text-base font-bold text-[#B42318] py-1">Error</p>
-                ) : (
-                  <p className={`text-2xl font-bold font-mono ${summary.unallocatedAdvance > 0 ? "text-[#087443]" : "text-[#52627A]"}`}>
-                    {formatMoney(summary.unallocatedAdvance)}
-                  </p>
-                )}
-              </div>
-              <p className={`text-xs font-medium mt-3 pt-2 border-t ${summary.unallocatedAdvance > 0 ? "border-[#A6F4C5] text-[#087443] font-semibold" : "border-[#D9E0E8] text-[#52627A]"}`}>
-                {summary.unallocatedAdvance > 0 ? "Available credit (unallocated)" : "No excess advance"}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Card 4: Payments Received This Month */}
+        <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+            <div>
+              <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Payments Received This Month</p>
+              {payLoading ? (
+                <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
+              ) : payError ? (
+                <p className="text-base font-bold text-[#B42318] py-1">Error</p>
+              ) : (
+                <p className="text-2xl font-bold font-mono text-[#087443]">{formatMoney(summary.totalReceived)}</p>
+              )}
+            </div>
+            <p className="text-xs font-semibold text-[#087443] mt-3 pt-2 border-t border-[#D9E0E8]">
+              {monthPayments.length} payment{monthPayments.length === 1 ? "" : "s"} this month
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Card 5: Outstanding Balance */}
+        <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl">
+          <CardContent className="p-4 sm:p-5 flex flex-col justify-between h-full">
+            <div>
+              <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider mb-1">Outstanding Balance</p>
+              {(balLoading || recLoading || payLoading) ? (
+                <div className="h-8 w-24 bg-[#F1F4F8] animate-pulse rounded"></div>
+              ) : (balError || recError || payError) ? (
+                <p className="text-base font-bold text-[#B42318] py-1">Error</p>
+              ) : (
+                <p className="text-2xl font-bold font-mono text-[#92400E]">{formatMoney(summary.outstanding)}</p>
+              )}
+            </div>
+            <p className={`text-xs font-bold mt-3 pt-2 border-t border-[#D9E0E8] ${summary.outstanding > 0 ? 'text-[#92400E]' : 'text-[#087443]'}`}>
+              {summary.outstanding > 0 ? `${summary.outstandingPercentage}% pending` : "Fully settled"}
+            </p>
+          </CardContent>
+        </Card>
       </div>
 
       {/* COLLECTION PROGRESS & ACTIVITY */}
@@ -534,7 +495,7 @@ export default function NaeemUnclePage() {
           <div className="w-16 h-16 rounded-full bg-[#F1F4F8] flex items-center justify-center mb-4">
             <CalendarDays className="w-8 h-8 text-[#52627A]" />
           </div>
-          <h3 className="text-xl font-bold text-[#172B4D] mb-2">No activity recorded for {displayMonthYear}.</h3>
+          <h3 className="text-xl font-bold text-[#172B4D] mb-2">No activity recorded for this period.</h3>
           <p className="text-[#52627A] max-w-md mb-8">You can record a new delivery or manually set the opening balance carried forward from the previous month.</p>
           <div className="flex gap-4">
             <Button variant="outline" className="bg-white border-[#D9E0E8] hover:bg-[#F1F4F8] text-[#172B4D]" onClick={() => { setBalanceInput("0"); setIsBalanceModalOpen(true); }}>
@@ -658,21 +619,15 @@ export default function NaeemUnclePage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-[#EAF7EF] rounded-xl border border-[#A6F4C5]">
-                      <p className="text-xs text-[#087443] uppercase tracking-wider font-semibold mb-1">Received</p>
+                      <p className="text-xs text-[#087443] uppercase tracking-wider font-semibold mb-1">Received This Month</p>
                       <p className="text-xl font-bold font-mono text-[#087443]">{formatMoney(summary.totalReceived)}</p>
                     </div>
                     <div className={`p-4 rounded-xl border ${summary.outstanding > 0 ? 'bg-[#FFF4D6] border-[#FEDF89]' : 'bg-[#F1F4F8] border-[#D9E0E8]'}`}>
-                      <p className={`text-xs uppercase tracking-wider font-semibold mb-1 ${summary.outstanding > 0 ? 'text-[#92400E]' : 'text-[#52627A]'}`}>Outstanding</p>
+                      <p className={`text-xs uppercase tracking-wider font-semibold mb-1 ${summary.outstanding > 0 ? 'text-[#92400E]' : 'text-[#52627A]'}`}>Outstanding Balance</p>
                       <p className={`text-xl font-bold font-mono ${summary.outstanding > 0 ? 'text-[#92400E]' : 'text-[#172B4D]'}`}>{formatMoney(summary.outstanding)}</p>
                     </div>
                   </div>
 
-                  {summary.unallocatedAdvance > 0 && (
-                    <div className="p-3 bg-[#EAF7EF] rounded-xl border border-[#A6F4C5] flex justify-between items-center text-xs">
-                      <span className="text-[#087443] font-semibold">Available Advance / Credit</span>
-                      <span className="font-mono font-bold text-[#087443]">{formatMoney(summary.unallocatedAdvance)}</span>
-                    </div>
-                  )}
 
                   <Button 
                     onClick={() => { resetPaymentForm(); setIsPaymentModalOpen(true); }}
@@ -710,7 +665,7 @@ export default function NaeemUnclePage() {
             <CardHeader className="border-b border-[#D9E0E8] bg-[#F8F7F2] py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
                 <CardTitle className="text-lg font-bold text-[#172B4D]">Delivery History</CardTitle>
-                <CardDescription className="text-[#52627A]">{displayMonthYear}</CardDescription>
+                <CardDescription className="text-[#52627A]">Daily delivery records</CardDescription>
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <div className="relative w-full sm:w-64">
@@ -840,7 +795,9 @@ export default function NaeemUnclePage() {
           <Card className="shadow-xs border-[#D9E0E8] bg-white rounded-xl overflow-hidden">
             <CardHeader className="border-b border-[#D9E0E8] bg-[#F8F7F2] py-4">
               <CardTitle className="text-lg font-bold text-[#172B4D]">Payment History</CardTitle>
-              <CardDescription className="text-[#52627A]">Manual record of payments received</CardDescription>
+                <CardDescription className="text-[#52627A]">
+                  Complete historical record · <span>All-Time Payments Received:</span> <span className="font-semibold text-[#087443] font-mono">{formatMoney(allTimePaymentsTotal)}</span>
+                </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               {isLoading ? (
@@ -861,7 +818,7 @@ export default function NaeemUnclePage() {
                   <h3 className="text-lg font-medium text-[#B42318] mb-1">Unable to load payment history</h3>
                   <p className="text-[#52627A] max-w-sm mb-4">A database error occurred. Please try again.</p>
                 </div>
-              ) : payments?.length === 0 ? (
+              ) : allPayments?.length === 0 ? (
                 <EmptyState
                   icon={CreditCard}
                   title="No payments recorded"
@@ -882,7 +839,7 @@ export default function NaeemUnclePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {payments?.map((pay) => (
+                      {allPayments?.map((pay) => (
                         <TableRow key={pay.id} className="group hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors">
                           <TableCell className="font-medium text-[#172B4D] font-mono whitespace-nowrap py-3 px-4">{formatDate(pay.payment_date)}</TableCell>
                           <TableCell className="py-3 px-4">

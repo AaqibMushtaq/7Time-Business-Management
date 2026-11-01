@@ -15,6 +15,11 @@ export interface naeemPaymentAllocation {
   allocated_amount: number
   created_at?: string
   workspace_id?: string | null
+  daily_record?: {
+    id: string
+    delivery_date: string
+    final_fare?: number
+  }
 }
 
 export interface naeemMonthlyBalance {
@@ -133,7 +138,10 @@ export async function getnaeemPayments(month: string) {
       .from("naeem_payments")
       .select(`
         *,
-        allocations:naeem_payment_allocations(*)
+        allocations:naeem_payment_allocations(
+          *,
+          daily_record:naeem_daily_records(id, delivery_date, final_fare)
+        )
       `)
       .gte("payment_date", startDate)
       .lte("payment_date", endDate)
@@ -146,6 +154,30 @@ export async function getnaeemPayments(month: string) {
     return data as naeemPayment[]
   } catch (err) {
     console.error("[NAEEM] naeem_payments fetch failed:", err);
+    throw err;
+  }
+}
+
+export async function getAllnaeemPayments() {
+  try {
+    const { data, error } = await supabase
+      .from("naeem_payments")
+      .select(`
+        *,
+        allocations:naeem_payment_allocations(
+          *,
+          daily_record:naeem_daily_records(id, delivery_date, final_fare)
+        )
+      `)
+      .order("payment_date", { ascending: false })
+
+    if (error) {
+      console.error("[NAEEM] naeem_payments fetch all failed:", error);
+      throw error;
+    }
+    return data as naeemPayment[]
+  } catch (err) {
+    console.error("[NAEEM] naeem_payments fetch all failed:", err);
     throw err;
   }
 }
