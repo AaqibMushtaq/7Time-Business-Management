@@ -96,7 +96,7 @@ export default function ReportsPage() {
           .join("\n")
       }
       else if (type === "naeem_UNCLE") {
-        const { data: res } = await supabase.from("naeem_daily_records").select("*, route:naeem_routes(name)").limit(999999)
+        const { data: res } = await supabase.from("naeem_daily_records").select("*, route:naeem_routes!naeem_daily_records_route_id_fkey(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Route,Standard Fare,Extra Charge,Final Fare,Cash Received,Payment Method,Balance,Status,Notes"]
           .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.delivery_date)},${escapeCSV(r.route?.name)},${escapeCSV(r.standard_fare)},${escapeCSV(r.extra_charge)},${escapeCSV(r.final_fare)},${escapeCSV(r.cash_received)},${escapeCSV(r.payment_method)},${escapeCSV(r.balance)},${escapeCSV(r.status)},${escapeCSV(r.notes)}`))

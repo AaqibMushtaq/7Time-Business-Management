@@ -105,3 +105,4 @@ Should rollback ever be required:
 - Rollback SQL: Dropping the 18 triggers and 7 functions restores pre-migration behavior without affecting row data.
 
 **Conclusion:** Migration `20261101050000` is securely and permanently active in production.
+

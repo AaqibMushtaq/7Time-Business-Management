@@ -63,3 +63,4 @@ npx supabase functions deploy gemini-assistant --project-ref haofuuvwciqsambgeqy
    - Confirms model badges, dynamic response rendering, and conversation resets.
 
 **Conclusion: Edge Function `gemini-assistant` is verified and operational in production.**
+

@@ -75,12 +75,12 @@ export async function getnaeemRecords(month: string) {
   const lastDay = new Date(parseInt(year), parseInt(m), 0).getDate()
   const endDate = `${month}-${lastDay}`
 
-  // 1. Fetch daily records and routes (The core working query)
+  // 1. Fetch daily records and routes (Disambiguated via route_id foreign key)
   const { data: recordsData, error: recordsError } = await supabase
     .from("naeem_daily_records")
     .select(`
       *,
-      route:naeem_routes(*)
+      route:naeem_routes!naeem_daily_records_route_id_fkey(*)
     `)
     .gte("delivery_date", startDate)
     .lte("delivery_date", endDate)
@@ -412,7 +412,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
       .select(`
         final_fare,
         status,
-        route:naeem_routes(name)
+        route:naeem_routes!naeem_daily_records_route_id_fkey(name)
       `)
       .gte("delivery_date", startDateStr)
       .lte("delivery_date", endDateStr)
