@@ -1,0 +1,506 @@
+[
+  {
+    "src": "docs/ARCHITECTURE.md",
+    "dst": "docs/architecture/ARCHITECTURE.md",
+    "expectedHash": "932d92744f3f95403bec78fa997be13a853ae2dec3a4382aab82b476bfbb697d",
+    "currentHash": "932d92744f3f95403bec78fa997be13a853ae2dec3a4382aab82b476bfbb697d",
+    "match": true
+  },
+  {
+    "src": "docs/PROJECT_OVERVIEW.md",
+    "dst": "docs/architecture/PROJECT_OVERVIEW.md",
+    "expectedHash": "e22ac13ceeea13bf0c397bca6db940b883cbd56bc184e47bc44a46474d0dba92",
+    "currentHash": "e22ac13ceeea13bf0c397bca6db940b883cbd56bc184e47bc44a46474d0dba92",
+    "match": true
+  },
+  {
+    "src": "docs/DESIGN.md",
+    "dst": "docs/architecture/DESIGN.md",
+    "expectedHash": "e87633f82dc218f66ded0c1072b268a5d1cb61a4140bb8b17e861d8ecb13e15f",
+    "currentHash": "e87633f82dc218f66ded0c1072b268a5d1cb61a4140bb8b17e861d8ecb13e15f",
+    "match": true
+  },
+  {
+    "src": "docs/AI_WORKFLOW.md",
+    "dst": "docs/architecture/AI_WORKFLOW.md",
+    "expectedHash": "8483801f34908026399d2723024f301b94ce3d4654ec5adada3576adb7e42b82",
+    "currentHash": "8483801f34908026399d2723024f301b94ce3d4654ec5adada3576adb7e42b82",
+    "match": true
+  },
+  {
+    "src": "docs/ROADMAP.md",
+    "dst": "docs/architecture/ROADMAP.md",
+    "expectedHash": "9e985a7a1b00bafead17313ea863c99238dad53bcb36d3d714050733039f46f2",
+    "currentHash": "9e985a7a1b00bafead17313ea863c99238dad53bcb36d3d714050733039f46f2",
+    "match": true
+  },
+  {
+    "src": "docs/DATABASE_AND_ACCOUNTING.md",
+    "dst": "docs/database/DATABASE_AND_ACCOUNTING.md",
+    "expectedHash": "178aae79a4168b2d6a9c8567fe6025fd7d89bc1896593652324b5433bb606e5e",
+    "currentHash": "178aae79a4168b2d6a9c8567fe6025fd7d89bc1896593652324b5433bb606e5e",
+    "match": true
+  },
+  {
+    "src": "docs/production-backup.md",
+    "dst": "docs/database/production-backup.md",
+    "expectedHash": "0ebded918b0ea660a375acb6457e04c3c14cdf25bcffc7f03d9d6a078ac28823",
+    "currentHash": "0ebded918b0ea660a375acb6457e04c3c14cdf25bcffc7f03d9d6a078ac28823",
+    "match": true
+  },
+  {
+    "src": "docs/SECURITY.md",
+    "dst": "docs/security/SECURITY.md",
+    "expectedHash": "40dbf65ba972437a267eab87828a047e6b123ecba09a426178747e613655e1cd",
+    "currentHash": "40dbf65ba972437a267eab87828a047e6b123ecba09a426178747e613655e1cd",
+    "match": true
+  },
+  {
+    "src": "docs/SECURITY_REMEDIATION_ROADMAP.md",
+    "dst": "docs/security/SECURITY_REMEDIATION_ROADMAP.md",
+    "expectedHash": "7310cbb9cdd4003e7c431713f31dca58d817e70bc872c92766c5a2c36632cb5e",
+    "currentHash": "7310cbb9cdd4003e7c431713f31dca58d817e70bc872c92766c5a2c36632cb5e",
+    "match": true
+  },
+  {
+    "src": "docs/TESTING.md",
+    "dst": "docs/testing/TESTING.md",
+    "expectedHash": "4e3918d8e29b8d8219b18abec9e72a5213bad71d8775bc0f39c76d53af85996a",
+    "currentHash": "4e3918d8e29b8d8219b18abec9e72a5213bad71d8775bc0f39c76d53af85996a",
+    "match": true
+  },
+  {
+    "src": "docs/DASHBOARD_AUDIT.md",
+    "dst": "docs/audits/DASHBOARD_AUDIT.md",
+    "expectedHash": "d6ece5d29bb3f09396369ac15c3e3d60cb57125ff9e8da91798e10775c23af29",
+    "currentHash": "d6ece5d29bb3f09396369ac15c3e3d60cb57125ff9e8da91798e10775c23af29",
+    "match": true
+  },
+  {
+    "src": "docs/DELIVERY_MODULE_AUDIT.md",
+    "dst": "docs/audits/DELIVERY_MODULE_AUDIT.md",
+    "expectedHash": "eb8a2a3aff45b39b9f556bfb945f9c0136ad31691cde8f8330bcb5bbf9e9fe5e",
+    "currentHash": "eb8a2a3aff45b39b9f556bfb945f9c0136ad31691cde8f8330bcb5bbf9e9fe5e",
+    "match": true
+  },
+  {
+    "src": "docs/MODULE_AUDIT.md",
+    "dst": "docs/audits/MODULE_AUDIT.md",
+    "expectedHash": "1351998054e6b83b3b9ad68df907276cbcbe93f3b28b7b9d183d6a83e5fa5c72",
+    "currentHash": "1351998054e6b83b3b9ad68df907276cbcbe93f3b28b7b9d183d6a83e5fa5c72",
+    "match": true
+  },
+  {
+    "src": "docs/PERFORMANCE.md",
+    "dst": "docs/audits/PERFORMANCE.md",
+    "expectedHash": "30e058ca71c72d6277945012bccfec73d59f5aa27931f9cc60b6223e67fcbee1",
+    "currentHash": "30e058ca71c72d6277945012bccfec73d59f5aa27931f9cc60b6223e67fcbee1",
+    "match": true
+  },
+  {
+    "src": "docs/PERFORMANCE_AUDIT.md",
+    "dst": "docs/audits/PERFORMANCE_AUDIT.md",
+    "expectedHash": "9fb7b7b91eb349ec36fb7ae12fe5e52094fb9fd8c5099ebd7c350c6189c628f2",
+    "currentHash": "9fb7b7b91eb349ec36fb7ae12fe5e52094fb9fd8c5099ebd7c350c6189c628f2",
+    "match": true
+  },
+  {
+    "src": "docs/RESPONSIVE_AUDIT.md",
+    "dst": "docs/audits/RESPONSIVE_AUDIT.md",
+    "expectedHash": "d29fefe7f53fbd37148ed556360d5d3429b685dd33bd198ffec70f0d8855e0a2",
+    "currentHash": "d29fefe7f53fbd37148ed556360d5d3429b685dd33bd198ffec70f0d8855e0a2",
+    "match": true
+  },
+  {
+    "src": "docs/FINANCIAL_REPORTING.md",
+    "dst": "docs/audits/FINANCIAL_REPORTING.md",
+    "expectedHash": "d4ad4e76e06edb6158f5fd9c5d88d25f585fd7cab3b3f097b343b324a0c1ced8",
+    "currentHash": "d4ad4e76e06edb6158f5fd9c5d88d25f585fd7cab3b3f097b343b324a0c1ced8",
+    "match": true
+  },
+  {
+    "src": "docs/BUGS_AND_DECISIONS.md",
+    "dst": "docs/bug-reports/BUGS_AND_DECISIONS.md",
+    "expectedHash": "31880134704915d444c8139dfbef5f94d3818114430d0398a1e8acf6e3ece245",
+    "currentHash": "31880134704915d444c8139dfbef5f94d3818114430d0398a1e8acf6e3ece245",
+    "match": true
+  },
+  {
+    "src": "docs/DEPLOYMENT_AND_RECOVERY.md",
+    "dst": "docs/deployment/DEPLOYMENT_AND_RECOVERY.md",
+    "expectedHash": "2ab4cebd3d91b2af10095e0c9cadb0c56f7cfcf95a47b1a87c88477cc069ee52",
+    "currentHash": "2ab4cebd3d91b2af10095e0c9cadb0c56f7cfcf95a47b1a87c88477cc069ee52",
+    "match": true
+  },
+  {
+    "src": "docs/release-checklist.md",
+    "dst": "docs/deployment/release-checklist.md",
+    "expectedHash": "cb53800bf55cb67e62e803432e1cf1a536322efdc1f73c2fdaa3df17083fffdb",
+    "currentHash": "cb53800bf55cb67e62e803432e1cf1a536322efdc1f73c2fdaa3df17083fffdb",
+    "match": true
+  },
+  {
+    "src": "docs/RELEASE_PROCESS.md",
+    "dst": "docs/deployment/RELEASE_PROCESS.md",
+    "expectedHash": "529c8e61a26c5ad5e4724435636a62274b556ee15413816badf3a5c4a81d2f27",
+    "currentHash": "529c8e61a26c5ad5e4724435636a62274b556ee15413816badf3a5c4a81d2f27",
+    "match": true
+  },
+  {
+    "src": "7TIME_MULTI_ACCOUNT_ARCHITECTURE_AUDIT.md",
+    "dst": "docs/architecture/7TIME_MULTI_ACCOUNT_ARCHITECTURE_AUDIT.md",
+    "expectedHash": "c7ca96398634e38ef61873e2475044e131e42dc5ccaa755d9ce54e9e38ea1dad",
+    "currentHash": "c7ca96398634e38ef61873e2475044e131e42dc5ccaa755d9ce54e9e38ea1dad",
+    "match": true
+  },
+  {
+    "src": "7TIME_MULTI_ACCOUNT_SECURITY_DESIGN_REVIEW.md",
+    "dst": "docs/architecture/7TIME_MULTI_ACCOUNT_SECURITY_DESIGN_REVIEW.md",
+    "expectedHash": "e8d8f7bc285126259e1b9d4e25897b182a535013866942a884dcea986a4abfb4",
+    "currentHash": "e8d8f7bc285126259e1b9d4e25897b182a535013866942a884dcea986a4abfb4",
+    "match": true
+  },
+  {
+    "src": "7TIME_DATABASE_MIGRATION_05_REPORT.md",
+    "dst": "docs/database/7TIME_DATABASE_MIGRATION_05_REPORT.md",
+    "expectedHash": "a4e4b6f00f6219fdb2f5e4fab2aa7e82fb12fe214070cac765304ae875e13841",
+    "currentHash": "a4e4b6f00f6219fdb2f5e4fab2aa7e82fb12fe214070cac765304ae875e13841",
+    "match": true
+  },
+  {
+    "src": "7TIME_DATABASE_SECURITY_AUDIT.md",
+    "dst": "docs/database/7TIME_DATABASE_SECURITY_AUDIT.md",
+    "expectedHash": "8fb74ddc812e260a647b4c81b34524ca8bb1f266d3c1f17091569fd550c667de",
+    "currentHash": "8fb74ddc812e260a647b4c81b34524ca8bb1f266d3c1f17091569fd550c667de",
+    "match": true
+  },
+  {
+    "src": "7TIME_DELIVERY_MIGRATION_EXECUTION_EVIDENCE.md",
+    "dst": "docs/database/7TIME_DELIVERY_MIGRATION_EXECUTION_EVIDENCE.md",
+    "expectedHash": "9ab5eaebc5d3c7a26752b89f8318a9ca5ea0e36b2f965e186436f4fbc19f795f",
+    "currentHash": "9ab5eaebc5d3c7a26752b89f8318a9ca5ea0e36b2f965e186436f4fbc19f795f",
+    "match": true
+  },
+  {
+    "src": "7TIME_DELIVERY_MIGRATION_PRODUCTION_EXECUTION_REPORT.md",
+    "dst": "docs/database/7TIME_DELIVERY_MIGRATION_PRODUCTION_EXECUTION_REPORT.md",
+    "expectedHash": "7deacb17b6dab4b87a6d9e3e147b0af5a63ae31003790781ef89e85dce4443a0",
+    "currentHash": "7deacb17b6dab4b87a6d9e3e147b0af5a63ae31003790781ef89e85dce4443a0",
+    "match": true
+  },
+  {
+    "src": "7TIME_DELIVERY_MIGRATION_SECURITY_REVIEW.md",
+    "dst": "docs/database/7TIME_DELIVERY_MIGRATION_SECURITY_REVIEW.md",
+    "expectedHash": "217f9355d935fc1e1efcec8481ad510390c828dae7b747cd5c080de15e953d8d",
+    "currentHash": "217f9355d935fc1e1efcec8481ad510390c828dae7b747cd5c080de15e953d8d",
+    "match": true
+  },
+  {
+    "src": "7TIME_DELIVERY_MIGRATION_FINAL_SECURITY_REVIEW.md",
+    "dst": "docs/database/7TIME_DELIVERY_MIGRATION_FINAL_SECURITY_REVIEW.md",
+    "expectedHash": "7bcae5475b0e016a4fe252d563126acb8da72c82740e3efb16ff19afab2937f0",
+    "currentHash": "7bcae5475b0e016a4fe252d563126acb8da72c82740e3efb16ff19afab2937f0",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_MIGRATION_41000_REPORT.md",
+    "dst": "docs/database/7TIME_PRODUCTION_MIGRATION_41000_REPORT.md",
+    "expectedHash": "c7eb16a616eafcd2625e218511298753a5cd93b5611d6ca9d306a3b609588083",
+    "currentHash": "c7eb16a616eafcd2625e218511298753a5cd93b5611d6ca9d306a3b609588083",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_MIGRATION_READINESS_REPORT.md",
+    "dst": "docs/database/7TIME_PRODUCTION_MIGRATION_READINESS_REPORT.md",
+    "expectedHash": "3048e62efed20cab55db824a3e56fa7519f6b990b5d1d413adb9ba5bea009e82",
+    "currentHash": "3048e62efed20cab55db824a3e56fa7519f6b990b5d1d413adb9ba5bea009e82",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_PRE_MIGRATION_BACKUP_REPORT.md",
+    "dst": "docs/database/7TIME_PRODUCTION_PRE_MIGRATION_BACKUP_REPORT.md",
+    "expectedHash": "990a461458912397adee2b231566ff66099fb37a948a2009c4d5e2849ef79c5a",
+    "currentHash": "990a461458912397adee2b231566ff66099fb37a948a2009c4d5e2849ef79c5a",
+    "match": true
+  },
+  {
+    "src": "7TIME_MIGRATION_DRIFT_AND_TEST_PROVENANCE_REPORT.md",
+    "dst": "docs/database/7TIME_MIGRATION_DRIFT_AND_TEST_PROVENANCE_REPORT.md",
+    "expectedHash": "6a60d7c994ad6975911d1b874cf9fc14d1ce7a04690de7b5abd5d25fa82ed083",
+    "currentHash": "6a60d7c994ad6975911d1b874cf9fc14d1ce7a04690de7b5abd5d25fa82ed083",
+    "match": true
+  },
+  {
+    "src": "7TIME_BACKUP_RESTORE_VERIFICATION_REPORT.md",
+    "dst": "docs/database/7TIME_BACKUP_RESTORE_VERIFICATION_REPORT.md",
+    "expectedHash": "09a6e20a8366f5b44b11dde06845a7a6db6e409d7fab5d6d37199a5bb73e8b8b",
+    "currentHash": "09a6e20a8366f5b44b11dde06845a7a6db6e409d7fab5d6d37199a5bb73e8b8b",
+    "match": true
+  },
+  {
+    "src": "7TIME_ROLLBACK_COMPLETENESS_REVIEW.md",
+    "dst": "docs/database/7TIME_ROLLBACK_COMPLETENESS_REVIEW.md",
+    "expectedHash": "a930af53bfd95b0536fc0b1200fe4ffbf9332f2064aecde35a0ab2d63eeb891b",
+    "currentHash": "a930af53bfd95b0536fc0b1200fe4ffbf9332f2064aecde35a0ab2d63eeb891b",
+    "match": true
+  },
+  {
+    "src": "7TIME_APPR01_SQL_EXECUTION_SAFETY_REVIEW.md",
+    "dst": "docs/database/7TIME_APPR01_SQL_EXECUTION_SAFETY_REVIEW.md",
+    "expectedHash": "3d307cf845f8ab313576c0ed40b478edc477bc029b0184f974e57cfed9bdd267",
+    "currentHash": "3d307cf845f8ab313576c0ed40b478edc477bc029b0184f974e57cfed9bdd267",
+    "match": true
+  },
+  {
+    "src": "7TIME_APPR02_WORKSPACE_INTEGRITY_CORRECTION.md",
+    "dst": "docs/database/7TIME_APPR02_WORKSPACE_INTEGRITY_CORRECTION.md",
+    "expectedHash": "941913b3b63686fc6fc1340042c57f46774ad6e2734be6b91d9b84a21311b160",
+    "currentHash": "941913b3b63686fc6fc1340042c57f46774ad6e2734be6b91d9b84a21311b160",
+    "match": true
+  },
+  {
+    "src": "7TIME_APPR03_GEMINI_AUTHORIZATION_CORRECTION.md",
+    "dst": "docs/database/7TIME_APPR03_GEMINI_AUTHORIZATION_CORRECTION.md",
+    "expectedHash": "8e2d41af7100819c28f6b03fbaafb36d4580bf85768611b493c7637652ba43d4",
+    "currentHash": "8e2d41af7100819c28f6b03fbaafb36d4580bf85768611b493c7637652ba43d4",
+    "match": true
+  },
+  {
+    "src": "7TIME_FINAL_REGRESSION_AND_SQL_REVIEW.md",
+    "dst": "docs/database/7TIME_FINAL_REGRESSION_AND_SQL_REVIEW.md",
+    "expectedHash": "1e5e1db6f659a3d913a68f6b46f9b6127c9486c149ff36466fc4a9bee7968a1e",
+    "currentHash": "1e5e1db6f659a3d913a68f6b46f9b6127c9486c149ff36466fc4a9bee7968a1e",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_SECURITY_REMEDIATION_PLAN.md",
+    "dst": "docs/security/7TIME_PRODUCTION_SECURITY_REMEDIATION_PLAN.md",
+    "expectedHash": "5f1f2cf410b63481632364941771e00cc12032c072bd98f662a283f9d05d3837",
+    "currentHash": "5f1f2cf410b63481632364941771e00cc12032c072bd98f662a283f9d05d3837",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_SECURITY_VERIFICATION.md",
+    "dst": "docs/security/7TIME_PRODUCTION_SECURITY_VERIFICATION.md",
+    "expectedHash": "1fe3b72c530c95187b1601d91d31e56f2c93e10acff4e65f6541ff28db851ec3",
+    "currentHash": "1fe3b72c530c95187b1601d91d31e56f2c93e10acff4e65f6541ff28db851ec3",
+    "match": true
+  },
+  {
+    "src": "7TIME_FINAL_PRE_PRODUCTION_SECURITY_REVIEW.md",
+    "dst": "docs/security/7TIME_FINAL_PRE_PRODUCTION_SECURITY_REVIEW.md",
+    "expectedHash": "f9dd3d5aa77a48a473b4733c47e827d750ffb3cebbf0644a5e672552560eb88d",
+    "currentHash": "f9dd3d5aa77a48a473b4733c47e827d750ffb3cebbf0644a5e672552560eb88d",
+    "match": true
+  },
+  {
+    "src": "7TIME_LOCAL_MULTI_ACCOUNT_INTEGRITY_TEST_REPORT.md",
+    "dst": "docs/security/7TIME_LOCAL_MULTI_ACCOUNT_INTEGRITY_TEST_REPORT.md",
+    "expectedHash": "e1acae318aa32ef3b2a6d800f7b8a3e9eff5391b8aba1e0925bcb570db7527d5",
+    "currentHash": "e1acae318aa32ef3b2a6d800f7b8a3e9eff5391b8aba1e0925bcb570db7527d5",
+    "match": true
+  },
+  {
+    "src": "7TIME_WORKSPACE_DEFAULTS_REVIEW.md",
+    "dst": "docs/security/7TIME_WORKSPACE_DEFAULTS_REVIEW.md",
+    "expectedHash": "a9c481b3b8109e6fa99751e21fee8dcbcb4aaa95419bd133b4e218f76b48d527",
+    "currentHash": "a9c481b3b8109e6fa99751e21fee8dcbcb4aaa95419bd133b4e218f76b48d527",
+    "match": true
+  },
+  {
+    "src": "7TIME_REGRESSION_TEST_REPORT.md",
+    "dst": "docs/testing/7TIME_REGRESSION_TEST_REPORT.md",
+    "expectedHash": "0153af8a3f5d9789a58cf63d09dcfaca74b26cb668045085abd46cc09a3f816c",
+    "currentHash": "0153af8a3f5d9789a58cf63d09dcfaca74b26cb668045085abd46cc09a3f816c",
+    "match": true
+  },
+  {
+    "src": "7TIME_FINAL_REGRESSION_TEST_REPORT.md",
+    "dst": "docs/testing/7TIME_FINAL_REGRESSION_TEST_REPORT.md",
+    "expectedHash": "eb1ae7a093f648adad7b6f1e2b7ce0cbd0a7e5a75978e9979734cebd70843355",
+    "currentHash": "eb1ae7a093f648adad7b6f1e2b7ce0cbd0a7e5a75978e9979734cebd70843355",
+    "match": true
+  },
+  {
+    "src": "7TIME_POST_AUDIT_VERIFICATION_REPORT.md",
+    "dst": "docs/testing/7TIME_POST_AUDIT_VERIFICATION_REPORT.md",
+    "expectedHash": "970c617c0c0dd8b2cbcfd9df96dcf885b02936ce267cd83de9419323d55a3dd5",
+    "currentHash": "970c617c0c0dd8b2cbcfd9df96dcf885b02936ce267cd83de9419323d55a3dd5",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_SMOKE_TEST_REPORT.md",
+    "dst": "docs/testing/7TIME_PRODUCTION_SMOKE_TEST_REPORT.md",
+    "expectedHash": "5703005a5c45aed3808e0bab3682957101556faff3b92d254eb3ec5c546deaac",
+    "currentHash": "5703005a5c45aed3808e0bab3682957101556faff3b92d254eb3ec5c546deaac",
+    "match": true
+  },
+  {
+    "src": "7TIME_NAEEM_PAYMENT_OPERATIONAL_CHECKLIST.md",
+    "dst": "docs/testing/7TIME_NAEEM_PAYMENT_OPERATIONAL_CHECKLIST.md",
+    "expectedHash": "361dcb43badf4b5b4fbf1cc5f76970bffe561ba9463b9ed2cc29eeccdc56d5f9",
+    "currentHash": "361dcb43badf4b5b4fbf1cc5f76970bffe561ba9463b9ed2cc29eeccdc56d5f9",
+    "match": true
+  },
+  {
+    "src": "7TIME_COMPREHENSIVE_BUG_AUDIT.md",
+    "dst": "docs/audits/7TIME_COMPREHENSIVE_BUG_AUDIT.md",
+    "expectedHash": "12785dd0989a71e2b7b4f1851c8c0d483b46a693b8baefa87396d17eb456434d",
+    "currentHash": "12785dd0989a71e2b7b4f1851c8c0d483b46a693b8baefa87396d17eb456434d",
+    "match": true
+  },
+  {
+    "src": "7TIME_MASTER_BUG_REGISTER.md",
+    "dst": "docs/audits/7TIME_MASTER_BUG_REGISTER.md",
+    "expectedHash": "22df667108b3bd6c0a02796a2f78e79d2f5881dcbaa70b7f05d3c752266438e8",
+    "currentHash": "22df667108b3bd6c0a02796a2f78e79d2f5881dcbaa70b7f05d3c752266438e8",
+    "match": true
+  },
+  {
+    "src": "7TIME_IMPLEMENTATION_AUTHORIZATION_AND_CHANGE_AUDIT.md",
+    "dst": "docs/audits/7TIME_IMPLEMENTATION_AUTHORIZATION_AND_CHANGE_AUDIT.md",
+    "expectedHash": "92a5c2f0a31b588f6614e7886837cdc9a63f72a60f6e8887f803131820111c89",
+    "currentHash": "92a5c2f0a31b588f6614e7886837cdc9a63f72a60f6e8887f803131820111c89",
+    "match": true
+  },
+  {
+    "src": "7TIME_INDEPENDENT_PRODUCTION_RELEASE_VERIFICATION.md",
+    "dst": "docs/audits/7TIME_INDEPENDENT_PRODUCTION_RELEASE_VERIFICATION.md",
+    "expectedHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "currentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "match": true
+  },
+  {
+    "src": "7TIME_DELIVERY_ENTRY_RLS_BUG_FIX_REPORT.md",
+    "dst": "docs/bug-reports/7TIME_DELIVERY_ENTRY_RLS_BUG_FIX_REPORT.md",
+    "expectedHash": "441f96f9debafaf6e24278c43a8bb4f4860d33667bf6fc0b09599fa7239f0709",
+    "currentHash": "441f96f9debafaf6e24278c43a8bb4f4860d33667bf6fc0b09599fa7239f0709",
+    "match": true
+  },
+  {
+    "src": "7TIME_TWO_DEFECT_REMEDIATION_REPORT.md",
+    "dst": "docs/bug-reports/7TIME_TWO_DEFECT_REMEDIATION_REPORT.md",
+    "expectedHash": "f8c149eec1f6f693a5c91589d96872af2380be9a221e36d856772c889ff0421a",
+    "currentHash": "f8c149eec1f6f693a5c91589d96872af2380be9a221e36d856772c889ff0421a",
+    "match": true
+  },
+  {
+    "src": "7TIME_FINAL_BUG_FIX_REPORT.md",
+    "dst": "docs/bug-reports/7TIME_FINAL_BUG_FIX_REPORT.md",
+    "expectedHash": "60312a4cc63f8aa5c31b8bb535aa2110ccd25063f4198d9e1f66a1e3adc8b6cf",
+    "currentHash": "60312a4cc63f8aa5c31b8bb535aa2110ccd25063f4198d9e1f66a1e3adc8b6cf",
+    "match": true
+  },
+  {
+    "src": "7TIME_EMERGENCY_PRODUCTION_STATE_REPORT.md",
+    "dst": "docs/bug-reports/7TIME_EMERGENCY_PRODUCTION_STATE_REPORT.md",
+    "expectedHash": "c3158cf94845a418fd2fcabd24f65217db14d85b19867600a58b09ebb9f809e8",
+    "currentHash": "c3158cf94845a418fd2fcabd24f65217db14d85b19867600a58b09ebb9f809e8",
+    "match": true
+  },
+  {
+    "src": "7TIME_NAEEM_DELIVERY_PRODUCTION_HOTFIX_REPORT.md",
+    "dst": "docs/bug-reports/7TIME_NAEEM_DELIVERY_PRODUCTION_HOTFIX_REPORT.md",
+    "expectedHash": "65d561657fc01e8a5fcb21a666fcfee372af3ae26e9889c689f95f778a6e4832",
+    "currentHash": "65d561657fc01e8a5fcb21a666fcfee372af3ae26e9889c689f95f778a6e4832",
+    "match": true
+  },
+  {
+    "src": "7TIME_NAEEM_FINAL_VERIFICATION.md",
+    "dst": "docs/bug-reports/7TIME_NAEEM_FINAL_VERIFICATION.md",
+    "expectedHash": "f6330f32149b7e2c7b55bb07dc18fee93dcbcd1943db833d34f6f1805401aafe",
+    "currentHash": "f6330f32149b7e2c7b55bb07dc18fee93dcbcd1943db833d34f6f1805401aafe",
+    "match": true
+  },
+  {
+    "src": "7TIME_NAEEM_PAYMENT_IDEMPOTENCY_RECOMMENDATION.md",
+    "dst": "docs/bug-reports/7TIME_NAEEM_PAYMENT_IDEMPOTENCY_RECOMMENDATION.md",
+    "expectedHash": "df92ce6141dac4f3bc94f01d9e7d24ebd9f43766a580f27d9cab353999ede02e",
+    "currentHash": "df92ce6141dac4f3bc94f01d9e7d24ebd9f43766a580f27d9cab353999ede02e",
+    "match": true
+  },
+  {
+    "src": "7TIME_NAEEM_PAYMENT_POST_DEPLOYMENT_VERIFICATION.md",
+    "dst": "docs/bug-reports/7TIME_NAEEM_PAYMENT_POST_DEPLOYMENT_VERIFICATION.md",
+    "expectedHash": "33eaf28c3af3814da1c158c1f18ed2ed84a19a0ea46d43aa6d2134c7ef8dddf5",
+    "currentHash": "33eaf28c3af3814da1c158c1f18ed2ed84a19a0ea46d43aa6d2134c7ef8dddf5",
+    "match": true
+  },
+  {
+    "src": "7TIME_FRONTEND_DEPLOYMENT_REPORT.md",
+    "dst": "docs/deployment/7TIME_FRONTEND_DEPLOYMENT_REPORT.md",
+    "expectedHash": "13874f5f9ebc73e4449cace8e91ce5bc40c2dc2f560efa6fd5880d105faab06f",
+    "currentHash": "13874f5f9ebc73e4449cace8e91ce5bc40c2dc2f560efa6fd5880d105faab06f",
+    "match": true
+  },
+  {
+    "src": "7TIME_EDGE_FUNCTION_DEPLOYMENT_REPORT.md",
+    "dst": "docs/deployment/7TIME_EDGE_FUNCTION_DEPLOYMENT_REPORT.md",
+    "expectedHash": "2610e9190cef57ec7ffc651dd1ae85ac63fe78d8bebcc5f1153409291accf545",
+    "currentHash": "2610e9190cef57ec7ffc651dd1ae85ac63fe78d8bebcc5f1153409291accf545",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_DEPLOYMENT_PLAN.md",
+    "dst": "docs/deployment/7TIME_PRODUCTION_DEPLOYMENT_PLAN.md",
+    "expectedHash": "86f4285d5a8c70931c7c57f987951001c29f11ecf992b892f272ecf1dfb9107e",
+    "currentHash": "86f4285d5a8c70931c7c57f987951001c29f11ecf992b892f272ecf1dfb9107e",
+    "match": true
+  },
+  {
+    "src": "7TIME_PRODUCTION_READINESS_REPORT.md",
+    "dst": "docs/deployment/7TIME_PRODUCTION_READINESS_REPORT.md",
+    "expectedHash": "7b24ad2a8ec93af79329b8a9e9099c26f0197a952ef7391e0fd160093aba749f",
+    "currentHash": "7b24ad2a8ec93af79329b8a9e9099c26f0197a952ef7391e0fd160093aba749f",
+    "match": true
+  },
+  {
+    "src": "7TIME_FINAL_MASTER_DEPLOYMENT_REPORT.md",
+    "dst": "docs/deployment/7TIME_FINAL_MASTER_DEPLOYMENT_REPORT.md",
+    "expectedHash": "0687c3fad4b8237070154965606c707a8959aeb3dcf6a469010fb153e20c7b86",
+    "currentHash": "0687c3fad4b8237070154965606c707a8959aeb3dcf6a469010fb153e20c7b86",
+    "match": true
+  },
+  {
+    "src": "7TIME_BUG_FIX_CHANGELOG.md",
+    "dst": "docs/release-notes/7TIME_BUG_FIX_CHANGELOG.md",
+    "expectedHash": "6b9b0b1e29ec7a44c4c200e90865b0f5ea1dbe7b33d5fcb2d7b02f2df8fdedd4",
+    "currentHash": "6b9b0b1e29ec7a44c4c200e90865b0f5ea1dbe7b33d5fcb2d7b02f2df8fdedd4",
+    "match": true
+  },
+  {
+    "src": "7TIME_GIT_RELEASE_REPORT.md",
+    "dst": "docs/release-notes/7TIME_GIT_RELEASE_REPORT.md",
+    "expectedHash": "7f0770bc1c3adbe8552ad890c59335688d8dbcc162042eec6534f06dcf6964f9",
+    "currentHash": "7f0770bc1c3adbe8552ad890c59335688d8dbcc162042eec6534f06dcf6964f9",
+    "match": true
+  },
+  {
+    "src": "7TIME_FINAL_GIT_RELEASE_REPORT.md",
+    "dst": "docs/release-notes/7TIME_FINAL_GIT_RELEASE_REPORT.md",
+    "expectedHash": "a9ea812459f40c8f9ecf48c6e542bc2f6f3e31b8ad1ba2e41a444b10dda90048",
+    "currentHash": "a9ea812459f40c8f9ecf48c6e542bc2f6f3e31b8ad1ba2e41a444b10dda90048",
+    "match": true
+  },
+  {
+    "src": "7TIME_MASTER_COMPLETION_REPORT.md",
+    "dst": "docs/release-notes/7TIME_MASTER_COMPLETION_REPORT.md",
+    "expectedHash": "7ee36f3348a469bbab0aaa5fbed3140109e9a183728b77e208bafebf0b5828e6",
+    "currentHash": "7ee36f3348a469bbab0aaa5fbed3140109e9a183728b77e208bafebf0b5828e6",
+    "match": true
+  },
+  {
+    "src": "7TIME_SECURITY_FUNCTIONS_CORRECTION.sql",
+    "dst": "scripts/database/7TIME_SECURITY_FUNCTIONS_CORRECTION.sql",
+    "expectedHash": "94ad3c546fd6e048db40d519046cdd8a567cff99065d22110d0a1595d978aed4",
+    "currentHash": "94ad3c546fd6e048db40d519046cdd8a567cff99065d22110d0a1595d978aed4",
+    "match": true
+  },
+  {
+    "src": "7TIME_WORKSPACE_INTEGRITY_CORRECTION.sql",
+    "dst": "scripts/database/7TIME_WORKSPACE_INTEGRITY_CORRECTION.sql",
+    "expectedHash": "2c0edd95747f706c7d41c77b725a3fd1f7aaa39b7774874039c295b65c9d3c49",
+    "currentHash": "2c0edd95747f706c7d41c77b725a3fd1f7aaa39b7774874039c295b65c9d3c49",
+    "match": true
+  }
+]
