@@ -11,6 +11,7 @@ export interface GeneralDeliveryEntry {
   payment_method: string | null
   reference: string | null
   notes: string | null
+  workspace_id?: string | null
 }
 
 export interface GeneralDailyRecord {
@@ -20,6 +21,7 @@ export interface GeneralDailyRecord {
   fuel_expenses: number | null
   opening_balance: number | null
   remarks: string | null
+  workspace_id?: string | null
   entries?: GeneralDeliveryEntry[]
 }
 
@@ -51,6 +53,7 @@ export async function upsertDailyRecord(
     fuel_expenses?: number | null
     opening_balance?: number | null
     remarks?: string | null
+    workspace_id?: string | null
   }
 ) {
   // 1. Check if daily record already exists for this date
@@ -92,15 +95,20 @@ export async function upsertDailyRecord(
     if (error) throw new Error(error.message)
     dailyRecordId = data[0].id
   } else {
+    const insertPayload: Record<string, any> = {
+      record_date,
+      delivery_expression: params.delivery_expression ?? null,
+      fuel_expenses: params.fuel_expenses ?? 0,
+      opening_balance: params.opening_balance ?? 0,
+      remarks: params.remarks ?? null
+    }
+    if (params.workspace_id) {
+      insertPayload.workspace_id = params.workspace_id
+    }
+
     const { data, error } = await supabase
       .from("general_daily_records")
-      .insert([{
-        record_date,
-        delivery_expression: params.delivery_expression ?? null,
-        fuel_expenses: params.fuel_expenses ?? 0,
-        opening_balance: params.opening_balance ?? 0,
-        remarks: params.remarks ?? null
-      }])
+      .insert([insertPayload])
       .select()
 
     if (error) {
@@ -164,17 +172,22 @@ export async function upsertDailyRecord(
 
         if (updateEntryErr) throw new Error(updateEntryErr.message)
       } else {
+        const entryInsertPayload: Record<string, any> = {
+          id: crypto.randomUUID(),
+          daily_record_id: dailyRecordId,
+          customer_name: "Daily Operations",
+          description: params.delivery_expression,
+          amount: parseResult.value,
+          received_amount: parseResult.value,
+          payment_method: "Cash"
+        }
+        if (params.workspace_id) {
+          entryInsertPayload.workspace_id = params.workspace_id
+        }
+
         const { error: insertEntryErr } = await supabase
           .from("general_delivery_entries")
-          .insert([{
-            id: crypto.randomUUID(),
-            daily_record_id: dailyRecordId,
-            customer_name: "Daily Operations",
-            description: params.delivery_expression,
-            amount: parseResult.value,
-            received_amount: parseResult.value,
-            payment_method: "Cash"
-          }])
+          .insert([entryInsertPayload])
 
         if (insertEntryErr) throw new Error(insertEntryErr.message)
       }
@@ -219,9 +232,13 @@ export async function upsertDeliveryEntry(record_date: string, entry: GeneralDel
   }
 
   if (!dailyRecord) {
+    const dailyRecordPayload: Record<string, any> = { record_date, fuel_expenses: 0, opening_balance: 0, remarks: null }
+    if (entry.workspace_id) {
+      dailyRecordPayload.workspace_id = entry.workspace_id
+    }
     const { data: newRec, error: insertError } = await supabase
       .from("general_daily_records")
-      .insert([{ record_date, fuel_expenses: 0, opening_balance: 0, remarks: null }])
+      .insert([dailyRecordPayload])
       .select()
       .single()
 
@@ -244,19 +261,24 @@ export async function upsertDeliveryEntry(record_date: string, entry: GeneralDel
   }
 
   // Insert or Update the entry
+  const entryPayload: Record<string, any> = {
+    id: entry.id || crypto.randomUUID(),
+    daily_record_id: dailyRecord!.id,
+    customer_name: entry.customer_name,
+    description: entry.description,
+    amount: entry.amount,
+    received_amount: entry.received_amount,
+    payment_method: entry.payment_method,
+    reference: entry.reference,
+    notes: entry.notes
+  }
+  if (entry.workspace_id) {
+    entryPayload.workspace_id = entry.workspace_id
+  }
+
   const { data, error } = await supabase
     .from("general_delivery_entries")
-    .upsert([{
-      id: entry.id || crypto.randomUUID(),
-      daily_record_id: dailyRecord!.id,
-      customer_name: entry.customer_name,
-      description: entry.description,
-      amount: entry.amount,
-      received_amount: entry.received_amount,
-      payment_method: entry.payment_method,
-      reference: entry.reference,
-      notes: entry.notes
-    }])
+    .upsert([entryPayload])
     .select()
 
   if (error) throw new Error(error.message)

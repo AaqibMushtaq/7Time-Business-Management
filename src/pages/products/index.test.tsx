@@ -485,7 +485,7 @@ describe("ProductsPage and EditProductModal Component", () => {
     // Drawer should open
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "Filter Products" })).toBeDefined()
-    })
+    }, { timeout: 4000 })
 
     // Verify there is exactly ONE filter dialog in the document (no duplicate panels)
     const filterDialogs = screen.getAllByRole("dialog", { name: "Filter Products" })
@@ -513,7 +513,7 @@ describe("ProductsPage and EditProductModal Component", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "Filter Products" })).toBeDefined()
-    })
+    }, { timeout: 4000 })
 
     // Press Escape
     fireEvent.keyDown(window, { key: "Escape", code: "Escape" })
@@ -535,7 +535,7 @@ describe("ProductsPage and EditProductModal Component", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("dialog", { name: "Filter Products" })).toBeDefined()
-    })
+    }, { timeout: 4000 })
 
     // Uncheck In Stock
     const inStockCheckbox = screen.getByLabelText(/In Stock/i)

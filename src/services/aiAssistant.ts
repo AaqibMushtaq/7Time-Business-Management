@@ -65,7 +65,8 @@ export const SUGGESTED_PROMPTS = [
  */
 export async function sendAssistantMessage(
   prompt: string,
-  history: Array<{ role: "user" | "model"; text: string }> = []
+  history: Array<{ role: "user" | "model"; text: string }> = [],
+  workspaceId?: string
 ): Promise<AssistantResponse> {
   const cleanPrompt = prompt.trim()
   if (!cleanPrompt) {
@@ -86,6 +87,7 @@ export async function sendAssistantMessage(
       body: {
         prompt: cleanPrompt,
         history,
+        workspace_id: workspaceId,
       },
     })
 
@@ -260,6 +262,24 @@ function sanitizeAssistantError(err: AssistantError, httpStatus?: number): Assis
       message: model
         ? `The configured Gemini model '${model}' is unavailable or unsupported for this API project.`
         : "The configured Gemini model is unavailable or unsupported for this API project.",
+      retryable: false,
+      model,
+    }
+  }
+
+  // 3b. Specific Module & Account Authorization Codes (400, 403, 404)
+  if (
+    code === "MODULE_DISABLED" ||
+    code === "ACCOUNT_SUSPENDED" ||
+    code === "WORKSPACE_ACCESS_DENIED" ||
+    code === "NO_ACTIVE_WORKSPACE" ||
+    code === "MALFORMED_WORKSPACE_ID" ||
+    code === "WORKSPACE_INACTIVE" ||
+    code === "WORKSPACE_NOT_FOUND"
+  ) {
+    return {
+      code,
+      message: message || "You are not authorized to access the AI Assistant.",
       retryable: false,
       model,
     }

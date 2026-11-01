@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { parseArithmeticExpression } from "@/lib/arithmeticParser"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Download, Database, ShoppingCart, Users, Truck, Package, Loader2 } from "lucide-react"
@@ -81,15 +82,21 @@ export default function ReportsPage() {
         data = res || []
         csvContent = ["Date,Total Deliveries,Entries Count,Fuel Expenses,Net Total,Remarks"]
           .concat(data.map((r: any) => {
-            const allDel = r.entries?.reduce((acc: number, e: any) => acc + e.amount, 0) || 0
-            const count = r.entries?.length || 0
+            let allDel = r.entries?.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0) || 0
+            if (allDel === 0 && r.delivery_expression) {
+              const parsed = parseArithmeticExpression(r.delivery_expression)
+              if (parsed.isValid && parsed.value !== null) {
+                allDel = parsed.value
+              }
+            }
+            const count = r.entries?.length || (allDel > 0 ? 1 : 0)
             const net = allDel - (r.fuel_expenses || 0)
             return `${escapeCSV(r.record_date)},${escapeCSV(allDel)},${escapeCSV(count)},${escapeCSV(r.fuel_expenses || 0)},${escapeCSV(net)},${escapeCSV(r.remarks)}`
           }))
           .join("\n")
       }
       else if (type === "naeem_UNCLE") {
-        const { data: res } = await supabase.from("naeem_daily_records").select("*, route:naeem_routes(name)").limit(999999)
+        const { data: res } = await supabase.from("naeem_daily_records").select("*, route:naeem_routes!naeem_daily_records_route_id_fkey(name)").limit(999999)
         data = res || []
         csvContent = ["ID,Date,Route,Standard Fare,Extra Charge,Final Fare,Cash Received,Payment Method,Balance,Status,Notes"]
           .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.delivery_date)},${escapeCSV(r.route?.name)},${escapeCSV(r.standard_fare)},${escapeCSV(r.extra_charge)},${escapeCSV(r.final_fare)},${escapeCSV(r.cash_received)},${escapeCSV(r.payment_method)},${escapeCSV(r.balance)},${escapeCSV(r.status)},${escapeCSV(r.notes)}`))

@@ -50,7 +50,7 @@ describe("useRealtimeSync hook", () => {
       session: null,
       loading: false,
       signOut: vi.fn(),
-    })
+    } as any)
   })
 
   afterEach(() => {

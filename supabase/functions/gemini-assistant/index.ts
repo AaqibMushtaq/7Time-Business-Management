@@ -37,6 +37,13 @@ interface RequestBody {
   prompt: string
   history?: Array<{ role: "user" | "model"; text: string }>
   categoryHint?: string
+  workspace_id?: string
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+function isValidUUID(id: string): boolean {
+  return typeof id === "string" && UUID_REGEX.test(id)
 }
 
 Deno.serve(async (req: Request) => {
@@ -100,19 +107,55 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // 3. Verify server-side GEMINI_API_KEY secret
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY")
-    if (!geminiApiKey) {
+    // 2b. Verify caller profile and active status
+    const { data: callerProfile, error: profileErr } = await supabaseUserClient
+      .from("profiles")
+      .select("id, system_role, is_active")
+      .eq("id", user.id)
+      .maybeSingle()
+
+    if (profileErr || !callerProfile) {
       return createErrorResponse(
-        503,
-        "KEY_NOT_CONFIGURED",
-        "GEMINI_API_KEY is not configured in Supabase Edge Function secrets. Please configure it in your Supabase project.",
+        401,
+        "PROFILE_NOT_FOUND",
+        "Caller profile could not be verified. Please sign in again.",
         false,
         geminiModel
       )
     }
 
-    // 4. Parse and validate request body
+    if (callerProfile.is_active === false) {
+      return createErrorResponse(
+        403,
+        "ACCOUNT_SUSPENDED",
+        "Your account has been deactivated. Please contact your enterprise administrator.",
+        false,
+        geminiModel
+      )
+    }
+
+    // 2c. Check module entitlement for ai_assistant (SUPER_ADMIN has universal access)
+    const isSuperAdmin = callerProfile.system_role === "SUPER_ADMIN"
+    if (!isSuperAdmin) {
+      const { data: aiEnt, error: entErr } = await supabaseUserClient
+        .from("user_module_entitlements")
+        .select("is_enabled")
+        .eq("user_id", user.id)
+        .eq("module_id", "ai_assistant")
+        .maybeSingle()
+
+      if (entErr || !aiEnt || aiEnt.is_enabled !== true) {
+        return createErrorResponse(
+          403,
+          "MODULE_DISABLED",
+          "The AI Assistant module is not enabled for your account. Please contact your administrator.",
+          false,
+          geminiModel
+        )
+      }
+    }
+
+    // 3. Parse and validate request body
     const body: RequestBody = await req.json().catch(() => ({ prompt: "" }))
     const rawPrompt = (body.prompt || "").trim()
 
@@ -136,7 +179,147 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    // 5. Query classification & Authorized Deterministic Business Data Retrieval
+    // 4. Validate and resolve target workspace context
+    let targetWorkspaceId: string
+    let targetWorkspaceType: "BUSINESS" | "PERSONAL" = "BUSINESS"
+    let targetWorkspaceName = "7TIME Business"
+
+    if (body.workspace_id !== undefined && body.workspace_id !== null && body.workspace_id !== "") {
+      const candidateWsId = String(body.workspace_id).trim()
+      if (!isValidUUID(candidateWsId)) {
+        return createErrorResponse(
+          400,
+          "MALFORMED_WORKSPACE_ID",
+          "The provided workspace ID is not a valid UUID format.",
+          false,
+          geminiModel
+        )
+      }
+
+      if (!isSuperAdmin) {
+        // Enforce active membership in the specific requested workspace
+        const { data: memberRecord, error: memErr } = await supabaseUserClient
+          .from("workspace_members")
+          .select("workspace_id, role, is_active, workspace:workspaces(id, name, workspace_type, is_active)")
+          .eq("workspace_id", candidateWsId)
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .maybeSingle()
+
+        if (memErr || !memberRecord) {
+          return createErrorResponse(
+            403,
+            "WORKSPACE_ACCESS_DENIED",
+            "You are not an active member of the requested workspace.",
+            false,
+            geminiModel
+          )
+        }
+
+        const wsObj: any = memberRecord.workspace
+        if (wsObj?.is_active === false) {
+          return createErrorResponse(
+            403,
+            "WORKSPACE_INACTIVE",
+            "The requested workspace has been deactivated.",
+            false,
+            geminiModel
+          )
+        }
+
+        targetWorkspaceId = candidateWsId
+        targetWorkspaceType = (wsObj?.workspace_type as "BUSINESS" | "PERSONAL") || "BUSINESS"
+        targetWorkspaceName = wsObj?.name || "Workspace"
+      } else {
+        // Super Admin universal access
+        const { data: wsObj, error: wsErr } = await supabaseUserClient
+          .from("workspaces")
+          .select("id, name, workspace_type, is_active")
+          .eq("id", candidateWsId)
+          .maybeSingle()
+
+        if (wsErr || !wsObj) {
+          return createErrorResponse(
+            404,
+            "WORKSPACE_NOT_FOUND",
+            "The requested workspace was not found.",
+            false,
+            geminiModel
+          )
+        }
+
+        if (wsObj.is_active === false) {
+          return createErrorResponse(
+            403,
+            "WORKSPACE_INACTIVE",
+            "The requested workspace has been deactivated.",
+            false,
+            geminiModel
+          )
+        }
+
+        targetWorkspaceId = candidateWsId
+        targetWorkspaceType = (wsObj.workspace_type as "BUSINESS" | "PERSONAL") || "BUSINESS"
+        targetWorkspaceName = wsObj.name || "Workspace"
+      }
+    } else {
+      // workspace_id omitted: resolve from user's active memberships
+      if (!isSuperAdmin) {
+        const { data: userMemberships, error: memErr } = await supabaseUserClient
+          .from("workspace_members")
+          .select("workspace_id, role, is_active, workspace:workspaces(id, name, workspace_type, is_active)")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+
+        if (memErr || !userMemberships || userMemberships.length === 0) {
+          return createErrorResponse(
+            403,
+            "NO_ACTIVE_WORKSPACE",
+            "No active workspace membership found for your account.",
+            false,
+            geminiModel
+          )
+        }
+
+        const activeMemberships = userMemberships.filter((m: any) => m.workspace?.is_active !== false)
+        if (activeMemberships.length === 0) {
+          return createErrorResponse(
+            403,
+            "NO_ACTIVE_WORKSPACE",
+            "All workspaces associated with your account are inactive.",
+            false,
+            geminiModel
+          )
+        }
+
+        // Prefer BUSINESS workspace if caller belongs to multiple
+        const businessMem = activeMemberships.find((m: any) => m.workspace?.workspace_type === "BUSINESS")
+        const selected = businessMem || activeMemberships[0]
+        const wsObj: any = selected.workspace
+
+        targetWorkspaceId = selected.workspace_id
+        targetWorkspaceType = (wsObj?.workspace_type as "BUSINESS" | "PERSONAL") || "BUSINESS"
+        targetWorkspaceName = wsObj?.name || "Workspace"
+      } else {
+        targetWorkspaceId = "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15"
+        targetWorkspaceType = "BUSINESS"
+        targetWorkspaceName = "7TIME Primary Enterprise"
+      }
+    }
+
+    // 5. Verify server-side GEMINI_API_KEY secret
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY")
+    if (!geminiApiKey) {
+      return createErrorResponse(
+        503,
+        "KEY_NOT_CONFIGURED",
+        "GEMINI_API_KEY is not configured in Supabase Edge Function secrets. Please configure it in your Supabase project.",
+        false,
+        geminiModel
+      )
+    }
+
+    // 6. Query classification & Authorized Deterministic Data Retrieval
     const lowerPrompt = rawPrompt.toLowerCase()
     const now = new Date()
     const currentYear = now.getFullYear()
@@ -173,75 +356,140 @@ Deno.serve(async (req: Request) => {
       lowerPrompt.includes("stock") ||
       lowerPrompt.includes("product")
 
-    // Fetch verified datasets in parallel
-    const [
-      dealersRes,
-      dealerPaymentsRes,
-      purchasesRes,
-      currentPurchasesRes,
-      resellersRes,
-      wholesaleSalesRes,
-      resellerPaymentsRes,
-      naeemDailyRes,
-      naeemPaymentsRes,
-      naeemBalanceRes,
-      genDailyRes,
-      productsRes,
-    ] = await Promise.all([
-      supabaseUserClient.from("dealers").select("id, name"),
-      supabaseUserClient.from("dealer_payments").select("id, amount, payment_date, dealer_id"),
-      supabaseUserClient.from("purchases").select("id, total_amount, amount_paid, purchase_date, dealer_id"),
-      supabaseUserClient
-        .from("purchases")
-        .select("id, total_amount, amount_paid")
-        .gte("purchase_date", monthStartStr)
-        .lte("purchase_date", monthEndStr),
-      supabaseUserClient.from("reseller_customers").select("id, name, phone"),
-      supabaseUserClient.from("wholesale_sales").select("id, total_sale, amount_received, profit, quantity, buying_cost, sale_date, customer_id"),
-      supabaseUserClient.from("reseller_payments").select("id, amount, payment_date, customer_id"),
-      supabaseUserClient
-        .from("naeem_daily_records")
-        .select("id, delivery_date, final_fare, status, route_id")
-        .gte("delivery_date", monthStartStr)
-        .lte("delivery_date", monthEndStr),
-      supabaseUserClient
-        .from("naeem_payments")
-        .select("id, amount, payment_date")
-        .gte("payment_date", monthStartStr)
-        .lte("payment_date", monthEndStr),
-      supabaseUserClient
-        .from("naeem_monthly_balances")
-        .select("opening_balance, is_manual_override")
-        .eq("year", currentYear)
-        .eq("month", currentMonth)
-        .maybeSingle(),
-      supabaseUserClient
-        .from("general_daily_records")
-        .select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount)")
-        .gte("record_date", monthStartStr)
-        .lte("record_date", monthEndStr),
-      supabaseUserClient
-        .from("products")
-        .select("id, name, buying_cost, wholesale_price, stock_quantity"),
-    ])
+    // Fetch verified datasets strictly scoped to targetWorkspaceId
+    // If workspace is PERSONAL, commercial tables are not queried and remain empty
+    let dealersRes: any = { data: [] }
+    let dealerPaymentsRes: any = { data: [] }
+    let purchasesRes: any = { data: [] }
+    let currentPurchasesRes: any = { data: [] }
+    let resellersRes: any = { data: [] }
+    let wholesaleSalesRes: any = { data: [] }
+    let resellerPaymentsRes: any = { data: [] }
+    let naeemDailyRes: any = { data: [] }
+    let naeemPaymentsRes: any = { data: [] }
+    let naeemBalanceRes: any = { data: null }
+    let genDailyRes: any = { data: [] }
+    let productsRes: any = { data: [] }
+    let personalCreditsRes: any = { data: [] }
 
+    if (targetWorkspaceType === "BUSINESS") {
+      const [
+        dRes,
+        dpRes,
+        pRes,
+        cpRes,
+        rRes,
+        wsRes,
+        rpRes,
+        ndRes,
+        npRes,
+        nbRes,
+        gdRes,
+        prodRes,
+      ] = await Promise.all([
+        supabaseUserClient.from("dealers").select("id, name").eq("workspace_id", targetWorkspaceId),
+        supabaseUserClient.from("dealer_payments").select("id, amount, payment_date, dealer_id").eq("workspace_id", targetWorkspaceId),
+        supabaseUserClient.from("purchases").select("id, total_amount, amount_paid, purchase_date, dealer_id").eq("workspace_id", targetWorkspaceId),
+        supabaseUserClient
+          .from("purchases")
+          .select("id, total_amount, amount_paid")
+          .eq("workspace_id", targetWorkspaceId)
+          .gte("purchase_date", monthStartStr)
+          .lte("purchase_date", monthEndStr),
+        // Filter reseller_customers strictly by BUSINESS contact_type to isolate commercial wholesale
+        supabaseUserClient.from("reseller_customers").select("id, name, phone").eq("workspace_id", targetWorkspaceId).eq("contact_type", "BUSINESS"),
+        supabaseUserClient.from("wholesale_sales").select("id, total_sale, amount_received, profit, quantity, buying_cost, sale_date, customer_id").eq("workspace_id", targetWorkspaceId),
+        supabaseUserClient.from("reseller_payments").select("id, amount, payment_date, customer_id").eq("workspace_id", targetWorkspaceId),
+        supabaseUserClient
+          .from("naeem_daily_records")
+          .select("id, delivery_date, final_fare, status, route_id")
+          .eq("workspace_id", targetWorkspaceId)
+          .gte("delivery_date", monthStartStr)
+          .lte("delivery_date", monthEndStr),
+        supabaseUserClient
+          .from("naeem_payments")
+          .select("id, amount, payment_date")
+          .eq("workspace_id", targetWorkspaceId)
+          .gte("payment_date", monthStartStr)
+          .lte("payment_date", monthEndStr),
+        supabaseUserClient
+          .from("naeem_monthly_balances")
+          .select("opening_balance, is_manual_override")
+          .eq("workspace_id", targetWorkspaceId)
+          .eq("year", currentYear)
+          .eq("month", currentMonth)
+          .maybeSingle(),
+        supabaseUserClient
+          .from("general_daily_records")
+          .select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount)")
+          .eq("workspace_id", targetWorkspaceId)
+          .gte("record_date", monthStartStr)
+          .lte("record_date", monthEndStr),
+        supabaseUserClient
+          .from("products")
+          .select("id, name, buying_cost, wholesale_price, stock_quantity")
+          .eq("workspace_id", targetWorkspaceId),
+      ])
+
+      dealersRes = dRes
+      dealerPaymentsRes = dpRes
+      purchasesRes = pRes
+      currentPurchasesRes = cpRes
+      resellersRes = rRes
+      wholesaleSalesRes = wsRes
+      resellerPaymentsRes = rpRes
+      naeemDailyRes = ndRes
+      naeemPaymentsRes = npRes
+      naeemBalanceRes = nbRes
+      genDailyRes = gdRes
+      productsRes = prodRes
+    } else {
+      // PERSONAL WORKSPACE: Query Personal Ledger records exclusively
+      const [rRes, crRes, rpRes] = await Promise.all([
+        supabaseUserClient.from("reseller_customers").select("id, name, phone, opening_balance").eq("workspace_id", targetWorkspaceId).eq("contact_type", "PERSONAL"),
+        supabaseUserClient.from("customer_credits").select("id, customer_id, entry_type, total_amount, amount_paid, balance, description, product_name").eq("workspace_id", targetWorkspaceId),
+        supabaseUserClient.from("reseller_payments").select("id, amount, payment_date, customer_id").eq("workspace_id", targetWorkspaceId),
+      ])
+      resellersRes = rRes
+      personalCreditsRes = crRes
+      resellerPaymentsRes = rpRes
+    }
     // Deterministic Financial Calculations
-    // 1. Resellers & Wholesale
+    // 1. Resellers (Wholesale) or Personal Debtors (Personal Ledger)
     const resellerBalances: Record<string, { name: string; sales: number; received: number; outstanding: number }> = {}
-    ;(resellersRes.data || []).forEach((r: any) => {
-      resellerBalances[r.id] = { name: r.name, sales: 0, received: 0, outstanding: 0 }
-    })
-    ;(wholesaleSalesRes.data || []).forEach((s: any) => {
-      if (resellerBalances[s.customer_id]) {
-        resellerBalances[s.customer_id].sales += Number(s.total_sale || 0)
-        resellerBalances[s.customer_id].received += Number(s.amount_received || 0)
-      }
-    })
-    ;(resellerPaymentsRes.data || []).forEach((p: any) => {
-      if (resellerBalances[p.customer_id]) {
-        resellerBalances[p.customer_id].received += Number(p.amount || 0)
-      }
-    })
+
+    if (targetWorkspaceType === "BUSINESS") {
+      ;(resellersRes.data || []).forEach((r: any) => {
+        resellerBalances[r.id] = { name: r.name, sales: 0, received: 0, outstanding: 0 }
+      })
+      ;(wholesaleSalesRes.data || []).forEach((s: any) => {
+        if (resellerBalances[s.customer_id]) {
+          resellerBalances[s.customer_id].sales += Number(s.total_sale || 0)
+          resellerBalances[s.customer_id].received += Number(s.amount_received || 0)
+        }
+      })
+      ;(resellerPaymentsRes.data || []).forEach((p: any) => {
+        if (resellerBalances[p.customer_id]) {
+          resellerBalances[p.customer_id].received += Number(p.amount || 0)
+        }
+      })
+    } else {
+      // PERSONAL WORKSPACE: Debt calculation from customer_credits and opening balance
+      ;(resellersRes.data || []).forEach((r: any) => {
+        resellerBalances[r.id] = { name: r.name, sales: Number(r.opening_balance || 0), received: 0, outstanding: 0 }
+      })
+      ;(personalCreditsRes.data || []).forEach((c: any) => {
+        if (resellerBalances[c.customer_id]) {
+          resellerBalances[c.customer_id].sales += Number(c.total_amount || 0)
+        }
+      })
+      ;(resellerPaymentsRes.data || []).forEach((p: any) => {
+        if (resellerBalances[p.customer_id]) {
+          resellerBalances[p.customer_id].received += Number(p.amount || 0)
+        }
+      })
+    }
+
     Object.keys(resellerBalances).forEach((id) => {
       resellerBalances[id].outstanding = Math.max(0, resellerBalances[id].sales - resellerBalances[id].received)
     })
@@ -319,12 +567,18 @@ Deno.serve(async (req: Request) => {
     const outOfStockItems = products.filter((p: any) => Number(p.stock_quantity || 0) === 0)
     const lowStockItems = products.filter((p: any) => Number(p.stock_quantity || 0) > 0 && Number(p.stock_quantity || 0) <= 2)
 
-    // Top debtors list
+    // Top debtors list (Personal Debtor vs Wholesale Reseller distinction)
     const topDebtors = [
       ...Object.values(resellerBalances)
         .filter((r) => r.outstanding > 0)
-        .map((r) => ({ name: r.name, module: "Wholesale Reseller", amount: r.outstanding })),
-      ...(naeemPending > 0 ? [{ name: "NAEEM Dedicated Route", module: "NAEEM Contract", amount: naeemPending }] : []),
+        .map((r) => ({
+          name: r.name,
+          module: targetWorkspaceType === "PERSONAL" ? "Personal Debtor" : "Wholesale Reseller",
+          amount: r.outstanding,
+        })),
+      ...(targetWorkspaceType === "BUSINESS" && naeemPending > 0
+        ? [{ name: "NAEEM Dedicated Route", module: "NAEEM Contract", amount: naeemPending }]
+        : []),
     ]
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5)
@@ -337,6 +591,7 @@ Deno.serve(async (req: Request) => {
 
     // 6. Build Compact Context based on queried intent
     const contextData: Record<string, any> = {
+      workspace: { id: targetWorkspaceId, name: targetWorkspaceName, type: targetWorkspaceType },
       reportingPeriod: `${now.toLocaleString("default", { month: "long" })} ${currentYear}`,
       currency: "INR (₹)",
       executiveSummary: {

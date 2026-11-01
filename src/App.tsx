@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from "react-router-dom"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AuthProvider } from "./components/auth/AuthProvider"
 import { ProtectedRoute } from "./components/auth/ProtectedRoute"
+import { ModuleRouteGuard } from "./components/auth/ModuleRouteGuard"
 import { ErrorBoundary } from "./components/ErrorBoundary"
 import { RealtimeSyncProvider } from "./components/realtime/RealtimeSyncProvider"
 
@@ -27,6 +28,7 @@ const GeneralDeliveriesPage = lazy(() => import("./pages/general-deliveries"))
 const NaeemUnclePage = lazy(() => import("./pages/naeem"))
 const ReportsPage = lazy(() => import("./pages/reports"))
 const SettingsPage = lazy(() => import("./pages/settings"))
+const AccountManagementPage = lazy(() => import("./pages/settings/AccountManagement"))
 const BackupPage = lazy(() => import("./pages/backup"))
 const AuditLogPage = lazy(() => import("./pages/audit"))
 const AIAssistantPage = lazy(() => import("./pages/assistant"))
@@ -63,53 +65,160 @@ function App() {
             <HashRouter>
               <Suspense fallback={<RouteLoadingFallback />}>
                 <Routes>
-                <Route path="/login" element={<Login />} />
-                
-                <Route path="/" element={
-                  <ProtectedRoute>
-                    <AppLayout />
-                  </ProtectedRoute>
-                }>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="assistant" element={<AIAssistantPage />} />
-                  <Route path="products" element={<ProductsPage />} />
-                  <Route path="products/:id" element={<ProductDetailPage />} />
-                  <Route path="calculator" element={<ProductCalculatorPage />} />
-                  <Route path="inventory" element={<InventoryPage />} />
-                  <Route path="purchases" element={<PurchasesPage />} />
-                  <Route path="dealers" element={<DealersPage />} />
-                  <Route path="dealers/:id" element={<DealerDetailPage />} />
-                  <Route path="dealer-payments" element={<DealerPaymentsPage />} />
-                  <Route path="local-customers" element={<ResellersPage />} />
-                  <Route path="local-customers/:id" element={<ResellerDetailPage />} />
-                  <Route path="personal-ledger" element={<Navigate to="/local-customers" replace />} />
-                  <Route path="personal-ledger/:id" element={<ResellerDetailPage />} />
-                  <Route path="resellers" element={<ResellersPage />} />
-                  <Route path="resellers/:id" element={<ResellerDetailPage />} />
-                  <Route path="customers" element={<Navigate to="/local-customers" replace />} />
-                  <Route path="customers/:id" element={<ResellerDetailPage />} />
-                  <Route path="reseller-payments" element={<Navigate to="/local-customers" replace />} />
-                  <Route path="wholesale" element={<WholesaleSalesPage />} />
-                  <Route path="general-deliveries" element={<GeneralDeliveriesPage />} />
-                  <Route path="naeem" element={<NaeemUnclePage />} />
-                  <Route path="analytics" element={<div className="p-6">Analytics (Phase 5)</div>} />
-                  <Route path="reports" element={<ReportsPage />} />
-                  <Route path="settings" element={<SettingsPage />} />
-                  <Route path="backup" element={<BackupPage />} />
-                  <Route path="audit" element={<AuditLogPage />} />
-                  <Route path="zakat" element={<ZakatPage />} />
-                </Route>
+                  <Route path="/login" element={<Login />} />
+                  
+                  <Route path="/" element={
+                    <ProtectedRoute>
+                      <AppLayout />
+                    </ProtectedRoute>
+                  }>
+                    <Route index element={<DashboardPage />} />
+                    
+                    <Route path="assistant" element={
+                      <ModuleRouteGuard module="ai_assistant">
+                        <AIAssistantPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="products" element={
+                      <ModuleRouteGuard module="products">
+                        <ProductsPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="products/:id" element={
+                      <ModuleRouteGuard module="products">
+                        <ProductDetailPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="calculator" element={
+                      <ModuleRouteGuard module="price_calculator">
+                        <ProductCalculatorPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="inventory" element={
+                      <ModuleRouteGuard module="inventory">
+                        <InventoryPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="purchases" element={
+                      <ModuleRouteGuard module="purchases">
+                        <PurchasesPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="dealers" element={
+                      <ModuleRouteGuard module="dealers">
+                        <DealersPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="dealers/:id" element={
+                      <ModuleRouteGuard module="dealers">
+                        <DealerDetailPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="dealer-payments" element={
+                      <ModuleRouteGuard module="dealer_payments">
+                        <DealerPaymentsPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="local-customers" element={
+                      <ModuleRouteGuard module="personal_ledger">
+                        <ResellersPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="local-customers/:id" element={
+                      <ModuleRouteGuard module="personal_ledger">
+                        <ResellerDetailPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="personal-ledger" element={<Navigate to="/local-customers" replace />} />
+                    <Route path="personal-ledger/:id" element={
+                      <ModuleRouteGuard module="personal_ledger">
+                        <ResellerDetailPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="resellers" element={<Navigate to="/local-customers" replace />} />
+                    <Route path="resellers/:id" element={
+                      <ModuleRouteGuard module="personal_ledger">
+                        <ResellerDetailPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="customers" element={<Navigate to="/local-customers" replace />} />
+                    <Route path="customers/:id" element={
+                      <ModuleRouteGuard module="personal_ledger">
+                        <ResellerDetailPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="reseller-payments" element={<Navigate to="/local-customers" replace />} />
+                    
+                    <Route path="wholesale" element={
+                      <ModuleRouteGuard module="wholesale_sales">
+                        <WholesaleSalesPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="general-deliveries" element={
+                      <ModuleRouteGuard module="deliveries">
+                        <GeneralDeliveriesPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="naeem" element={
+                      <ModuleRouteGuard module="deliveries">
+                        <NaeemUnclePage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="analytics" element={<div className="p-6">Analytics (Phase 5)</div>} />
+                    
+                    <Route path="reports" element={
+                      <ModuleRouteGuard module="reports">
+                        <ReportsPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="settings" element={
+                      <ModuleRouteGuard adminOnly>
+                        <SettingsPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="settings/accounts" element={
+                      <ModuleRouteGuard adminOnly>
+                        <AccountManagementPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="backup" element={
+                      <ModuleRouteGuard adminOnly>
+                        <BackupPage />
+                      </ModuleRouteGuard>
+                    } />
+                    <Route path="audit" element={
+                      <ModuleRouteGuard adminOnly>
+                        <AuditLogPage />
+                      </ModuleRouteGuard>
+                    } />
+                    
+                    <Route path="zakat" element={
+                      <ModuleRouteGuard module="zakat_tracker">
+                        <ZakatPage />
+                      </ModuleRouteGuard>
+                    } />
+                  </Route>
 
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
-            </Suspense>
-          </HashRouter>
-        </RealtimeSyncProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </Suspense>
+            </HashRouter>
+          </RealtimeSyncProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   )
 }
 
 export default App
-

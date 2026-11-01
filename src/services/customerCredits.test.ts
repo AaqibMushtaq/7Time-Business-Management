@@ -400,6 +400,62 @@ describe("Customer Credits Service", () => {
       })).rejects.toThrow("cannot exceed payment amount")
     })
 
+    it("rejects payment allocation when caller is unauthorized for customer workspace (RPC negative security test)", async () => {
+      ;(supabase as any).rpc.mockResolvedValueOnce({
+        data: null,
+        error: {
+          message: "Access denied: You do not have permission to record payments for workspace ws-unauthorized",
+          code: "42501"
+        }
+      })
+
+      await expect(recordMultiEntryPayment({
+        customerId: "cust-unauthorized",
+        totalAmount: 500,
+        paymentDate: "2026-10-31",
+        allocations: [{ creditId: "cred-1", amount: 500 }]
+      })).rejects.toThrow("Access denied: You do not have permission to record payments for workspace ws-unauthorized")
+
+      
+    })
+
+    it("rejects cross-workspace allocation where credit belongs to a different workspace (RPC negative security test)", async () => {
+      ;(supabase as any).rpc.mockResolvedValueOnce({
+        data: null,
+        error: {
+          message: "Cross-workspace allocation rejected: credit cred-other belongs to workspace ws-other, but payment is for workspace ws-enterprise",
+          code: "P0001"
+        }
+      })
+
+      await expect(recordMultiEntryPayment({
+        customerId: "cust-enterprise",
+        totalAmount: 1000,
+        paymentDate: "2026-10-31",
+        allocations: [{ creditId: "cred-other", amount: 1000 }]
+      })).rejects.toThrow("Cross-workspace allocation rejected")
+
+      
+    })
+
+    it("rejects payment when target customer does not exist or has invalid workspace (RPC negative security test)", async () => {
+      ;(supabase as any).rpc.mockResolvedValueOnce({
+        data: null,
+        error: {
+          message: "Customer cust-nonexistent does not exist",
+          code: "P0001"
+        }
+      })
+
+      await expect(recordMultiEntryPayment({
+        customerId: "cust-nonexistent",
+        totalAmount: 300,
+        paymentDate: "2026-10-31"
+      })).rejects.toThrow("Customer cust-nonexistent does not exist")
+
+      
+    })
+
     it("reallocates an existing payment by safely replacing previous allocations", async () => {
       // 1. Existing payment has 1 prior allocation to cred-1
       const selectAllocationsMock = vi.fn().mockReturnValue({

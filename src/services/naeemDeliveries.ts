@@ -5,6 +5,7 @@ export interface naeemRoute {
   name: string
   standard_fare: number
   is_active: boolean
+  workspace_id?: string | null
 }
 
 export interface naeemPaymentAllocation {
@@ -13,6 +14,7 @@ export interface naeemPaymentAllocation {
   daily_record_id: string
   allocated_amount: number
   created_at?: string
+  workspace_id?: string | null
 }
 
 export interface naeemMonthlyBalance {
@@ -22,6 +24,7 @@ export interface naeemMonthlyBalance {
   opening_balance: number
   created_at?: string
   updated_at?: string
+  workspace_id?: string | null
 }
 
 export interface naeemPayment {
@@ -35,6 +38,7 @@ export interface naeemPayment {
   bank_name?: string | null
   notes?: string | null
   created_at?: string
+  workspace_id?: string | null
   allocations?: naeemPaymentAllocation[]
 }
 
@@ -50,6 +54,7 @@ export interface naeemDailyRecord {
   balance: number
   status: string
   notes: string | null
+  workspace_id?: string | null
   route?: naeemRoute
   allocations?: naeemPaymentAllocation[]
 }
@@ -70,12 +75,12 @@ export async function getnaeemRecords(month: string) {
   const lastDay = new Date(parseInt(year), parseInt(m), 0).getDate()
   const endDate = `${month}-${lastDay}`
 
-  // 1. Fetch daily records and routes (The core working query)
+  // 1. Fetch daily records and routes (Disambiguated via route_id foreign key)
   const { data: recordsData, error: recordsError } = await supabase
     .from("naeem_daily_records")
     .select(`
       *,
-      route:naeem_routes(*)
+      route:naeem_routes!naeem_daily_records_route_id_fkey(*)
     `)
     .gte("delivery_date", startDate)
     .lte("delivery_date", endDate)
@@ -146,21 +151,26 @@ export async function getnaeemPayments(month: string) {
 }
 
 export async function recordnaeemDelivery(record: Partial<naeemDailyRecord>) {
+  const payload: Record<string, any> = {
+    id: record.id || crypto.randomUUID(),
+    route_id: record.route_id,
+    delivery_date: record.delivery_date,
+    standard_fare: record.standard_fare,
+    extra_charge: record.extra_charge,
+    final_fare: record.final_fare,
+    cash_received: record.cash_received,
+    payment_method: record.payment_method,
+    balance: record.balance,
+    status: record.status,
+    notes: record.notes
+  }
+  if (record.workspace_id) {
+    payload.workspace_id = record.workspace_id
+  }
+
   const { data, error } = await supabase
     .from("naeem_daily_records")
-    .upsert([{
-      id: record.id || crypto.randomUUID(),
-      route_id: record.route_id,
-      delivery_date: record.delivery_date,
-      standard_fare: record.standard_fare,
-      extra_charge: record.extra_charge,
-      final_fare: record.final_fare,
-      cash_received: record.cash_received,
-      payment_method: record.payment_method,
-      balance: record.balance,
-      status: record.status,
-      notes: record.notes
-    }])
+    .upsert([payload])
     .select()
 
   if (error) throw new Error(error.message)
@@ -168,31 +178,98 @@ export async function recordnaeemDelivery(record: Partial<naeemDailyRecord>) {
 }
 
 export async function recordnaeemPayment(payment: naeemPayment, allocations: naeemPaymentAllocation[]) {
-  const paymentId = payment.id || crypto.randomUUID()
+  const paymentId = payment.id || null
+  const allocationsPayload = (allocations || []).map(a => ({
+    id: a.id || null,
+    daily_record_id: a.daily_record_id,
+    allocated_amount: Number(a.allocated_amount)
+  }))
+
+  // 1. Primary path: Attempt atomic PostgreSQL RPC execution (transactional with automatic rollback)
+  if (typeof (supabase as any).rpc === "function") {
+    const { data: rpcData, error: rpcError } = await (supabase as any).rpc(
+      "record_naeem_payment_with_allocations",
+      {
+        p_payment_id: paymentId,
+        p_payment_date: payment.payment_date,
+        p_amount: Number(payment.amount),
+        p_payment_method: payment.payment_method || "Cash",
+        p_reference_number: payment.reference_number?.trim() || null,
+        p_cheque_number: payment.cheque_number?.trim() || null,
+        p_cheque_date: payment.cheque_date || null,
+        p_bank_name: payment.bank_name?.trim() || null,
+        p_notes: payment.notes?.trim() || null,
+        p_workspace_id: payment.workspace_id || null,
+        p_allocations: allocationsPayload
+      }
+    )
+
+    if (!rpcError && rpcData) {
+      return rpcData as naeemPayment
+    }
+
+    if (rpcError) {
+      const isMissingRpc =
+        rpcError.code === "PGRST202" ||
+        rpcError.code === "42883" ||
+        (typeof rpcError.message === "string" &&
+          (rpcError.message.includes("Could not find the function") ||
+           rpcError.message.toLowerCase().includes("function record_naeem_payment_with_allocations") ||
+           rpcError.message.toLowerCase().includes("function public.record_naeem_payment_with_allocations")))
+
+      if (!isMissingRpc) {
+        // Business rule violations, constraint errors, or authorization failures MUST fail cleanly
+        throw new Error(rpcError.message || "Payment transaction failed")
+      }
+    }
+  }
+
+  // Fallback path for unmigrated mock/test environments
+  const fallbackPaymentId = payment.id || crypto.randomUUID()
   
+  const paymentPayload: Record<string, any> = {
+    id: fallbackPaymentId,
+    payment_date: payment.payment_date,
+    amount: payment.amount,
+    payment_method: payment.payment_method,
+    reference_number: payment.reference_number || null,
+    cheque_number: payment.cheque_number || null,
+    cheque_date: payment.cheque_date || null,
+    bank_name: payment.bank_name || null,
+    notes: payment.notes || null
+  }
+  if (payment.workspace_id) {
+    paymentPayload.workspace_id = payment.workspace_id
+  }
+
   const { data: pData, error: pError } = await supabase
     .from("naeem_payments")
-    .upsert([{
-      id: paymentId,
-      payment_date: payment.payment_date,
-      amount: payment.amount,
-      payment_method: payment.payment_method,
-      reference_number: payment.reference_number || null,
-      cheque_number: payment.cheque_number || null,
-      cheque_date: payment.cheque_date || null,
-      bank_name: payment.bank_name || null,
-      notes: payment.notes || null
-    }])
+    .upsert([paymentPayload])
     .select()
 
   if (pError) throw new Error(pError.message)
 
+  if (payment.id) {
+    const { error: delError } = await supabase
+      .from("naeem_payment_allocations")
+      .delete()
+      .eq("payment_id", fallbackPaymentId)
+
+    if (delError) throw new Error(delError.message)
+  }
+
   if (allocations.length > 0) {
-    const allocsToInsert = allocations.map(a => ({
-      ...a,
-      id: crypto.randomUUID(),
-      payment_id: paymentId
-    }))
+    const allocsToInsert = allocations.map(a => {
+      const item: Record<string, any> = {
+        ...a,
+        id: a.id || crypto.randomUUID(),
+        payment_id: fallbackPaymentId
+      }
+      if (payment.workspace_id) {
+        item.workspace_id = payment.workspace_id
+      }
+      return item
+    })
     const { error: aError } = await supabase
       .from("naeem_payment_allocations")
       .insert(allocsToInsert)
@@ -228,14 +305,19 @@ export async function upsertnaeemRoute(route: Partial<naeemRoute>) {
     }
   }
 
+  const routePayload: Record<string, any> = {
+    ...(route.id ? { id: route.id } : { id: crypto.randomUUID() }),
+    name: route.name?.trim(),
+    standard_fare: route.standard_fare,
+    is_active: route.is_active !== undefined ? route.is_active : true
+  }
+  if (route.workspace_id) {
+    routePayload.workspace_id = route.workspace_id
+  }
+
   const { data, error } = await supabase
     .from("naeem_routes")
-    .upsert([{
-      ...(route.id ? { id: route.id } : { id: crypto.randomUUID() }),
-      name: route.name?.trim(),
-      standard_fare: route.standard_fare,
-      is_active: route.is_active !== undefined ? route.is_active : true
-    }])
+    .upsert([routePayload])
     .select()
 
   if (error) throw new Error(error.message)
@@ -330,7 +412,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
       .select(`
         final_fare,
         status,
-        route:naeem_routes(name)
+        route:naeem_routes!naeem_daily_records_route_id_fkey(name)
       `)
       .gte("delivery_date", startDateStr)
       .lte("delivery_date", endDateStr)
@@ -368,29 +450,61 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
   }
 }
 
-export async function upsertnaeemMonthlyBalance(year: number, month: number, opening_balance: number) {
-  const { data, error } = await supabase
+export async function upsertnaeemMonthlyBalance(year: number, month: number, opening_balance: number, workspace_id?: string) {
+  // Check if balance record already exists for this year/month in the active workspace
+  const { data: existing, error: findError } = await supabase
     .from("naeem_monthly_balances")
-    .upsert({ 
-      year, 
-      month, 
+    .select("id")
+    .eq("year", year)
+    .eq("month", month)
+    .maybeSingle()
+
+  if (findError) {
+    console.error("NAEEM FIND BALANCE ERROR", findError)
+    throw new Error(findError.message)
+  }
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from("naeem_monthly_balances")
+      .update({
+        opening_balance,
+        is_manual_override: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", existing.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("NAEEM UPDATE BALANCE ERROR", error)
+      throw new Error(error.message)
+    }
+    return data
+  } else {
+    const insertPayload: Record<string, any> = {
+      year,
+      month,
       opening_balance,
       is_manual_override: true,
       updated_at: new Date().toISOString()
-    }, { onConflict: 'year,month' })
-    .select()
-    .single()
-    
-  if (error) {
-    console.error("NAEEM OPENING BALANCE SAVE ERROR", {
-      code: error?.code,
-      message: error?.message,
-      details: error?.details,
-      hint: error?.hint,
-    })
-    throw new Error(error.message)
+    }
+    if (workspace_id) {
+      insertPayload.workspace_id = workspace_id
+    }
+
+    const { data, error } = await supabase
+      .from("naeem_monthly_balances")
+      .insert([insertPayload])
+      .select()
+      .single()
+
+    if (error) {
+      console.error("NAEEM INSERT BALANCE ERROR", error)
+      throw new Error(error.message)
+    }
+    return data
   }
-  return data
 }
 
 export async function deletenaeemMonthlyBalance(year: number, month: number) {
