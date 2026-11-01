@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { supabase } from "@/lib/supabase"
+import { parseArithmeticExpression } from "@/lib/arithmeticParser"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Download, Database, ShoppingCart, Users, Truck, Package, Loader2 } from "lucide-react"
@@ -81,8 +82,14 @@ export default function ReportsPage() {
         data = res || []
         csvContent = ["Date,Total Deliveries,Entries Count,Fuel Expenses,Net Total,Remarks"]
           .concat(data.map((r: any) => {
-            const allDel = r.entries?.reduce((acc: number, e: any) => acc + e.amount, 0) || 0
-            const count = r.entries?.length || 0
+            let allDel = r.entries?.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0) || 0
+            if (allDel === 0 && r.delivery_expression) {
+              const parsed = parseArithmeticExpression(r.delivery_expression)
+              if (parsed.isValid && parsed.value !== null) {
+                allDel = parsed.value
+              }
+            }
+            const count = r.entries?.length || (allDel > 0 ? 1 : 0)
             const net = allDel - (r.fuel_expenses || 0)
             return `${escapeCSV(r.record_date)},${escapeCSV(allDel)},${escapeCSV(count)},${escapeCSV(r.fuel_expenses || 0)},${escapeCSV(net)},${escapeCSV(r.remarks)}`
           }))

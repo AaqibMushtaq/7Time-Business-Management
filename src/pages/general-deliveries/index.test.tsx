@@ -38,6 +38,7 @@ describe("GeneralDeliveriesPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.setItem("general_delivery_month", "2026-10")
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false }

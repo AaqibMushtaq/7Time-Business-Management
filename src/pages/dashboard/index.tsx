@@ -1,11 +1,24 @@
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Lock } from "lucide-react"
+import { Navigate } from "react-router-dom"
 import { useDashboardSummary } from "./useDashboardSummary"
 import { DashboardHeader } from "./DashboardHeader"
 import { DashboardFilters } from "./DashboardFilters"
 import { BusinessSummaryGrid } from "./BusinessSummaryGrid"
 import { DashboardSkeleton } from "./DashboardSkeleton"
+import { useModuleAccess } from "@/hooks/useModuleAccess"
 
 export default function DashboardPage() {
+  const { user, isAdmin, hasModule, hasAnyModule, getDefaultRoute, profile, loading } = useModuleAccess()
+
+  const hasBusinessModules =
+    isAdmin ||
+    hasModule("purchases") ||
+    hasModule("wholesale_sales") ||
+    hasModule("dealers") ||
+    hasModule("products") ||
+    hasModule("inventory") ||
+    hasModule("deliveries")
+
   const {
     viewMode,
     setViewMode,
@@ -20,6 +33,40 @@ export default function DashboardPage() {
     handlePrevMonth,
     handleNextMonth,
   } = useDashboardSummary()
+
+  // When loading in an authenticated session, show skeleton
+  if (loading) {
+    return <DashboardSkeleton />
+  }
+
+  // If authenticated user has zero modules assigned
+  if (user && !hasAnyModule) {
+    return (
+      <div className="max-w-lg mx-auto my-16 p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-5 shadow-xs">
+        <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 mx-auto flex items-center justify-center">
+          <Lock className="w-7 h-7" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xl font-bold text-slate-900 tracking-tight">Account Pending Activation</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Your account is registered, but no functional modules have been assigned by the administrator yet.
+            Please reach out to your administrator to configure your access.
+          </p>
+        </div>
+        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 font-mono">
+          Account: {profile?.email || user?.email || "Unknown User"}
+        </div>
+      </div>
+    )
+  }
+
+  // If authenticated user only has personal modules (e.g. personal ledger or zakat tracker)
+  if (user && !hasBusinessModules) {
+    const defaultRoute = getDefaultRoute()
+    if (defaultRoute && defaultRoute !== "/") {
+      return <Navigate to={defaultRoute} replace />
+    }
+  }
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-3 pb-4">

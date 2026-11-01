@@ -1,92 +1,148 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Link, Outlet, useLocation } from "react-router-dom"
 import { useAuth } from "../auth/useAuth"
+import { useModuleAccess } from "@/hooks/useModuleAccess"
+import type { ModuleKey } from "@/types/auth"
 import { 
   LayoutDashboard, 
   Package, 
   ShoppingCart, 
   Users, 
   Truck, 
-  Settings,
-  LogOut,
-  Wallet,
-  FileText,
-  DatabaseBackup,
-  ShieldAlert,
-  Menu,
-  X,
-  RefreshCw,
-  Sparkles,
-  Calculator,
-  Coins
+  Settings, 
+  LogOut, 
+  Wallet, 
+  FileText, 
+  DatabaseBackup, 
+  ShieldAlert, 
+  Menu, 
+  X, 
+  RefreshCw, 
+  Sparkles, 
+  Calculator, 
+  Coins,
+  UserCog
 } from "lucide-react"
 import { Button } from "../ui/button"
 import { UpdateNotificationBanner } from "../common/UpdateNotificationBanner"
 import { getCurrentAppVersion, forceAppReload } from "@/lib/versionManager"
 
-const navGroups = [
+interface NavItemDef {
+  name: string
+  href: string
+  icon: any
+  module?: ModuleKey
+  adminOnly?: boolean
+}
+
+interface NavGroupDef {
+  name: string
+  items: NavItemDef[]
+}
+
+const rawNavGroups: NavGroupDef[] = [
   {
     name: "",
     items: [
       { name: "Dashboard", href: "/", icon: LayoutDashboard },
-      { name: "AI Assistant", href: "/assistant", icon: Sparkles },
+      { name: "AI Assistant", href: "/assistant", icon: Sparkles, module: "ai_assistant" },
     ]
   },
   {
     name: "Business",
     items: [
-      { name: "Dealers", href: "/dealers", icon: Users },
-      { name: "Products", href: "/products", icon: Package },
-      { name: "Price Calculator", href: "/calculator", icon: Calculator },
-      { name: "Purchases", href: "/purchases", icon: ShoppingCart },
-      { name: "Dealer Payments", href: "/dealer-payments", icon: Wallet },
-      { name: "Inventory", href: "/inventory", icon: Package },
+      { name: "Dealers", href: "/dealers", icon: Users, module: "dealers" },
+      { name: "Products", href: "/products", icon: Package, module: "products" },
+      { name: "Price Calculator", href: "/calculator", icon: Calculator, module: "price_calculator" },
+      { name: "Purchases", href: "/purchases", icon: ShoppingCart, module: "purchases" },
+      { name: "Dealer Payments", href: "/dealer-payments", icon: Wallet, module: "dealer_payments" },
+      { name: "Inventory", href: "/inventory", icon: Package, module: "inventory" },
     ]
   },
   {
     name: "PERSONAL LEDGER",
     items: [
-      { name: "Personal Ledger", href: "/local-customers", icon: Users },
-      { name: "Zakat Tracker", href: "/zakat", icon: Coins },
+      { name: "Personal Ledger", href: "/local-customers", icon: Users, module: "personal_ledger" },
+      { name: "Zakat Tracker", href: "/zakat", icon: Coins, module: "zakat_tracker" },
     ]
   },
   {
     name: "WHOLESALE",
     items: [
-      { name: "Wholesale Sales", href: "/wholesale", icon: ShoppingCart },
+      { name: "Wholesale Sales", href: "/wholesale", icon: ShoppingCart, module: "wholesale_sales" },
     ]
   },
   {
     name: "Deliveries",
     items: [
-      { name: "General Daily Delivery", href: "/general-deliveries", icon: Truck },
-      { name: "NAEEM Uncle", href: "/naeem", icon: Truck },
+      { name: "General Daily Delivery", href: "/general-deliveries", icon: Truck, module: "deliveries" },
+      { name: "NAEEM Uncle", href: "/naeem", icon: Truck, module: "deliveries" },
     ]
   },
   {
     name: "REPORTS",
     items: [
-      { name: "Reports", href: "/reports", icon: FileText },
+      { name: "Reports", href: "/reports", icon: FileText, module: "reports" },
     ]
   },
   {
     name: "SYSTEM",
     items: [
-      { name: "Settings", href: "/settings", icon: Settings },
-      { name: "Backup & Data", href: "/backup", icon: DatabaseBackup },
-      { name: "Audit Log", href: "/audit", icon: ShieldAlert },
+      { name: "Accounts & Users", href: "/settings/accounts", icon: UserCog, adminOnly: true },
+      { name: "Settings", href: "/settings", icon: Settings, adminOnly: true },
+      { name: "Backup & Data", href: "/backup", icon: DatabaseBackup, adminOnly: true },
+      { name: "Audit Log", href: "/audit", icon: ShieldAlert, adminOnly: true },
     ]
   }
 ]
 
 interface SidebarContentProps {
   user: any
+  profile: any
+  isAdmin: boolean
+  hasModule: (key: ModuleKey) => boolean
   signOut: () => Promise<void>
   pathname: string
   onClose: () => void
 }
 
-function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProps) {
+function SidebarContent({ user, profile, isAdmin, hasModule, signOut, pathname, onClose }: SidebarContentProps) {
+  // Dynamically filter navigation groups based on active entitlements
+  const filteredGroups = useMemo(() => {
+    return rawNavGroups
+      .map((group) => {
+        const visibleItems = group.items.filter((item) => {
+          if (item.adminOnly && !isAdmin) return false
+          if (item.module && !hasModule(item.module)) return false
+
+          // Special case for Dashboard: only show if admin or if user has any commercial business module
+          if (item.name === "Dashboard") {
+            const hasCommercial =
+              isAdmin ||
+              hasModule("dealers") ||
+              hasModule("products") ||
+              hasModule("purchases") ||
+              hasModule("wholesale_sales") ||
+              hasModule("dealer_payments") ||
+              hasModule("inventory") ||
+              hasModule("deliveries")
+            return hasCommercial
+          }
+
+          return true
+        })
+
+        return {
+          name: group.name,
+          items: visibleItems,
+        }
+      })
+      .filter((group) => group.items.length > 0)
+  }, [isAdmin, hasModule])
+
+  const userDisplayName = profile?.full_name || user?.email || "Manager"
+  const userRoleLabel = isAdmin ? "Enterprise Admin" : "Standard User"
+
   return (
     <>
       {/* Brand Header */}
@@ -112,7 +168,7 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
       {/* Navigation Groups */}
       <div className="flex-1 py-4 overflow-y-auto bg-white">
         <nav className="space-y-5 px-3">
-          {navGroups.map((group) => (
+          {filteredGroups.map((group) => (
             <div key={group.name || "main"}>
               {group.name && (
                 <h3 className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">
@@ -155,8 +211,8 @@ function SidebarContent({ user, signOut, pathname, onClose }: SidebarContentProp
             {user?.email?.charAt(0).toUpperCase() || "A"}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-bold text-slate-900 leading-tight">{user?.email || "Manager"}</div>
-            <div className="text-[10px] text-slate-500 font-medium">Enterprise Admin</div>
+            <div className="truncate text-xs font-bold text-slate-900 leading-tight">{userDisplayName}</div>
+            <div className="text-[10px] text-slate-500 font-medium">{userRoleLabel}</div>
           </div>
         </div>
         <Button 
@@ -197,6 +253,8 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/general-deliveries")) return "General Daily Delivery"
   if (pathname.startsWith("/naeem")) return "NAEEM Dedicated Route"
   if (pathname.startsWith("/reports")) return "Business Reports"
+  if (pathname.startsWith("/zakat")) return "Zakat Tracker"
+  if (pathname.startsWith("/settings/accounts")) return "Account & Module Management"
   if (pathname.startsWith("/settings")) return "System Settings"
   if (pathname.startsWith("/backup")) return "Data Backup"
   if (pathname.startsWith("/audit")) return "Security Audit Log"
@@ -204,7 +262,8 @@ function getPageTitle(pathname: string): string {
 }
 
 export function AppLayout() {
-  const { signOut, user } = useAuth()
+  const { signOut, user, profile } = useAuth()
+  const { hasModule, isAdmin } = useModuleAccess()
   const location = useLocation()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [prevPathname, setPrevPathname] = useState(location.pathname)
@@ -275,6 +334,9 @@ export function AppLayout() {
       >
         <SidebarContent 
           user={user} 
+          profile={profile}
+          isAdmin={isAdmin}
+          hasModule={hasModule}
           signOut={signOut} 
           pathname={location.pathname} 
           onClose={() => setIsMobileMenuOpen(false)} 
@@ -313,10 +375,10 @@ export function AppLayout() {
               </div>
               <div className="hidden xl:block text-left">
                 <span className="text-xs font-semibold text-slate-900 block leading-tight truncate max-w-[150px]">
-                  {user?.email || "Admin User"}
+                  {profile?.full_name || user?.email || "Admin User"}
                 </span>
                 <span className="text-[10px] text-slate-500 block leading-tight font-medium">
-                  Manager
+                  {isAdmin ? "Enterprise Admin" : "Standard User"}
                 </span>
               </div>
             </div>
