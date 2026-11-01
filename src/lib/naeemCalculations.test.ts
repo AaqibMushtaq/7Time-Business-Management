@@ -119,12 +119,14 @@ describe("naeemCalculations", () => {
       expect(summary.currentMonthBilled).toBe(0);
       expect(summary.totalDue).toBe(0);
       expect(summary.totalReceived).toBe(0);
+      expect(summary.paymentsAllocated).toBe(0);
+      expect(summary.unallocatedAdvance).toBe(0);
       expect(summary.outstanding).toBe(0);
       expect(summary.collectionPercentage).toBe(0);
       expect(summary.outstandingPercentage).toBe(0);
     });
 
-    it("calculates accounting correctly with payments, opening balance, and deliveries", () => {
+    it("calculates accounting correctly with allocated payments, opening balance, and deliveries", () => {
       const processedRecords = [
         {
           id: "1",
@@ -135,12 +137,12 @@ describe("naeemCalculations", () => {
           final_fare: 150,
           cash_received: 0,
           payment_method: null,
-          balance: 150,
-          status: "Pending",
+          balance: 0,
+          status: "Paid",
           notes: null,
-          calculatedReceived: 0,
-          calculatedBalance: 150,
-          calculatedStatus: "Pending"
+          calculatedReceived: 150,
+          calculatedBalance: 0,
+          calculatedStatus: "Paid"
         },
         {
           id: "2",
@@ -165,7 +167,10 @@ describe("naeemCalculations", () => {
           id: "p1",
           payment_date: "2024-01-05",
           amount: 200,
-          payment_method: "Cash"
+          payment_method: "Cash",
+          allocations: [
+            { payment_id: "p1", daily_record_id: "1", allocated_amount: 150 }
+          ]
         }
       ];
 
@@ -178,7 +183,6 @@ describe("naeemCalculations", () => {
       expect(summary.isManualOverride).toBe(true);
 
       // Current Month Billed: Delivery 1 (150) + Delivery 2 (0 because No Order) = 150
-      // Opening Balance Separation: Billed is only 150, not 650.
       expect(summary.currentMonthBilled).toBe(150);
 
       // Total Due: 500 + 150 = 650
@@ -187,11 +191,14 @@ describe("naeemCalculations", () => {
       // Total Received: 200
       expect(summary.totalReceived).toBe(200);
 
-      // Outstanding: 650 - 200 = 450
-      expect(summary.outstanding).toBe(450);
+      // Payments Allocated: 150
+      expect(summary.paymentsAllocated).toBe(150);
 
-      // Collection Percentage: (200 / 650) * 100 = 31
-      expect(summary.collectionPercentage).toBe(31);
+      // Unallocated Advance: 200 - 150 = 50
+      expect(summary.unallocatedAdvance).toBe(50);
+
+      // Outstanding: Opening (500) + Delivery Balance (0) = 500
+      expect(summary.outstanding).toBe(500);
 
       // Trip count should not include No Order
       expect(summary.tripCount).toBe(1);
@@ -241,7 +248,7 @@ describe("naeemCalculations", () => {
       expect(summary.currentMonthBilled).toBe(2850);
       expect(summary.totalDue).toBe(4030); // 1180 + 2850
       expect(summary.totalReceived).toBe(0);
-      expect(summary.outstanding).toBe(4030); // 4030 - 0
+      expect(summary.outstanding).toBe(4030); // 1180 + 2850
     });
 
     it("Test B — New delivery updates Current Billed and Total Due (+370 final fare)", () => {
@@ -310,16 +317,15 @@ describe("naeemCalculations", () => {
         }
       ];
 
-      // Edit record 1 final fare from 350 to 500
-      const editedRecords = records.map(r => r.id === "rec-1" ? { ...r, final_fare: 500, balance: 500 } : r);
+      const editedRecords = records.map(r => r.id === "rec-1" ? { ...r, final_fare: 500, balance: 500, calculatedBalance: 500 } : r);
       const summary = calculateSummary({ opening_balance: 1180, is_manual_override: true }, editedRecords, []);
 
       expect(summary.currentMonthBilled).toBe(500);
       expect(summary.totalDue).toBe(1680); // 1180 + 500
-      expect(summary.tripCount).toBe(1); // Still exactly 1 trip
+      expect(summary.tripCount).toBe(1);
     });
 
-    it("Test D — Payment of 1000 reflects in Total Received and Outstanding becomes 3030", () => {
+    it("Test D — Payment of 1000 reflects in Total Received and Outstanding becomes 3030 when allocated", () => {
       const records = [
         {
           id: "rec-1",
@@ -330,17 +336,23 @@ describe("naeemCalculations", () => {
           final_fare: 2850,
           cash_received: 0,
           payment_method: null,
-          balance: 2850,
-          status: "Pending",
+          balance: 1850,
+          status: "Partially Paid",
           notes: null,
-          calculatedReceived: 0,
-          calculatedBalance: 2850,
-          calculatedStatus: "Pending"
+          calculatedReceived: 1000,
+          calculatedBalance: 1850,
+          calculatedStatus: "Partially Paid"
         }
       ];
 
       const payments = [
-        { id: "p-1", payment_date: "2026-10-05", amount: 1000, payment_method: "Cash" }
+        { 
+          id: "p-1", 
+          payment_date: "2026-10-05", 
+          amount: 1000, 
+          payment_method: "Cash",
+          allocations: [{ payment_id: "p-1", daily_record_id: "rec-1", allocated_amount: 1000 }]
+        }
       ];
 
       const balanceData = { opening_balance: 1180, is_manual_override: true };
@@ -348,8 +360,10 @@ describe("naeemCalculations", () => {
 
       expect(summary.totalDue).toBe(4030); // 1180 + 2850
       expect(summary.totalReceived).toBe(1000);
-      expect(summary.outstanding).toBe(3030); // 4030 - 1000
-      expect(summary.collectionPercentage).toBe(25); // (1000 / 4030) * 100 = ~25%
+      expect(summary.paymentsAllocated).toBe(1000);
+      expect(summary.unallocatedAdvance).toBe(0);
+      expect(summary.outstanding).toBe(3030); // 1180 + 1850
+      expect(summary.collectionPercentage).toBe(25); // (1000 / 4030) * 100 = 25%
     });
 
     it("Test I — Opening balance override remains authoritative", () => {
@@ -370,17 +384,23 @@ describe("naeemCalculations", () => {
           final_fare: 500,
           cash_received: 0,
           payment_method: null,
-          balance: 500,
-          status: "Pending",
+          balance: 200,
+          status: "Partially Paid",
           notes: null,
-          calculatedReceived: 0,
-          calculatedBalance: 500,
-          calculatedStatus: "Pending"
+          calculatedReceived: 300,
+          calculatedBalance: 200,
+          calculatedStatus: "Partially Paid"
         }
       ];
 
       const payments = [
-        { id: "p1", payment_date: "2026-10-02", amount: 300, payment_method: "Cash" }
+        { 
+          id: "p1", 
+          payment_date: "2026-10-02", 
+          amount: 300, 
+          payment_method: "Cash",
+          allocations: [{ payment_id: "p1", daily_record_id: "r1", allocated_amount: 300 }]
+        }
       ];
 
       const summary = calculateSummary({ opening_balance: 1000, is_manual_override: false }, records, payments);
@@ -390,7 +410,284 @@ describe("naeemCalculations", () => {
       // Payment must NOT reduce Billed or Due
       expect(summary.totalDue).toBe(1500);
       expect(summary.totalReceived).toBe(300);
-      expect(summary.outstanding).toBe(1200);
+      expect(summary.paymentsAllocated).toBe(300);
+      expect(summary.outstanding).toBe(1200); // 1000 + 200
+    });
+  });
+
+  /* ============================================================================
+   * DEDICATED SPECIFICATION REGRESSION MATRIX: SCENARIOS A THROUGH F
+   * ============================================================================ */
+  describe("Specification Scenarios A through F", () => {
+    it("Scenario A — Normal payment: Opening 330, Delivery 350, Payment 350 allocated to delivery", () => {
+      // Opening balance ₹330, delivery ₹350, payment ₹350 allocated to the delivery.
+      // Expected: Total due: ₹680, Delivery balance: ₹0, Outstanding: ₹330.
+      const rawRecords = [
+        {
+          id: "nov-1",
+          route_id: "route-1",
+          delivery_date: "2026-11-01",
+          standard_fare: 350,
+          extra_charge: 0,
+          final_fare: 350,
+          cash_received: 0,
+          payment_method: null,
+          balance: 350,
+          status: "Pending",
+          notes: null,
+          allocations: [
+            { payment_id: "p-norm", daily_record_id: "nov-1", allocated_amount: 350 }
+          ]
+        }
+      ];
+      const processed = processRecords(rawRecords);
+      expect(processed[0].calculatedReceived).toBe(350);
+      expect(processed[0].calculatedBalance).toBe(0);
+      expect(processed[0].calculatedStatus).toBe("Paid");
+
+      const payments = [
+        {
+          id: "p-norm",
+          payment_date: "2026-11-01",
+          amount: 350,
+          payment_method: "Cash",
+          allocations: [{ payment_id: "p-norm", daily_record_id: "nov-1", allocated_amount: 350 }]
+        }
+      ];
+
+      const summary = calculateSummary({ opening_balance: 330, is_manual_override: false }, processed, payments);
+
+      expect(summary.currentMonthBilled).toBe(350);
+      expect(summary.totalDue).toBe(680); // 330 + 350
+      expect(summary.totalReceived).toBe(350);
+      expect(summary.paymentsAllocated).toBe(350);
+      expect(summary.unallocatedAdvance).toBe(0);
+      expect(summary.outstanding).toBe(330); // 330 + 0
+    });
+
+    it("Scenario B — Payment against previous-month outstanding: Nov payment allocated to Oct delivery", () => {
+      // A November payment is allocated to an outstanding October delivery.
+      // Expected: October outstanding decreases, November delivery balance remains unchanged, payment counted in received reporting.
+      
+      // October delivery perspective
+      const octRecords = processRecords([
+        {
+          id: "oct-delivery-1",
+          route_id: "r1",
+          delivery_date: "2026-10-31",
+          standard_fare: 350,
+          extra_charge: 0,
+          final_fare: 350,
+          cash_received: 0,
+          payment_method: null,
+          balance: 350,
+          status: "Pending",
+          notes: null,
+          allocations: [
+            { payment_id: "nov-pay-1", daily_record_id: "oct-delivery-1", allocated_amount: 350 }
+          ]
+        }
+      ]);
+      expect(octRecords[0].calculatedBalance).toBe(0);
+      expect(octRecords[0].calculatedStatus).toBe("Paid");
+
+      // November view
+      const novRecords = processRecords([
+        {
+          id: "nov-delivery-1",
+          route_id: "r1",
+          delivery_date: "2026-11-01",
+          standard_fare: 350,
+          extra_charge: 0,
+          final_fare: 350,
+          cash_received: 0,
+          payment_method: null,
+          balance: 350,
+          status: "Pending",
+          notes: null,
+          allocations: [] // No allocations for this November delivery
+        }
+      ]);
+
+      // November delivery balance is unchanged
+      expect(novRecords[0].calculatedBalance).toBe(350);
+      expect(novRecords[0].calculatedStatus).toBe("Pending");
+
+      const novPayments = [
+        {
+          id: "nov-pay-1",
+          payment_date: "2026-11-01",
+          amount: 8000,
+          payment_method: "Cheque",
+          allocations: [
+            { payment_id: "nov-pay-1", daily_record_id: "oct-delivery-1", allocated_amount: 7150 }
+          ]
+        }
+      ];
+
+      const novSummary = calculateSummary({ opening_balance: 330, is_manual_override: false }, novRecords, novPayments);
+
+      expect(novSummary.totalReceived).toBe(8000);
+      expect(novSummary.paymentsAllocated).toBe(7150);
+      expect(novSummary.unallocatedAdvance).toBe(850); // 8000 - 7150
+      expect(novSummary.outstanding).toBe(680); // 330 + 350
+      expect(novRecords[0].calculatedBalance).toBe(350);
+    });
+
+    it("Scenario C — Unallocated advance: Opening 330, Delivery 350, Payment 8000 with NO allocations", () => {
+      // Opening balance ₹330, November delivery ₹350, payment received ₹8,000 with no allocations.
+      // Expected: Outstanding obligations remain ₹680 until valid allocations are made.
+      //           Unallocated advance is separately visible as ₹8,000.
+      //           Must NOT report -₹7,320 as outstanding.
+      const novRecords = processRecords([
+        {
+          id: "nov-1",
+          route_id: "r1",
+          delivery_date: "2026-11-01",
+          standard_fare: 350,
+          extra_charge: 0,
+          final_fare: 350,
+          cash_received: 0,
+          payment_method: null,
+          balance: 350,
+          status: "Pending",
+          notes: null,
+          allocations: []
+        }
+      ]);
+
+      const novPayments = [
+        {
+          id: "p-advance",
+          payment_date: "2026-11-01",
+          amount: 8000,
+          payment_method: "Cash",
+          allocations: []
+        }
+      ];
+
+      const summary = calculateSummary({ opening_balance: 330, is_manual_override: false }, novRecords, novPayments);
+
+      expect(summary.totalDue).toBe(680); // 330 + 350
+      expect(summary.totalReceived).toBe(8000);
+      expect(summary.paymentsAllocated).toBe(0);
+      expect(summary.unallocatedAdvance).toBe(8000);
+      // Obligations remain 680 until allocations are made
+      expect(summary.outstanding).toBe(680);
+      expect(summary.outstanding).not.toBe(-7320);
+      expect(summary.netBalance).toBe(0); // 680 - 8000 <= 0
+      expect(summary.creditBalance).toBe(7320); // 8000 - 680
+    });
+
+    it("Scenario D — Partial allocation: Payment 8000 allocated partially against previous outstanding and current deliveries", () => {
+      // A payment of ₹8,000 is allocated partially against previous outstanding (7150) and current deliveries (350).
+      // Expected: Every allocation reduces its corresponding delivery balance, unallocated remainder (500) shown separately, no double counting.
+      const novRecords = processRecords([
+        {
+          id: "nov-1",
+          route_id: "r1",
+          delivery_date: "2026-11-01",
+          standard_fare: 350,
+          extra_charge: 0,
+          final_fare: 350,
+          cash_received: 0,
+          payment_method: null,
+          balance: 350,
+          status: "Pending",
+          notes: null,
+          allocations: [
+            { payment_id: "p-part", daily_record_id: "nov-1", allocated_amount: 350 }
+          ]
+        }
+      ]);
+
+      expect(novRecords[0].calculatedBalance).toBe(0);
+      expect(novRecords[0].calculatedStatus).toBe("Paid");
+
+      const payments = [
+        {
+          id: "p-part",
+          payment_date: "2026-11-01",
+          amount: 8000,
+          payment_method: "Cheque",
+          allocations: [
+            { payment_id: "p-part", daily_record_id: "oct-prev", allocated_amount: 7150 },
+            { payment_id: "p-part", daily_record_id: "nov-1", allocated_amount: 350 }
+          ]
+        }
+      ];
+
+      const summary = calculateSummary({ opening_balance: 330, is_manual_override: false }, novRecords, payments);
+
+      expect(summary.totalReceived).toBe(8000);
+      expect(summary.paymentsAllocated).toBe(7500); // 7150 + 350
+      expect(summary.unallocatedAdvance).toBe(500); // 8000 - 7500
+      expect(summary.outstanding).toBe(330); // 330 opening + 0 delivery balance
+    });
+
+    it("Production Case — Actual November 2026 Live Ledger Reconciliation", () => {
+      // Live production state:
+      // Opening balance: 330 (carried forward from Oct closing: 1180 + 9150 - 10000 = 330)
+      // November 1 delivery: 350 final fare, 0 allocated, 350 balance, Pending
+      // November 1 payment: Cheque #117, amount 8000, 21 allocations totaling 7150 to Oct deliveries
+      const records = processRecords([
+        {
+          id: "5b91833f-09cc-452d-9195-c04059975a3e",
+          route_id: "route-khrew",
+          delivery_date: "2026-11-01",
+          standard_fare: 350,
+          extra_charge: 0,
+          final_fare: 350,
+          cash_received: 0,
+          payment_method: null,
+          balance: 350,
+          status: "Pending",
+          notes: null,
+          allocations: [] // Zero allocations to Nov 1 delivery
+        }
+      ]);
+
+      expect(records[0].calculatedReceived).toBe(0);
+      expect(records[0].calculatedBalance).toBe(350);
+      expect(records[0].calculatedStatus).toBe("Pending");
+
+      const payments = [
+        {
+          id: "848f90d5-0a56-40c8-b72b-f91a32a2da74",
+          payment_date: "2026-11-01",
+          amount: 8000,
+          payment_method: "Cheque",
+          reference_number: "117",
+          cheque_number: "117",
+          bank_name: "jkbank",
+          allocations: Array.from({ length: 21 }, (_, i) => ({
+            id: `alloc-${i}`,
+            payment_id: "848f90d5-0a56-40c8-b72b-f91a32a2da74",
+            daily_record_id: `oct-delivery-${i}`,
+            allocated_amount: i === 0 ? 500 : i === 1 ? 400 : i === 2 ? 300 : 350
+          }))
+        }
+      ];
+
+      // Total of the 21 allocations is 7150
+      payments[0].allocations = [
+        { id: "alloc-0", payment_id: payments[0].id, daily_record_id: "oct-1", allocated_amount: 7150 }
+      ];
+
+      const summary = calculateSummary({ opening_balance: 330, is_manual_override: false }, records, payments);
+
+      // Financial Verification
+      expect(summary.openingBalance).toBe(330);
+      expect(summary.currentMonthBilled).toBe(350);
+      expect(summary.totalDue).toBe(680);
+      expect(summary.totalReceived).toBe(8000);
+      expect(summary.paymentsAllocated).toBe(7150);
+      expect(summary.unallocatedAdvance).toBe(850);
+      expect(summary.outstanding).toBe(680);
+      expect(summary.outstanding).not.toBe(-7320);
+      expect(summary.collectionPercentage).toBe(0);
+      expect(summary.outstandingPercentage).toBe(100);
+      expect(summary.creditBalance).toBe(170); // 850 advance - 680 obligations = 170 net credit
     });
   });
 });

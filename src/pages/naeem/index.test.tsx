@@ -113,10 +113,13 @@ describe("NaeemUnclePage", () => {
     // Opening Balance
     expect(await screen.findByText("MOCK_500")).toBeDefined();
     
-    // As long as the components render without error, the exact summation is already tested in naeemCalculations.test.ts
+    // Financial summary cards
     expect(screen.getByText("Opening Balance")).toBeDefined();
     expect(screen.getByText("Current Billed")).toBeDefined();
     expect(screen.getByText("Total Due")).toBeDefined();
-    expect(screen.getByText("Total Received")).toBeDefined();
+    expect(screen.getByText("Outstanding Balance")).toBeDefined();
+    expect(screen.getByText("Payments Received")).toBeDefined();
+    expect(screen.getByText("Payments Allocated")).toBeDefined();
+    expect(screen.getByText("Unallocated Advance / Credit")).toBeDefined();
   });
 });

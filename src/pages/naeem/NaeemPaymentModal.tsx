@@ -78,8 +78,7 @@ export function NaeemPaymentModal({
                   <Input
                     type="number"
                     required
-                    min="1"
-                    max={outstanding}
+                    min="0.01"
                     step="0.01"
                     placeholder="0.00"
                     value={payAmount}
@@ -204,6 +203,12 @@ export function NaeemPaymentModal({
                       {formatMoney(Math.max(0, outstanding - (Number(payAmount) || 0)))}
                     </span>
                   </div>
+                  {Number(payAmount) > outstanding && (
+                    <div className="flex justify-between text-xs text-[#087443] font-semibold pt-1">
+                      <span>Unallocated Advance Created</span>
+                      <span>+{formatMoney(Number(payAmount) - outstanding)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : null}
