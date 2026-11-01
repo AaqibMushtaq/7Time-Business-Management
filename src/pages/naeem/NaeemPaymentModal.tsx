@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,8 +9,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { AlertCircle, Loader2 } from "lucide-react"
-import { formatMoney } from "@/lib/utils"
+import { AlertCircle, Loader2, Sparkles, CheckCircle2 } from "lucide-react"
+import { formatMoney, formatDate } from "@/lib/utils"
+import { calculateAutoAllocations } from "@/lib/naeemCalculations"
 
 interface NaeemPaymentModalProps {
   isOpen: boolean
@@ -32,6 +33,15 @@ interface NaeemPaymentModalProps {
   setPayBank: (val: string) => void
   payChqDate: string
   setPayChqDate: (val: string) => void
+  unpaidDeliveries?: Array<{
+    id: string
+    delivery_date: string
+    calculatedBalance: number
+    final_fare?: number
+    created_at?: string
+    status?: string
+    calculatedStatus?: string
+  }>
 }
 
 export function NaeemPaymentModal({
@@ -54,17 +64,28 @@ export function NaeemPaymentModal({
   setPayBank,
   payChqDate,
   setPayChqDate,
+  unpaidDeliveries = [],
 }: NaeemPaymentModalProps) {
+  const autoAllocResult = useMemo(() => {
+    if (!payAmount || Number(payAmount) <= 0) return null
+    return calculateAutoAllocations(Number(payAmount), unpaidDeliveries)
+  }, [payAmount, unpaidDeliveries])
+
   if (!isOpen) return null
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-xl border border-[#D9E0E8] w-full max-w-xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
         <div className="p-6 bg-[#F8F7F2] border-b border-[#D9E0E8] shrink-0">
-          <h2 className="text-xl font-bold text-[#172B4D] flex items-center">Record Payment</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-[#172B4D] flex items-center">Record Payment</h2>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#EAF7EF] text-[#087443] border border-[#A6F4C5] flex items-center gap-1">
+              <Sparkles className="w-3 h-3" /> Auto Allocation
+            </span>
+          </div>
           <p className="text-sm text-[#52627A] mt-1.5 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-[#2563EB] shrink-0 mt-0.5" />
-            <span>Record a payment received from NAEEM.<br />This does not process or transfer money.</span>
+            <span>Record a payment received from NAEEM. Payments are automatically allocated to eligible outstanding deliveries, oldest first.</span>
           </p>
         </div>
 
@@ -103,8 +124,8 @@ export function NaeemPaymentModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Payment Method</Label>
-                <Select value={payMethod} onValueChange={setPayMethod} className="bg-white border-[#D9E0E8] text-[#172B4D]">
-                  <SelectTrigger>
+                <Select value={payMethod} onValueChange={setPayMethod}>
+                  <SelectTrigger className="bg-white border-[#D9E0E8] text-[#172B4D]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -119,7 +140,7 @@ export function NaeemPaymentModal({
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">Notes</Label>
                 <Input
-                  placeholder="Optional"
+                  placeholder="Optional payment notes"
                   value={payNotes}
                   onChange={(e) => setPayNotes(e.target.value)}
                   className="bg-white text-[#172B4D] border-[#D9E0E8]"
@@ -185,28 +206,65 @@ export function NaeemPaymentModal({
               </div>
             )}
 
-            {/* Allocation live calculation */}
-            {payAmount && Number(payAmount) > 0 ? (
-              <div className="mt-6 bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl overflow-hidden">
-                <div className="p-4 space-y-2">
+            {/* Automatic Allocation Live Preview */}
+            {autoAllocResult ? (
+              <div className="mt-4 bg-[#F8F7F2] border border-[#D9E0E8] rounded-xl overflow-hidden">
+                <div className="p-4 space-y-2.5">
+                  <div className="flex justify-between items-center text-xs font-semibold uppercase tracking-wider text-[#172B4D] border-b border-[#D9E0E8] pb-2">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-[#2563EB]" /> Automatic Allocation Preview
+                    </span>
+                    <span className="text-[#087443] font-mono">
+                      {autoAllocResult.settledCount} Settled, {autoAllocResult.partialCount} Partial
+                    </span>
+                  </div>
+
                   <div className="flex justify-between text-sm">
                     <span className="text-[#52627A]">Current Outstanding</span>
-                    <span className="font-medium text-[#172B4D]">{formatMoney(outstanding)}</span>
+                    <span className="font-medium text-[#172B4D] font-mono">{formatMoney(outstanding)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-[#52627A]">Payment</span>
-                    <span className="font-medium text-[#087443]">-{formatMoney(Number(payAmount) || 0)}</span>
+                    <span className="text-[#52627A]">Payment Received</span>
+                    <span className="font-semibold text-[#087443] font-mono">+{formatMoney(Number(payAmount) || 0)}</span>
                   </div>
-                  <div className="flex justify-between text-sm border-t border-[#D9E0E8] pt-2 mt-2">
+                  <div className="flex justify-between text-sm border-t border-[#D9E0E8] pt-2">
                     <span className="font-semibold text-[#172B4D]">Remaining Outstanding</span>
-                    <span className="font-bold text-[#172B4D]">
+                    <span className="font-bold text-[#172B4D] font-mono">
                       {formatMoney(Math.max(0, outstanding - (Number(payAmount) || 0)))}
                     </span>
                   </div>
-                  {Number(payAmount) > outstanding && (
-                    <div className="flex justify-between text-xs text-[#087443] font-semibold pt-1">
-                      <span>Unallocated Advance Created</span>
-                      <span>+{formatMoney(Number(payAmount) - outstanding)}</span>
+
+                  {autoAllocResult.unallocatedAdvance > 0 && (
+                    <div className="flex justify-between text-xs text-[#087443] font-semibold pt-1 border-t border-[#D9E0E8]">
+                      <span>Unallocated Advance Balance (Held as Credit)</span>
+                      <span className="font-mono">+{formatMoney(autoAllocResult.unallocatedAdvance)}</span>
+                    </div>
+                  )}
+
+                  {/* List of deliveries getting settled */}
+                  {autoAllocResult.allocations.length > 0 && (
+                    <div className="mt-3 pt-2.5 border-t border-[#D9E0E8] space-y-2">
+                      <p className="text-xs font-semibold text-[#52627A] uppercase tracking-wider">
+                        Allocated Deliveries (FIFO Oldest First)
+                      </p>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                        {autoAllocResult.allocations.map((a) => (
+                          <div key={a.daily_record_id} className="flex justify-between items-center text-xs bg-white p-2 rounded-lg border border-[#D9E0E8]">
+                            <div>
+                              <span className="font-semibold text-[#172B4D]">{formatDate(a.deliveryDate)}</span>
+                              <span className="text-[#52627A] ml-2 font-mono">Fare: {formatMoney(a.finalFare)}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold font-mono text-[#087443]">+{formatMoney(a.allocated_amount)}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                a.settlementType === "Full" ? "bg-[#EAF7EF] text-[#087443] border border-[#A6F4C5]" : "bg-[#FFF4D6] text-[#92400E] border border-[#FEDF89]"
+                              }`}>
+                                {a.settlementType}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -223,9 +281,9 @@ export function NaeemPaymentModal({
             type="submit"
             form="payment-form"
             disabled={isPending || !payAmount || Number(payAmount) <= 0}
-            className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white min-w-[140px] cursor-pointer"
+            className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white min-w-[150px] cursor-pointer"
           >
-            {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
             {isPending ? "Recording..." : "Record Payment"}
           </Button>
         </div>

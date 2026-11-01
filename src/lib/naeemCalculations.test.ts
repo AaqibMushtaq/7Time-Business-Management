@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { processRecords, calculateSummary } from "./naeemCalculations";
+import { processRecords, calculateSummary, calculateAutoAllocations } from "./naeemCalculations";
 
 describe("naeemCalculations", () => {
   describe("processRecords", () => {
@@ -848,5 +848,110 @@ describe("naeemCalculations", () => {
         expect(payment.allocations?.[0].daily_record_id).toBe("oct-1");
       });
     });
+
+    describe("Section 6: Automatic Payment Allocation Tests (Personal Ledger FIFO protocol)", () => {
+      it("fully settles an outstanding delivery when payment covers total fare", () => {
+        const deliveries = [
+          { id: "del-1", delivery_date: "2026-11-01", calculatedBalance: 350, final_fare: 350, status: "Pending" }
+        ];
+
+        const result = calculateAutoAllocations(350, deliveries);
+        expect(result.totalAllocated).toBe(350);
+        expect(result.unallocatedAdvance).toBe(0);
+        expect(result.settledCount).toBe(1);
+        expect(result.partialCount).toBe(0);
+        expect(result.allocations).toHaveLength(1);
+        expect(result.allocations[0].daily_record_id).toBe("del-1");
+        expect(result.allocations[0].allocated_amount).toBe(350);
+        expect(result.allocations[0].remainingDeliveryBalance).toBe(0);
+        expect(result.allocations[0].settlementType).toBe("Full");
+      });
+
+      it("partially settles an outstanding delivery when payment is less than fare", () => {
+        const deliveries = [
+          { id: "del-1", delivery_date: "2026-11-01", calculatedBalance: 350, final_fare: 350, status: "Pending" }
+        ];
+
+        const result = calculateAutoAllocations(200, deliveries);
+        expect(result.totalAllocated).toBe(200);
+        expect(result.unallocatedAdvance).toBe(0);
+        expect(result.settledCount).toBe(0);
+        expect(result.partialCount).toBe(1);
+        expect(result.allocations[0].allocated_amount).toBe(200);
+        expect(result.allocations[0].remainingDeliveryBalance).toBe(150);
+        expect(result.allocations[0].settlementType).toBe("Partial");
+      });
+
+      it("allocates in chronological FIFO order across multiple deliveries (Prompt Section 5.4 scenario)", () => {
+        // Deliveries: A: 350 (Nov 1), B: 350 (Nov 2), C: 350 (Nov 3), D: 250 (Nov 4)
+        // Payment: 800
+        // Result: A: 350 (Full), B: 350 (Full), C: 100 (Partial), D: 0 (Unpaid)
+        const deliveries = [
+          { id: "del-D", delivery_date: "2026-11-04", calculatedBalance: 250, final_fare: 250, status: "Pending" },
+          { id: "del-A", delivery_date: "2026-11-01", calculatedBalance: 350, final_fare: 350, status: "Pending" },
+          { id: "del-C", delivery_date: "2026-11-03", calculatedBalance: 350, final_fare: 350, status: "Pending" },
+          { id: "del-B", delivery_date: "2026-11-02", calculatedBalance: 350, final_fare: 350, status: "Pending" },
+        ]; // Intentionally passed out of order
+
+        const result = calculateAutoAllocations(800, deliveries);
+        expect(result.totalAllocated).toBe(800);
+        expect(result.unallocatedAdvance).toBe(0);
+        expect(result.settledCount).toBe(2);
+        expect(result.partialCount).toBe(1);
+        expect(result.allocations).toHaveLength(3);
+
+        // A settled first (oldest)
+        expect(result.allocations[0].daily_record_id).toBe("del-A");
+        expect(result.allocations[0].allocated_amount).toBe(350);
+        expect(result.allocations[0].remainingDeliveryBalance).toBe(0);
+        expect(result.allocations[0].settlementType).toBe("Full");
+
+        // B settled second
+        expect(result.allocations[1].daily_record_id).toBe("del-B");
+        expect(result.allocations[1].allocated_amount).toBe(350);
+        expect(result.allocations[1].remainingDeliveryBalance).toBe(0);
+        expect(result.allocations[1].settlementType).toBe("Full");
+
+        // C partially settled (100 allocated, 250 remaining)
+        expect(result.allocations[2].daily_record_id).toBe("del-C");
+        expect(result.allocations[2].allocated_amount).toBe(100);
+        expect(result.allocations[2].remainingDeliveryBalance).toBe(250);
+        expect(result.allocations[2].settlementType).toBe("Partial");
+      });
+
+      it("handles excess payment by preserving surplus as unallocated advance without negative balances", () => {
+        const deliveries = [
+          { id: "del-1", delivery_date: "2026-11-01", calculatedBalance: 350, final_fare: 350, status: "Pending" }
+        ];
+
+        const result = calculateAutoAllocations(500, deliveries);
+        expect(result.totalAllocated).toBe(350);
+        expect(result.unallocatedAdvance).toBe(150);
+        expect(result.settledCount).toBe(1);
+        expect(result.partialCount).toBe(0);
+        expect(result.allocations).toHaveLength(1);
+        expect(result.allocations[0].remainingDeliveryBalance).toBe(0);
+      });
+
+      it("skips No Order deliveries during auto-allocation", () => {
+        const deliveries = [
+          { id: "no-order-1", delivery_date: "2026-11-01", calculatedBalance: 0, final_fare: 0, status: "No Order", calculatedStatus: "No Order" },
+          { id: "del-2", delivery_date: "2026-11-02", calculatedBalance: 350, final_fare: 350, status: "Pending", calculatedStatus: "Pending" }
+        ];
+
+        const result = calculateAutoAllocations(350, deliveries);
+        expect(result.totalAllocated).toBe(350);
+        expect(result.allocations).toHaveLength(1);
+        expect(result.allocations[0].daily_record_id).toBe("del-2");
+      });
+
+      it("returns 0 allocated and full advance when no eligible deliveries exist", () => {
+        const result = calculateAutoAllocations(1000, []);
+        expect(result.totalAllocated).toBe(0);
+        expect(result.unallocatedAdvance).toBe(1000);
+        expect(result.allocations).toHaveLength(0);
+      });
+    });
+
   });
 });

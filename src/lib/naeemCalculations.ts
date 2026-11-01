@@ -214,3 +214,126 @@ export function calculateSummary(
     creditBalance,
   };
 }
+
+export interface AutoAllocationItem {
+  daily_record_id: string;
+  allocated_amount: number;
+  remainingDeliveryBalance: number;
+  deliveryDate: string;
+  finalFare: number;
+  settlementType: "Full" | "Partial";
+}
+
+export interface AutoAllocationResult {
+  allocations: AutoAllocationItem[];
+  totalAllocated: number;
+  unallocatedAdvance: number;
+  settledCount: number;
+  partialCount: number;
+}
+
+/**
+ * Automatically allocates a payment amount across eligible outstanding deliveries
+ * in chronological order (FIFO / oldest entries first), matching the Personal Ledger protocol.
+ *
+ * Rules:
+ * 1. Deliveries sorted by delivery_date ASC, then created_at ASC (or id ASC).
+ * 2. Only deliveries with calculatedBalance > 0 and status != "No Order" are eligible.
+ * 3. Each delivery is allocated up to its remaining calculatedBalance.
+ * 4. Excess payment above eligible delivery balances is held as unallocatedAdvance without
+ *    creating negative delivery balances or synthetic allocations.
+ */
+export function calculateAutoAllocations(
+  paymentAmount: number,
+  eligibleDeliveries: Array<{
+    id: string;
+    delivery_date: string;
+    calculatedBalance: number;
+    final_fare?: number;
+    created_at?: string;
+    status?: string;
+    calculatedStatus?: string;
+  }>
+): AutoAllocationResult {
+  const amount = Number(paymentAmount) || 0;
+  if (amount <= 0 || !eligibleDeliveries || eligibleDeliveries.length === 0) {
+    return {
+      allocations: [],
+      totalAllocated: 0,
+      unallocatedAdvance: Math.max(0, amount),
+      settledCount: 0,
+      partialCount: 0,
+    };
+  }
+
+  // Filter only eligible unpaid deliveries
+  const openDeliveries = eligibleDeliveries
+    .filter(
+      (d) =>
+        (Number(d.calculatedBalance) || 0) > 0.001 &&
+        d.calculatedStatus !== "No Order" &&
+        d.status !== "No Order"
+    )
+    .sort((a, b) => {
+      const dateA = new Date(a.delivery_date).getTime();
+      const dateB = new Date(b.delivery_date).getTime();
+      if (dateA !== dateB) return dateA - dateB;
+      return (a.created_at || a.id).localeCompare(b.created_at || b.id);
+    });
+
+  let remainingPayment = amount;
+  const allocations: AutoAllocationItem[] = [];
+  let totalAllocated = 0;
+  let settledCount = 0;
+  let partialCount = 0;
+
+  for (const delivery of openDeliveries) {
+    if (remainingPayment <= 0.001) break;
+
+    const deliveryBal = Number(delivery.calculatedBalance) || 0;
+    const toAlloc = Math.min(remainingPayment, deliveryBal);
+    const roundedAlloc = Math.round(toAlloc * 100) / 100;
+
+    if (roundedAlloc > 0) {
+      const remainingBal = Math.max(
+        0,
+        Math.round((deliveryBal - roundedAlloc) * 100) / 100
+      );
+      const isFull = remainingBal <= 0.001;
+
+      if (isFull) {
+        settledCount++;
+      } else {
+        partialCount++;
+      }
+
+      allocations.push({
+        daily_record_id: delivery.id,
+        allocated_amount: roundedAlloc,
+        remainingDeliveryBalance: remainingBal,
+        deliveryDate: delivery.delivery_date,
+        finalFare: Number(delivery.final_fare) || deliveryBal,
+        settlementType: isFull ? "Full" : "Partial",
+      });
+
+      remainingPayment = Math.max(
+        0,
+        Math.round((remainingPayment - roundedAlloc) * 100) / 100
+      );
+      totalAllocated = Math.round((totalAllocated + roundedAlloc) * 100) / 100;
+    }
+  }
+
+  const unallocatedAdvance = Math.max(
+    0,
+    Math.round((amount - totalAllocated) * 100) / 100
+  );
+
+  return {
+    allocations,
+    totalAllocated,
+    unallocatedAdvance,
+    settledCount,
+    partialCount,
+  };
+}
