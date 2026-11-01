@@ -196,3 +196,17 @@ The NAEEM ledger distinguishes and reconciles all 7 financial metrics:
   - `src/pages/naeem/index.test.tsx`
   - `docs/bug-reports/7TIME_NAEEM_NOVEMBER_OUTSTANDING_BALANCE_FIX.md`
 - **Zero Database Changes:** No SQL migrations applied or required. Existing production data remains 100% preserved.
+
+---
+
+## 9. Live Production Deployment Verification
+
+- **Commit Deployed:** `df7276afd3235b0ca93b038abb33edb0a62fb654`
+- **GitHub Actions Run:** [Run 41324529623](https://github.com/AaqibMushtaq/7Time-Business-Management/actions/runs/41324529623) (`Deploy Vite App to GitHub Pages`)
+- **Deployment Status:** `SUCCESS` (Deployment ID: `7475492350`)
+- **Live Environment URL:** `https://aaqibmushtaq.github.io/7Time-Business-Management/`
+- **Verified Production Asset:** `assets/naeem-CeYxmm_H.js`
+- **Verification Evidence:**
+  - HTTP `200 OK`, `Last-Modified: Sun, 01 Nov 2026 16:07:25 GMT`.
+  - Live chunk verified containing `Unallocated Advance / Credit`, bounded percentages, non-negative outstanding formula `p=Math.max(0,r+f)`, and advance notation `+ [amount] Advance`.
+
