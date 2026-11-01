@@ -146,10 +146,30 @@ A live probe executed via the Supabase client confirmed:
 
 ---
 
-## 6. Git Release & Deployment Manifest
+## 6. Git Release & Live Production Deployment Manifest
 
 - **Working Branch:** `feature/7time-multi-account-workspaces`
-- **Pushed Commit:** Recorded in deployment pipeline
-- **GitHub Pages Pipeline:** Triggered via `deploy.yml` workflow_dispatch
-- **Live Endpoint:** `https://aaqibmushtaq.github.io/7Time-Business-Management/`
-- **Integrity Guarantee:** Zero database migrations applied, zero production records modified, zero payment gateway dependencies.
+- **Pushed Hotfix Commit:** `feece2b81c78eef048f741631e450205c9fd8f6c`
+- **GitHub Actions Workflow Run:** [Run 41316409374](https://github.com/AaqibMushtaq/7Time-Business-Management/actions/runs/41316409374) (Deploy Vite App to GitHub Pages)
+  - **Job ID:** `124877300124`
+  - **Status:** Completed successfully in 2m 6s (`pages_build_version: feece2b81c78eef048f741631e450205c9fd8f6c`)
+- **Live GitHub Pages URL:** `https://aaqibmushtaq.github.io/7Time-Business-Management/`
+- **Live Version Metadata (`/version.json`):**
+  ```json
+  {
+    "version": "1.3.0",
+    "buildTime": "2026-11-01T14:30:37.421Z",
+    "builtAt": 1793543438102
+  }
+  ```
+- **Live Deployed Bundles Verified (HTTP 200):**
+  - `assets/naeemDeliveries-DFKdH2mI.js` (7,389 bytes, verified contains `naeem_daily_records_route_id_fkey`)
+  - `assets/reports-D11D6MLt.js` (8,337 bytes, verified contains `naeem_daily_records_route_id_fkey`)
+  - `assets/index-ywEvLs1K.js` (26,017 bytes)
+  - `assets/naeem-DdVt59RG.js` (46,270 bytes)
+- **Integrity Guarantee:**
+  - Zero database migrations required or applied.
+  - Zero production database records modified or deleted.
+  - Zero changes to protected branches (`main`, `feature/zakat-tracker-hanafi`).
+  - Zero changes or deployments to Supabase Edge Functions.
+  - Zero third-party payment gateway dependencies.
