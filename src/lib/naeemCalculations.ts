@@ -101,7 +101,7 @@ export function calculateSummary(
 
   const totalDue = openingBalance + currentMonthBilled;
 
-  const currentMonthRecordIds = new Set((processedRecords || []).map((r) => r.id));
+  const _currentMonthRecordIds = new Set((processedRecords || []).map((r) => r.id));
 
   // Determine active month (from selectedMonth or inferred from delivery records)
   const activeMonth =
@@ -224,10 +224,9 @@ export function calculateSummary(
 
   // Step 2: Prior-month allocations reduce opening balance directly
   const openingAfterPriorAllocations = Math.max(0, openingBalance - allocatedToPriorDeliveries);
-  const excessPriorAllocations = Math.max(0, allocatedToPriorDeliveries - openingBalance);
 
-  // Step 3: Unallocated advance (+ any excess prior allocations) settles remaining obligations
-  const totalAvailableAdvance = unallocatedAdvance + excessPriorAllocations;
+  // Step 3: Unallocated advance settles remaining obligations
+  const totalAvailableAdvance = unallocatedAdvance;
 
   // Advance reduces remaining opening balance first:
   const advanceToOpening = Math.min(openingAfterPriorAllocations, totalAvailableAdvance);
@@ -239,12 +238,11 @@ export function calculateSummary(
   const remainingDeliveryBalance = deliveryBalanceAfterPriorCredit - advanceToDeliveries;
 
   // Step 4: Any surplus cash beyond all obligations is preserved as credit balance
-  // Future delivery allocations, unresolved allocations, and remaining opening credit are preserved as credit (held cash)
+  // Future delivery allocations and remaining opening credit are preserved as credit (held cash)
   const advanceCredit = advanceAfterOpening - advanceToDeliveries;
   const creditBalance =
     advanceCredit +
     allocatedToFutureDeliveries +
-    unresolvedAllocations +
     remainingOpeningCredit;
 
   // Step 5: Total Outstanding Balance = Remaining Deliveries + Remaining Opening Balance

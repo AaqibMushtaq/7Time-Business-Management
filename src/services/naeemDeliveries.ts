@@ -359,7 +359,6 @@ export async function upsertnaeemRoute(route: Partial<naeemRoute>) {
 export async function getnaeemMonthlyBalance(year: number, month: number): Promise<{ 
   opening_balance: number; 
   opening_credit?: number; 
-  net_opening_balance?: number; 
   is_manual_override: boolean 
 }> {
   try {
@@ -380,8 +379,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
       const ob = Number(currentMonthData.opening_balance) || 0
       return { 
         opening_balance: ob >= 0 ? ob : 0, 
-        opening_credit: ob < 0 ? Math.abs(ob) : 0,
-        net_opening_balance: ob,
+        ...(ob < 0 ? { opening_credit: Math.abs(ob) } : {}),
         is_manual_override: true 
       }
     }
@@ -429,7 +427,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
         startMonth = parseInt(m)
       } else {
         // No records at all
-        return { opening_balance: 0, opening_credit: 0, net_opening_balance: 0, is_manual_override: false }
+        return { opening_balance: 0, is_manual_override: false }
       }
     }
 
@@ -445,8 +443,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
     if (startYear > prevYear || (startYear === prevYear && startMonth > prevMonth)) {
       return { 
         opening_balance: runningBalance >= 0 ? runningBalance : 0, 
-        opening_credit: runningBalance < 0 ? Math.abs(runningBalance) : 0,
-        net_opening_balance: runningBalance,
+        ...(runningBalance < 0 ? { opening_credit: Math.abs(runningBalance) } : {}),
         is_manual_override: false 
       }
     }
@@ -492,8 +489,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
 
     return { 
       opening_balance: runningBalance >= 0 ? runningBalance : 0, 
-      opening_credit: runningBalance < 0 ? Math.abs(runningBalance) : 0,
-      net_opening_balance: runningBalance,
+      ...(runningBalance < 0 ? { opening_credit: Math.abs(runningBalance) } : {}),
       is_manual_override: false 
     }
 

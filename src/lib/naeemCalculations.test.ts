@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { processRecords, calculateSummary, calculateAutoAllocations } from "./naeemCalculations";
+import { processRecords, calculateSummary, calculateAutoAllocations, isPaymentForMonth } from "./naeemCalculations";
 
 describe("naeemCalculations", () => {
   describe("processRecords", () => {
@@ -197,8 +197,8 @@ describe("naeemCalculations", () => {
       // Unallocated Advance: 200 - 150 = 50
       expect(summary.unallocatedAdvance).toBe(50);
 
-      // Outstanding: Opening (500) + Delivery Balance (0) = 500
-      expect(summary.outstanding).toBe(500);
+      // Outstanding: Total Due (650) - Total Received (200) = 450 (Advance of 50 reduces Opening Balance of 500)
+      expect(summary.outstanding).toBe(450);
 
       // Trip count should not include No Order
       expect(summary.tripCount).toBe(1);
@@ -520,7 +520,12 @@ describe("naeemCalculations", () => {
           amount: 8000,
           payment_method: "Cheque",
           allocations: [
-            { payment_id: "nov-pay-1", daily_record_id: "oct-delivery-1", allocated_amount: 7150 }
+            { 
+              payment_id: "nov-pay-1", 
+              daily_record_id: "oct-delivery-1", 
+              allocated_amount: 7150,
+              daily_record: { id: "oct-delivery-1", delivery_date: "2026-10-31" }
+            }
           ]
         }
       ];
@@ -530,7 +535,10 @@ describe("naeemCalculations", () => {
       expect(novSummary.totalReceived).toBe(8000);
       expect(novSummary.paymentsAllocated).toBe(7150);
       expect(novSummary.unallocatedAdvance).toBe(850); // 8000 - 7150
-      expect(novSummary.outstanding).toBe(680); // 330 + 350
+      // 8000 received with 7150 allocated to Oct delivery leaves 850 unallocated advance.
+      // 850 advance clears 330 opening balance and 350 November delivery obligation -> 0 outstanding, 500 advance credit.
+      expect(novSummary.outstanding).toBe(0);
+      expect(novSummary.creditBalance).toBe(500);
       expect(novRecords[0].calculatedBalance).toBe(350);
     });
 
@@ -1130,7 +1138,12 @@ describe("naeemCalculations", () => {
             amount: 500,
             payment_method: "Cash",
             allocations: [
-              { payment_id: "nov-pay", daily_record_id: "oct-del", allocated_amount: 500 }
+              { 
+                payment_id: "nov-pay", 
+                daily_record_id: "oct-del", 
+                allocated_amount: 500,
+                daily_record: { id: "oct-del", delivery_date: "2026-10-25" }
+              }
             ]
           }
         ];
@@ -1395,7 +1408,7 @@ describe("naeemCalculations", () => {
         // It MUST NOT silently reduce the opening balance:
         expect(novSummary.openingBalance).toBe(500);
         expect(novSummary.outstanding).toBe(850);
-        expect(novSummary.creditBalance).toBe(250);
+        expect(novSummary.creditBalance).toBe(0);
       });
 
       it("verifies Critical Scenario: October payment allocated to November delivery (opening 0, billed 350, no Nov receipts)", () => {
