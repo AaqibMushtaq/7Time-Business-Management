@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
+import { getnaeemMonthlyBalance, type NaeemMonthlyBalanceResult } from "@/services/naeemDeliveries"
 import { formatMoney } from "@/lib/utils"
 
 export type DateRange = "TODAY" | "THIS_WEEK" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR" | "ALL" | "CUSTOM"
@@ -337,7 +337,7 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     applyDateFilter(supabase.from("general_daily_records").select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount, received_amount)"), "record_date"),
     applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id, delivery_date"), "delivery_date"),
     applyDateFilter(supabase.from("naeem_payments").select("amount, payment_date"), "payment_date"),
-    getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false })),
+    getnaeemMonthlyBalance(targetYear, targetMonth).catch((): NaeemMonthlyBalanceResult => ({ opening_balance: 0, is_manual_override: false })),
     supabase.from("dealers").select("id, name, opening_balance"),
     supabase.from("reseller_customers").select("id, name, phone, opening_balance"),
     supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, balance, entry_type, funding_source, entry_date").limit(999999),

@@ -101,7 +101,6 @@ export function calculateSummary(
 
   const totalDue = openingBalance + currentMonthBilled;
 
-  const _currentMonthRecordIds = new Set((processedRecords || []).map((r) => r.id));
 
   // Determine active month (from selectedMonth or inferred from delivery records)
   const activeMonth =

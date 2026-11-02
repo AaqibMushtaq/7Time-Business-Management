@@ -356,11 +356,13 @@ export async function upsertnaeemRoute(route: Partial<naeemRoute>) {
   return data[0] as naeemRoute
 }
 
-export async function getnaeemMonthlyBalance(year: number, month: number): Promise<{ 
-  opening_balance: number; 
-  opening_credit?: number; 
-  is_manual_override: boolean 
-}> {
+export interface NaeemMonthlyBalanceResult {
+  opening_balance: number;
+  opening_credit?: number;
+  is_manual_override: boolean;
+}
+
+export async function getnaeemMonthlyBalance(year: number, month: number): Promise<NaeemMonthlyBalanceResult> {
   try {
     // 1. Check if current month has a manual override
     const { data: currentMonthData, error: currentMonthError } = await supabase

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
+import { getnaeemMonthlyBalance, type NaeemMonthlyBalanceResult } from "@/services/naeemDeliveries"
 
 export type DebtorSource = "WHOLESALE_RESELLER" | "PERSONAL_LEDGER" | "NAEEM" | "GENERAL_DELIVERY" | "OTHER"
 
@@ -59,7 +59,7 @@ export async function getUnifiedReceivables(
     supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, entry_type, entry_date").limit(999999),
     supabase.from("naeem_daily_records").select("id, final_fare, status, delivery_date").order("delivery_date", { ascending: false }),
     supabase.from("naeem_payments").select("id, amount, payment_date").order("payment_date", { ascending: false }),
-    getnaeemMonthlyBalance(targetYear, targetMonth).catch(() => ({ opening_balance: 0, is_manual_override: false })),
+    getnaeemMonthlyBalance(targetYear, targetMonth).catch((): NaeemMonthlyBalanceResult => ({ opening_balance: 0, is_manual_override: false })),
     supabase
       .from("general_delivery_entries")
       .select("id, daily_record_id, customer_name, description, amount, received_amount, created_at, daily_record:general_daily_records(record_date)")
