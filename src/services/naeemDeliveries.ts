@@ -176,9 +176,9 @@ export async function getnaeemPayments(month: string, workspace_id?: string | nu
   }
 }
 
-export async function getAllnaeemPayments() {
+export async function getAllnaeemPayments(workspace_id?: string | null) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("naeem_payments")
       .select(`
         *,
@@ -188,6 +188,12 @@ export async function getAllnaeemPayments() {
         )
       `)
       .order("payment_date", { ascending: false })
+
+    if (workspace_id) {
+      query = query.eq("workspace_id", workspace_id)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error("[NAEEM] naeem_payments fetch all failed:", error);
