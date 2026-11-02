@@ -25,7 +25,7 @@ export default function ProductDetailPage() {
 
   const { data: dealers } = useQuery({
     queryKey: ["dealers"],
-    queryFn: getDealers,
+    queryFn: () => getDealers(),
   })
 
   const { data: product, isLoading: isLoadingProduct } = useQuery({

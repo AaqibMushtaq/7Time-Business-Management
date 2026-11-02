@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatMoney } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import { 
   Package, 
   Coins, 
@@ -41,6 +42,7 @@ export default function CreateCustomerCreditModal({
   onSuccess
 }: CreateCustomerCreditModalProps) {
   const queryClient = useQueryClient()
+  const { currentWorkspace } = useAuth()
 
   const [entryType, setEntryType] = useState<CustomerCreditType>(initialType)
   const [fundingSource, setFundingSource] = useState<CustomerCreditFundingSource>("7TIME_FUNDS")
@@ -176,6 +178,11 @@ export default function CreateCustomerCreditModal({
       return
     }
 
+    if (!currentWorkspace?.id) {
+      setFormError("Active workspace context is required to record a personal ledger entry. Please select a workspace.")
+      return
+    }
+
     const parsedTotal = parseFloat(totalAmount)
     if (isNaN(parsedTotal) || parsedTotal <= 0) {
       setFormError("Please enter a valid amount greater than zero.")
@@ -221,7 +228,8 @@ export default function CreateCustomerCreditModal({
       initial_payment_amount: parsedUpfront,
       initial_payment_method: upfrontPaymentMethod,
       initial_payment_reference: upfrontReference.trim() || undefined,
-      notes: notes.trim() || null
+      notes: notes.trim() || null,
+      workspace_id: currentWorkspace?.id
     })
   }
 

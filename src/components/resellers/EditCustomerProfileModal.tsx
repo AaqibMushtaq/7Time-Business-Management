@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { updateReseller, type ResellerCustomer } from "@/services/resellers"
+import { updatePersonalCustomer, type ResellerCustomer } from "@/services/resellers"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -29,10 +29,10 @@ export default function EditCustomerProfileModal({
   const [formError, setFormError] = useState<string | null>(null)
 
   const mutation = useMutation({
-    mutationFn: (data: Partial<ResellerCustomer>) => updateReseller(customer.id, data),
+    mutationFn: (data: Partial<ResellerCustomer>) => updatePersonalCustomer(customer.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["reseller", customer.id] })
-      queryClient.invalidateQueries({ queryKey: ["resellers"] })
+      queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
       queryClient.invalidateQueries({ queryKey: ["dashboardStats"] })
       onSuccess?.()
       onClose()
@@ -54,12 +54,20 @@ export default function EditCustomerProfileModal({
       return
     }
 
+    if (!customer.contact_type || customer.contact_type !== "PERSONAL") {
+      setFormError(
+        `Cannot edit contact: Contact classification is ${customer.contact_type ? `'${customer.contact_type}'` : "unspecified/null"}. Editing is restricted in Personal Ledger to prevent unsafe reclassification.`
+      )
+      return
+    }
+
     const payload: Partial<ResellerCustomer> = {
       name: trimmedName,
       phone: phone.trim() || null,
       address: address.trim() || null,
       notes: notes.trim() || null,
-      opening_balance: parseFloat(openingBalance) || 0
+      opening_balance: parseFloat(openingBalance) || 0,
+      contact_type: customer.contact_type
     }
 
     mutation.mutate(payload)

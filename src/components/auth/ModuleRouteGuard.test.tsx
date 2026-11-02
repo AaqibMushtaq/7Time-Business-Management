@@ -21,8 +21,10 @@ describe("ModuleRouteGuard Component", () => {
       hasModule: vi.fn().mockReturnValue(false),
       enabledModules: [],
       hasAnyModule: false,
+      hasBusinessModules: false,
+      hasPersonalModules: false,
       getDefaultRoute: () => "/local-customers",
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -46,8 +48,10 @@ describe("ModuleRouteGuard Component", () => {
       hasModule: vi.fn().mockReturnValue(false),
       enabledModules: [],
       hasAnyModule: false,
+      hasBusinessModules: false,
+      hasPersonalModules: false,
       getDefaultRoute: () => "/local-customers",
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -72,8 +76,10 @@ describe("ModuleRouteGuard Component", () => {
       hasModule: vi.fn().mockReturnValue(false),
       enabledModules: [],
       hasAnyModule: false,
+      hasBusinessModules: false,
+      hasPersonalModules: false,
       getDefaultRoute: () => "/no-access",
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -98,8 +104,10 @@ describe("ModuleRouteGuard Component", () => {
       hasModule: (key: string) => key === "personal_ledger",
       enabledModules: ["personal_ledger"],
       hasAnyModule: true,
+      hasBusinessModules: false,
+      hasPersonalModules: true,
       getDefaultRoute: () => "/local-customers",
-    })
+    } as any)
 
     render(
       <MemoryRouter initialEntries={["/purchases"]}>
@@ -131,8 +139,10 @@ describe("ModuleRouteGuard Component", () => {
       hasModule: (key: string) => key === "purchases",
       enabledModules: ["purchases"],
       hasAnyModule: true,
+      hasBusinessModules: true,
+      hasPersonalModules: false,
       getDefaultRoute: () => "/purchases",
-    })
+    } as any)
 
     render(
       <MemoryRouter>
@@ -155,8 +165,10 @@ describe("ModuleRouteGuard Component", () => {
       hasModule: (key: string) => key === "products",
       enabledModules: ["products"],
       hasAnyModule: true,
+      hasBusinessModules: true,
+      hasPersonalModules: false,
       getDefaultRoute: () => "/products",
-    })
+    } as any)
 
     render(
       <MemoryRouter initialEntries={["/settings/accounts"]}>
@@ -188,8 +200,10 @@ describe("ModuleRouteGuard Component", () => {
       hasModule: () => true,
       enabledModules: [],
       hasAnyModule: true,
+      hasBusinessModules: true,
+      hasPersonalModules: true,
       getDefaultRoute: () => "/",
-    })
+    } as any)
 
     render(
       <MemoryRouter>

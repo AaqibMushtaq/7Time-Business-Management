@@ -17,10 +17,11 @@ export interface Purchase {
   created_at?: string
   dealer?: Dealer
   product?: Product
+  workspace_id?: string
 }
 
-export const getPurchases = async (): Promise<Purchase[]> => {
-  const { data, error } = await supabase
+export const getPurchases = async (workspaceId?: string): Promise<Purchase[]> => {
+  let query = supabase
     .from("purchases")
     .select(`
       *,
@@ -28,6 +29,12 @@ export const getPurchases = async (): Promise<Purchase[]> => {
       product:products(id, name, unit)
     `)
     .order("purchase_date", { ascending: false })
+
+  if (workspaceId) {
+    query = query.eq("workspace_id", workspaceId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data || []

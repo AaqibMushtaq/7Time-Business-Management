@@ -5,11 +5,11 @@
  * and funding sources without altering the underlying database table relationships.
  */
 import {
-  getResellers,
+  getPersonalCustomers,
   getResellersWithBalances,
-  createReseller,
-  updateReseller,
-  deleteReseller,
+  createPersonalCustomer,
+  updatePersonalCustomer,
+  deletePersonalCustomer,
   type ResellerCustomer
 } from "./resellers"
 import type { CustomerLedgerSummary } from "./customerCredits"
@@ -21,8 +21,8 @@ export type LocalCustomerLedgerSummary = CustomerLedgerSummary
 export type Person = ResellerCustomer
 export type PersonalAccountLedgerSummary = CustomerLedgerSummary
 
-export const getLocalCustomers = getResellers
-export const getLocalCustomersWithBalances = getResellersWithBalances
-export const createLocalCustomer = createReseller
-export const updateLocalCustomer = updateReseller
-export const deleteLocalCustomer = deleteReseller
+export const getLocalCustomers = (workspaceId?: string) => getPersonalCustomers(workspaceId)
+export const getLocalCustomersWithBalances = (workspaceId?: string) => getResellersWithBalances("PERSONAL", workspaceId)
+export const createLocalCustomer = createPersonalCustomer
+export const updateLocalCustomer = updatePersonalCustomer
+export const deleteLocalCustomer = deletePersonalCustomer

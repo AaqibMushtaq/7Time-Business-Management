@@ -74,6 +74,7 @@ export interface CreateCustomerCreditInput {
   initial_payment_method?: string
   initial_payment_reference?: string
   notes?: string | null
+  workspace_id?: string | null
 }
 
 export interface UpdateCustomerCreditInput {
@@ -154,7 +155,7 @@ export interface CustomerLedgerSummary {
  * Fetch credits for a specific customer or all customers.
  * Joins linked product and payment allocations with payment metadata.
  */
-export async function getCustomerCredits(customerId?: string): Promise<CustomerCredit[]> {
+export async function getCustomerCredits(customerId?: string, workspace_id?: string | null): Promise<CustomerCredit[]> {
   let query = supabase
     .from("customer_credits")
     .select(`
@@ -185,6 +186,9 @@ export async function getCustomerCredits(customerId?: string): Promise<CustomerC
 
   if (customerId) {
     query = query.eq("customer_id", customerId)
+  }
+  if (workspace_id) {
+    query = query.eq("workspace_id", workspace_id)
   }
 
   const { data, error } = await query
@@ -291,7 +295,8 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
     amount_paid: 0,
     balance: Number(total_amount),
     status: "PENDING",
-    notes: notes?.trim() || null
+    notes: notes?.trim() || null,
+    ...(input.workspace_id ? { workspace_id: input.workspace_id } : {})
   }
 
   const { data: createdCredit, error: insertError } = await supabase
@@ -307,16 +312,21 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
     const paymentAmount = Math.min(Number(initial_payment_amount), Number(total_amount))
     
     // 1. Record payment in reseller_payments
+    const initPayPayload: any = {
+      customer_id,
+      payment_date: entry_date,
+      amount: paymentAmount,
+      payment_method: initial_payment_method || "CASH",
+      reference: initial_payment_reference?.trim() || `Initial payment for ${entry_type}`,
+      notes: `Upfront payment on creation of ${entry_type}`
+    }
+    if (input.workspace_id) {
+      initPayPayload.workspace_id = input.workspace_id
+    }
+
     const { data: paymentRecord, error: payError } = await supabase
       .from("reseller_payments")
-      .insert([{
-        customer_id,
-        payment_date: entry_date,
-        amount: paymentAmount,
-        payment_method: initial_payment_method || "CASH",
-        reference: initial_payment_reference?.trim() || `Initial payment for ${entry_type}`,
-        notes: `Upfront payment on creation of ${entry_type}`
-      }])
+      .insert([initPayPayload])
       .select()
       .single()
 
@@ -324,14 +334,19 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
       console.error("Initial payment creation error:", payError)
     } else if (paymentRecord) {
       // 2. Explicitly allocate to this credit entry
+      const initAllocPayload: any = {
+        payment_id: paymentRecord.id,
+        credit_id: createdCredit.id,
+        amount: paymentAmount,
+        notes: "Initial upfront payment allocation"
+      }
+      if (input.workspace_id) {
+        initAllocPayload.workspace_id = input.workspace_id
+      }
+
       const { error: allocError } = await supabase
         .from("customer_payment_allocations")
-        .insert([{
-          payment_id: paymentRecord.id,
-          credit_id: createdCredit.id,
-          amount: paymentAmount,
-          notes: "Initial upfront payment allocation"
-        }])
+        .insert([initAllocPayload])
 
       if (allocError) {
         console.error("Payment allocation error:", allocError)
@@ -420,6 +435,7 @@ export async function recordMultiEntryPayment(params: {
   reference?: string
   notes?: string
   allocations?: { creditId: string; amount: number; notes?: string }[]
+  workspace_id?: string | null
 }): Promise<{ paymentId: string; totalAmount: number; allocatedAmount: number; advanceAmount: number }> {
   const {
     customerId,
@@ -494,16 +510,21 @@ export async function recordMultiEntryPayment(params: {
 
   // Fallback REST path: Sequential insert with compensating cleanup guard
   // 1. Insert into reseller_payments
+  const fallbackPayPayload: any = {
+    customer_id: customerId,
+    payment_date: paymentDate,
+    amount: parsedAmount,
+    payment_method: paymentMethod || "CASH",
+    reference: reference?.trim() || null,
+    notes: notes?.trim() || null
+  }
+  if (params.workspace_id) {
+    fallbackPayPayload.workspace_id = params.workspace_id
+  }
+
   const { data: paymentRecord, error: payError } = await supabase
     .from("reseller_payments")
-    .insert([{
-      customer_id: customerId,
-      payment_date: paymentDate,
-      amount: parsedAmount,
-      payment_method: paymentMethod || "CASH",
-      reference: reference?.trim() || null,
-      notes: notes?.trim() || null
-    }])
+    .insert([fallbackPayPayload])
     .select()
     .single()
 
@@ -517,7 +538,8 @@ export async function recordMultiEntryPayment(params: {
         payment_id: paymentRecord.id,
         credit_id: a.creditId,
         amount: Number(a.amount),
-        notes: a.notes?.trim() || null
+        notes: a.notes?.trim() || null,
+        ...(params.workspace_id ? { workspace_id: params.workspace_id } : {})
       }))
 
     if (validAllocations.length > 0) {
@@ -980,7 +1002,7 @@ export async function reallocateExistingPayment(
 
   const { data: payment, error: pErr } = await supabase
     .from("reseller_payments")
-    .select("id, amount")
+    .select("id, amount, workspace_id")
     .eq("id", paymentId)
     .single()
 
@@ -1007,7 +1029,8 @@ export async function reallocateExistingPayment(
       payment_id: paymentId,
       credit_id: a.creditId,
       amount: Number(a.amount),
-      notes: a.notes?.trim() || null
+      notes: a.notes?.trim() || null,
+      ...(payment.workspace_id ? { workspace_id: payment.workspace_id } : {})
     }))
 
   if (validAllocs.length > 0) {

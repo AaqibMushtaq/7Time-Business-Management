@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react"
 import { useSearchParams } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useAuth } from "@/components/auth/useAuth"
 import { 
   getnaeemRoutes, getnaeemRecords, getnaeemPayments, getnaeemMonthlyBalance,
   recordnaeemDelivery, deletenaeemRecord, 
@@ -57,15 +58,29 @@ export default function NaeemUnclePage() {
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false)
   const [balanceInput, setBalanceInput] = useState("")
 
+  const { currentWorkspace } = useAuth()
+
   // Data Queries
-  const { data: routes } = useQuery({ queryKey: ["naeemRoutes"], queryFn: getnaeemRoutes, retry: false })
-  const { data: records, isLoading: recLoading, isError: recError } = useQuery({ queryKey: ["naeemRecords", selectedMonth], queryFn: () => getnaeemRecords(selectedMonth), retry: false })
-  const { data: payments, isLoading: payLoading, isError: payError } = useQuery({ queryKey: ["naeemPayments", selectedMonth], queryFn: () => getnaeemPayments(selectedMonth), retry: false })
+  const { data: routes } = useQuery({ 
+    queryKey: ["naeemRoutes", currentWorkspace?.id], 
+    queryFn: () => getnaeemRoutes(currentWorkspace?.id), 
+    retry: false 
+  })
+  const { data: records, isLoading: recLoading, isError: recError } = useQuery({ 
+    queryKey: ["naeemRecords", selectedMonth, currentWorkspace?.id], 
+    queryFn: () => getnaeemRecords(selectedMonth, currentWorkspace?.id), 
+    retry: false 
+  })
+  const { data: payments, isLoading: payLoading, isError: payError } = useQuery({ 
+    queryKey: ["naeemPayments", selectedMonth, currentWorkspace?.id], 
+    queryFn: () => getnaeemPayments(selectedMonth, currentWorkspace?.id), 
+    retry: false 
+  })
   const { data: balanceData, isLoading: balLoading, isError: balError } = useQuery({ 
-    queryKey: ["naeemMonthlyBalance", selectedMonth], 
+    queryKey: ["naeemMonthlyBalance", selectedMonth, currentWorkspace?.id], 
     retry: false,
     queryFn: async () => {
-      const res = await getnaeemMonthlyBalance(currentYear, currentMonth)
+      const res = await getnaeemMonthlyBalance(currentYear, currentMonth, currentWorkspace?.id)
       return res
     }
   })
@@ -181,7 +196,12 @@ export default function NaeemUnclePage() {
   })
   
   const saveBalanceMut = useMutation({
-    mutationFn: (val: number) => upsertnaeemMonthlyBalance(currentYear, currentMonth, val),
+    mutationFn: (val: number) => {
+      if (!currentWorkspace?.id) {
+        throw new Error("Active workspace context is required to update balance. Please select a workspace.")
+      }
+      return upsertnaeemMonthlyBalance(currentYear, currentMonth, val, currentWorkspace.id)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemMonthlyBalance"] })
       queryClient.refetchQueries({ queryKey: ["naeemMonthlyBalance"] })
@@ -194,7 +214,12 @@ export default function NaeemUnclePage() {
   })
 
   const clearBalanceMut = useMutation({
-    mutationFn: () => deletenaeemMonthlyBalance(currentYear, currentMonth),
+    mutationFn: () => {
+      if (!currentWorkspace?.id) {
+        throw new Error("Active workspace context is required to clear balance. Please select a workspace.")
+      }
+      return deletenaeemMonthlyBalance(currentYear, currentMonth, currentWorkspace.id)
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemMonthlyBalance"] })
       queryClient.refetchQueries({ queryKey: ["naeemMonthlyBalance"] })
@@ -225,6 +250,12 @@ export default function NaeemUnclePage() {
   const handleRecordDelivery = (e: React.FormEvent) => {
     e.preventDefault()
     if (!routeId) return
+
+    if (!editingRecord && !currentWorkspace?.id) {
+      alert("Active workspace context is required to record a delivery. Please select a workspace.")
+      return
+    }
+
     createDeliveryMut.mutate({
       id: editingRecord ? editingRecord.id : undefined,
       route_id: routeId,
@@ -236,7 +267,8 @@ export default function NaeemUnclePage() {
       payment_method: editingRecord ? editingRecord.payment_method : null,
       balance: finalFare,
       status: isNoOrder ? "No Order" : (editingRecord?.status === "Paid" ? "Paid" : "Pending"),
-      notes
+      notes,
+      workspace_id: currentWorkspace?.id
     })
   }
 
@@ -291,6 +323,11 @@ export default function NaeemUnclePage() {
         allocated_amount
       }))
 
+    if (!currentWorkspace?.id) {
+      alert("Active workspace context is required to record a payment. Please select a workspace.")
+      return
+    }
+
     createPaymentMut.mutate({
       payment: {
         payment_date: payDate,
@@ -300,7 +337,8 @@ export default function NaeemUnclePage() {
         cheque_number: payMethod === "Cheque" ? payRef : null,
         cheque_date: payMethod === "Cheque" ? payChqDate : null,
         bank_name: payMethod === "Cheque" || payMethod === "Bank Transfer" ? payBank : null,
-        notes: payNotes
+        notes: payNotes,
+        workspace_id: currentWorkspace?.id
       },
       allocations
     })

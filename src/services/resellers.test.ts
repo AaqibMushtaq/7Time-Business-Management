@@ -187,8 +187,7 @@ describe("Resellers Service", () => {
     const queryBuilder: any = {
       update: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: updatedCustomer, error: null })
+      select: vi.fn().mockResolvedValue({ data: [updatedCustomer], error: null })
     }
 
     ;(supabase.from as any).mockReturnValue(queryBuilder)
@@ -203,7 +202,8 @@ describe("Resellers Service", () => {
   it("deleteReseller deletes customer from table", async () => {
     const queryBuilder: any = {
       delete: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockResolvedValue({ error: null })
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({ data: [{ id: "r1" }], error: null })
     }
 
     ;(supabase.from as any).mockReturnValue(queryBuilder)

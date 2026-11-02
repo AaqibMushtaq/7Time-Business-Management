@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase"
 
+export type CustomerContactType = "PERSONAL" | "BUSINESS"
+
 export interface ResellerCustomer {
   id: string
   name: string
@@ -8,6 +10,8 @@ export interface ResellerCustomer {
   notes?: string | null
   opening_balance?: number
   created_at?: string
+  contact_type?: CustomerContactType
+  workspace_id?: string
   total_sales?: number
   total_received?: number
   product_credit_outstanding?: number
@@ -24,22 +28,74 @@ export interface ResellerCustomer {
 
 export type LocalCustomer = ResellerCustomer
 
-export const getResellers = async (): Promise<ResellerCustomer[]> => {
-  const { data, error } = await supabase
+/**
+ * Retrieves reseller customers optionally filtered by contact_type.
+ * - contactType === 'PERSONAL': strictly retrieves PERSONAL contacts.
+ * - contactType === 'BUSINESS': strictly retrieves BUSINESS contacts.
+ * - contactType === undefined: retrieves all contacts (preserving backward compatibility).
+ */
+export const getResellers = async (contactType?: CustomerContactType, workspaceId?: string): Promise<ResellerCustomer[]> => {
+  let query = supabase
     .from("reseller_customers")
     .select("*")
     .order("name")
+
+  if (contactType) {
+    query = query.eq("contact_type", contactType)
+  }
+  if (workspaceId) {
+    query = query.eq("workspace_id", workspaceId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data || []
 }
 
-export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> => {
+/**
+ * Dedicated Wholesale Sales business customer retrieval (contact_type = 'BUSINESS').
+ * Prevents personal contacts from appearing in commercial wholesale customer selection.
+ */
+export const getWholesaleCustomers = async (workspaceId?: string): Promise<ResellerCustomer[]> => {
+  return getResellers("BUSINESS", workspaceId)
+}
+
+/**
+ * Dedicated Personal Ledger customer retrieval (contact_type = 'PERSONAL').
+ * Strictly returns only personal contacts.
+ */
+export const getPersonalCustomers = async (workspaceId?: string): Promise<ResellerCustomer[]> => {
+  return getResellers("PERSONAL", workspaceId)
+}
+
+/**
+ * Retrieves reseller customers with calculated financial balances, optionally filtered by contact_type and workspace_id.
+ * - contactType === 'PERSONAL': strictly calculates balances for PERSONAL contacts.
+ * - contactType === 'BUSINESS': strictly calculates balances for BUSINESS contacts.
+ * - contactType === undefined: calculates balances across all contacts.
+ */
+export const getResellersWithBalances = async (contactType?: CustomerContactType, workspaceId?: string): Promise<ResellerCustomer[]> => {
+  let customerQuery = supabase.from("reseller_customers").select("*").order("name")
+  let salesQuery = supabase.from("wholesale_sales").select("customer_id, total_sale, amount_received").limit(999999)
+  let paymentsQuery = supabase.from("reseller_payments").select("customer_id, amount").limit(999999)
+  let creditsQuery = supabase.from("customer_credits").select("customer_id, total_amount, amount_paid, balance, entry_type, funding_source").limit(999999)
+
+  if (contactType) {
+    customerQuery = customerQuery.eq("contact_type", contactType)
+  }
+  if (workspaceId) {
+    customerQuery = customerQuery.eq("workspace_id", workspaceId)
+    salesQuery = salesQuery.eq("workspace_id", workspaceId)
+    paymentsQuery = paymentsQuery.eq("workspace_id", workspaceId)
+    creditsQuery = creditsQuery.eq("workspace_id", workspaceId)
+  }
+
   const [resellersRes, salesRes, paymentsRes, creditsRes] = await Promise.all([
-    supabase.from("reseller_customers").select("*").order("name"),
-    supabase.from("wholesale_sales").select("customer_id, total_sale, amount_received").limit(999999),
-    supabase.from("reseller_payments").select("customer_id, amount").limit(999999),
-    supabase.from("customer_credits").select("customer_id, total_amount, amount_paid, balance, entry_type, funding_source").limit(999999)
+    customerQuery,
+    salesQuery,
+    paymentsQuery,
+    creditsQuery
   ])
 
   if (resellersRes.error) throw new Error(resellersRes.error.message)
@@ -119,7 +175,12 @@ export const getResellersWithBalances = async (): Promise<ResellerCustomer[]> =>
   })
 }
 
-export const createReseller = async (customer: Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding">): Promise<ResellerCustomer> => {
+/**
+ * Creates a customer record.
+ */
+export const createReseller = async (
+  customer: Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding">
+): Promise<ResellerCustomer> => {
   const { data, error } = await supabase
     .from("reseller_customers")
     .insert([customer])
@@ -130,23 +191,114 @@ export const createReseller = async (customer: Omit<ResellerCustomer, "id" | "cr
   return data
 }
 
-export const updateReseller = async (id: string, customer: Partial<Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding">>): Promise<ResellerCustomer> => {
-  const { data, error } = await supabase
+/**
+ * Creates a dedicated Wholesale Sales business customer (contact_type = 'BUSINESS').
+ * Triggers automatic resolution into the caller's active commercial business workspace.
+ */
+export const createWholesaleCustomer = async (
+  customer: Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding" | "contact_type">
+): Promise<ResellerCustomer> => {
+  return createReseller({
+    ...customer,
+    contact_type: "BUSINESS"
+  })
+}
+
+/**
+ * Creates a dedicated Personal Ledger contact (contact_type = 'PERSONAL').
+ * Triggers automatic resolution into the caller's active personal workspace.
+ */
+export const createPersonalCustomer = async (
+  customer: Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding" | "contact_type">
+): Promise<ResellerCustomer> => {
+  return createReseller({
+    ...customer,
+    contact_type: "PERSONAL"
+  })
+}
+
+/**
+ * Updates a reseller customer, optionally enforcing expected contact_type.
+ * If expectedContactType is provided, the query is scoped with .eq("contact_type", expectedContactType),
+ * preventing cross-domain modification (e.g. personal updates cannot target business contacts).
+ */
+export const updateReseller = async (
+  id: string,
+  customer: Partial<Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding">>,
+  expectedContactType?: CustomerContactType
+): Promise<ResellerCustomer> => {
+  if (expectedContactType && customer.contact_type && customer.contact_type !== expectedContactType) {
+    throw new Error(
+      `Cannot change contact classification: Modifying contact_type from '${expectedContactType}' to '${customer.contact_type}' is prohibited.`
+    )
+  }
+
+  let query = supabase
     .from("reseller_customers")
     .update(customer)
     .eq("id", id)
-    .select()
-    .single()
+
+  if (expectedContactType) {
+    query = query.eq("contact_type", expectedContactType)
+  }
+
+  const { data, error } = await query.select()
 
   if (error) throw new Error(error.message)
-  return data
+  if (!data || data.length === 0) {
+    throw new Error(
+      `Update failed: Customer with ID '${id}'${expectedContactType ? ` and classification '${expectedContactType}'` : ""} not found or not authorized for update.`
+    )
+  }
+
+  return data[0]
 }
 
-export const deleteReseller = async (id: string): Promise<void> => {
-  const { error } = await supabase
+export const updatePersonalCustomer = async (
+  id: string,
+  customer: Partial<Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding">>
+): Promise<ResellerCustomer> => {
+  return updateReseller(id, customer, "PERSONAL")
+}
+
+export const updateWholesaleCustomer = async (
+  id: string,
+  customer: Partial<Omit<ResellerCustomer, "id" | "created_at" | "total_sales" | "total_received" | "outstanding">>
+): Promise<ResellerCustomer> => {
+  return updateReseller(id, customer, "BUSINESS")
+}
+
+/**
+ * Deletes a reseller customer, optionally enforcing expected contact_type.
+ * Scoping by expectedContactType guarantees that a deletion from Personal Ledger cannot delete a business customer.
+ */
+export const deleteReseller = async (
+  id: string,
+  expectedContactType?: CustomerContactType
+): Promise<void> => {
+  let query = supabase
     .from("reseller_customers")
     .delete()
     .eq("id", id)
 
+  if (expectedContactType) {
+    query = query.eq("contact_type", expectedContactType)
+  }
+
+  const { data, error } = await query.select("id")
+
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error(
+      `Delete failed: Customer with ID '${id}'${expectedContactType ? ` and classification '${expectedContactType}'` : ""} not found or not authorized for deletion.`
+    )
+  }
+}
+
+export const deletePersonalCustomer = async (id: string): Promise<void> => {
+  return deleteReseller(id, "PERSONAL")
+}
+
+export const deleteWholesaleCustomer = async (id: string): Promise<void> => {
+  return deleteReseller(id, "BUSINESS")
 }

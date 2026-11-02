@@ -22,7 +22,7 @@ export function RouteManagement() {
 
   const { data: routes, isLoading, isError, error } = useQuery({
     queryKey: ["naeemRoutes"],
-    queryFn: getnaeemRoutes
+    queryFn: () => getnaeemRoutes()
   })
 
   const filteredRoutes = useMemo(() => {

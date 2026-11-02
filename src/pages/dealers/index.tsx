@@ -5,6 +5,7 @@ import { getDealersWithBalances, createDealer, updateDealer, type Dealer } from 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { formatMoney } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import {
   Loader2,
   Plus,
@@ -22,6 +23,7 @@ import {
 export default function DealersPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { currentWorkspace } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
 
   // Form state
@@ -39,8 +41,8 @@ export default function DealersPage() {
   const [formError, setFormError] = useState<string | null>(null)
 
   const { data: dealers, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["dealers"],
-    queryFn: getDealersWithBalances,
+    queryKey: ["dealers", currentWorkspace?.id],
+    queryFn: () => getDealersWithBalances(currentWorkspace?.id),
   })
 
   const closeForm = () => {
@@ -99,12 +101,17 @@ export default function DealersPage() {
       notes: formData.notes.trim() || null,
       opening_balance: formData.opening_balance !== "" && !isNaN(Number(formData.opening_balance))
         ? Number(formData.opening_balance)
-        : 0
+        : 0,
+      workspace_id: currentWorkspace?.id
     }
 
     if (editingId) {
       updateMutation.mutate({ id: editingId, data: payload })
     } else {
+      if (!currentWorkspace?.id) {
+        setFormError("Active workspace context is required to create a dealer. Please select a workspace.")
+        return
+      }
       createMutation.mutate(payload)
     }
   }

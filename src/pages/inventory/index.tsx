@@ -13,9 +13,10 @@ import {
   type DataTableColumn,
 } from "@/components/shared"
 import { Package, DollarSign, TrendingUp, AlertTriangle } from "lucide-react"
+import { useAuth } from "@/components/auth/useAuth"
 
-async function getProductsAndSettings() {
-  const data = await getProducts()
+async function getProductsAndSettings(workspaceId?: string) {
+  const data = await getProducts(workspaceId)
   const { data: settings } = await supabase
     .from("app_settings")
     .select("low_stock_threshold")
@@ -24,9 +25,10 @@ async function getProductsAndSettings() {
 }
 
 export default function InventoryPage() {
+  const { currentWorkspace } = useAuth()
   const { data, isLoading } = useQuery({
-    queryKey: ["inventory_page"],
-    queryFn: getProductsAndSettings,
+    queryKey: ["inventory_page", currentWorkspace?.id],
+    queryFn: () => getProductsAndSettings(currentWorkspace?.id),
   })
 
   const products = data?.products

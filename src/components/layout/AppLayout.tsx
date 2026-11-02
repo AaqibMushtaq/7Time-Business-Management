@@ -26,6 +26,7 @@ import {
 import { Button } from "../ui/button"
 import { UpdateNotificationBanner } from "../common/UpdateNotificationBanner"
 import { getCurrentAppVersion, forceAppReload } from "@/lib/versionManager"
+import { WorkspaceSelector } from "@/components/workspace/WorkspaceSelector"
 
 interface NavItemDef {
   name: string
@@ -204,6 +205,11 @@ function SidebarContent({ user, profile, isAdmin, hasModule, signOut, pathname, 
         </nav>
       </div>
       
+      {/* Workspace Context Switcher */}
+      <div className="px-4 py-2.5 border-t border-slate-200/80 bg-slate-50/40">
+        <WorkspaceSelector variant="sidebar" />
+      </div>
+
       {/* User & Version Footer */}
       <div className="p-4 border-t border-slate-200/80 bg-slate-50/60 shrink-0 space-y-3">
         <div className="flex items-center text-sm p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
@@ -350,10 +356,12 @@ export function AppLayout() {
 
         {/* Desktop Header */}
         <header className="hidden lg:flex items-center justify-between h-16 px-6 bg-white/90 backdrop-blur-xs border-b border-slate-200/80 shrink-0 sticky top-0 z-30">
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center gap-4 min-w-0">
             <span className="text-sm font-bold text-slate-900 tracking-tight truncate">
               {getPageTitle(location.pathname)}
             </span>
+            <div className="h-4 w-px bg-slate-200 hidden md:block" />
+            <WorkspaceSelector variant="header" />
           </div>
 
           <div className="flex items-center gap-3">

@@ -6,6 +6,7 @@ import {
   deleteDailyRecord,
   type GeneralDailyRecord
 } from "@/services/generalDeliveries"
+import { useAuth } from "@/components/auth/useAuth"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { formatMoney } from "@/lib/utils"
@@ -30,6 +31,7 @@ import { DailyEditModal } from "./DailyEditModal"
 
 export default function GeneralDeliveriesPage() {
   const queryClient = useQueryClient()
+  const { currentWorkspace } = useAuth()
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     return localStorage.getItem("general_delivery_month") || new Date().toISOString().substring(0, 7)
@@ -40,8 +42,8 @@ export default function GeneralDeliveriesPage() {
   }, [selectedMonth])
 
   const { data: dbRecords, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["generalDailyRecords", selectedMonth],
-    queryFn: () => getGeneralDailyRecords(selectedMonth)
+    queryKey: ["generalDailyRecords", selectedMonth, currentWorkspace?.id],
+    queryFn: () => getGeneralDailyRecords(selectedMonth, currentWorkspace?.id)
   })
 
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
@@ -154,7 +156,8 @@ export default function GeneralDeliveriesPage() {
       return upsertDailyRecord(params.date, {
         delivery_expression: params.expression.trim() || null,
         fuel_expenses: params.fuel,
-        remarks: params.remarks.trim() || null
+        remarks: params.remarks.trim() || null,
+        workspace_id: currentWorkspace?.id
       })
     },
     onSuccess: () => {
@@ -220,6 +223,11 @@ export default function GeneralDeliveriesPage() {
   const handleSaveModal = (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingDate) return
+
+    if (!currentWorkspace?.id) {
+      setModalError("Active workspace context is required to save deliveries. Please select a workspace.")
+      return
+    }
 
     if (editExpression.trim()) {
       const parsed = parseArithmeticExpression(editExpression.trim())

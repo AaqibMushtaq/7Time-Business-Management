@@ -20,6 +20,7 @@ export interface WholesaleSale {
   payment_method?: string | null
   notes: string | null
   created_at?: string
+  workspace_id?: string
   
   customer?: ResellerCustomer
   product?: Product
@@ -28,8 +29,8 @@ export interface WholesaleSale {
 
 export { calculateWholesaleSale } from "@/lib/wholesaleCalculations"
 
-export const getWholesaleSales = async (): Promise<WholesaleSale[]> => {
-  const { data, error } = await supabase
+export const getWholesaleSales = async (workspaceId?: string): Promise<WholesaleSale[]> => {
+  let query = supabase
     .from("wholesale_sales")
     .select(`
       *,
@@ -38,6 +39,12 @@ export const getWholesaleSales = async (): Promise<WholesaleSale[]> => {
       dealer:dealers(id, name)
     `)
     .order("sale_date", { ascending: false })
+
+  if (workspaceId) {
+    query = query.eq("workspace_id", workspaceId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data || []

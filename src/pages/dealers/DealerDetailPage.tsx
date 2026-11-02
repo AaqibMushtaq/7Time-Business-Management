@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatMoney, formatDate, cn } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import {
   DataTable,
   type DataTableColumn,
@@ -38,6 +39,7 @@ import {
 export default function DealerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const { currentWorkspace } = useAuth()
 
   // Active detail tab
   const [activeTab, setActiveTab] = useState<"overview" | "purchases" | "payments">("overview")
@@ -327,7 +329,8 @@ export default function DealerDetailPage() {
         buying_cost: cost,
         wholesale_price: wholesale,
         retail_price: retail,
-        stock_quantity: 0
+        stock_quantity: 0,
+        workspace_id: currentWorkspace?.id
       }
     }
   }
@@ -335,6 +338,10 @@ export default function DealerDetailPage() {
   const handleCreateProductOnly = (e?: React.MouseEvent) => {
     if (e) e.preventDefault()
     if (!id) return
+    if (!currentWorkspace?.id) {
+      setNewProductError("Active workspace context is required to create a product. Please select a workspace.")
+      return
+    }
     const result = validateNewProduct()
     if (!result.valid || !result.data) return
     createProductMutation.mutate(result.data)
@@ -444,7 +451,8 @@ export default function DealerDetailPage() {
           amount_paid: paid,
           balance,
           reference: purchaseForm.reference.trim() || null,
-          notes: purchaseForm.notes.trim() || null
+          notes: purchaseForm.notes.trim() || null,
+          workspace_id: currentWorkspace?.id
         })
         return
       } catch (err: any) {
@@ -484,7 +492,8 @@ export default function DealerDetailPage() {
       amount_paid: paid,
       balance,
       reference: purchaseForm.reference.trim() || null,
-      notes: purchaseForm.notes.trim() || null
+      notes: purchaseForm.notes.trim() || null,
+      workspace_id: currentWorkspace?.id
     })
   }
 
@@ -493,6 +502,11 @@ export default function DealerDetailPage() {
     e.preventDefault()
     setPaymentError(null)
     if (!id) return
+
+    if (!currentWorkspace?.id) {
+      setPaymentError("Active workspace context is required to record a payment. Please select a workspace.")
+      return
+    }
 
     const amountNum = Number(paymentForm.amount)
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -506,7 +520,8 @@ export default function DealerDetailPage() {
       amount: amountNum,
       payment_method: paymentForm.payment_method || "CASH",
       reference: paymentForm.reference.trim() || null,
-      notes: paymentForm.notes.trim() || null
+      notes: paymentForm.notes.trim() || null,
+      workspace_id: currentWorkspace?.id
     })
   }
 
