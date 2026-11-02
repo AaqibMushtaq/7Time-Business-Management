@@ -356,7 +356,12 @@ export async function upsertnaeemRoute(route: Partial<naeemRoute>) {
   return data[0] as naeemRoute
 }
 
-export async function getnaeemMonthlyBalance(year: number, month: number): Promise<{ opening_balance: number; is_manual_override: boolean }> {
+export async function getnaeemMonthlyBalance(year: number, month: number): Promise<{ 
+  opening_balance: number; 
+  opening_credit?: number; 
+  net_opening_balance?: number; 
+  is_manual_override: boolean 
+}> {
   try {
     // 1. Check if current month has a manual override
     const { data: currentMonthData, error: currentMonthError } = await supabase
@@ -372,7 +377,13 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
     }
 
     if (currentMonthData && currentMonthData.is_manual_override) {
-      return { opening_balance: Number(currentMonthData.opening_balance), is_manual_override: true }
+      const ob = Number(currentMonthData.opening_balance) || 0
+      return { 
+        opening_balance: ob >= 0 ? ob : 0, 
+        opening_credit: ob < 0 ? Math.abs(ob) : 0,
+        net_opening_balance: ob,
+        is_manual_override: true 
+      }
     }
 
     // 2. If no manual override, find the most recent manual override before this month
@@ -418,7 +429,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
         startMonth = parseInt(m)
       } else {
         // No records at all
-        return { opening_balance: 0, is_manual_override: false }
+        return { opening_balance: 0, opening_credit: 0, net_opening_balance: 0, is_manual_override: false }
       }
     }
 
@@ -432,7 +443,12 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
 
     // If start date is after prev date (e.g. target month is the earliest month)
     if (startYear > prevYear || (startYear === prevYear && startMonth > prevMonth)) {
-      return { opening_balance: runningBalance, is_manual_override: false }
+      return { 
+        opening_balance: runningBalance >= 0 ? runningBalance : 0, 
+        opening_credit: runningBalance < 0 ? Math.abs(runningBalance) : 0,
+        net_opening_balance: runningBalance,
+        is_manual_override: false 
+      }
     }
 
     const startDateStr = `${startYear}-${String(startMonth).padStart(2, '0')}-01`
@@ -474,7 +490,12 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
 
     runningBalance = runningBalance + billed - received
 
-    return { opening_balance: runningBalance, is_manual_override: false }
+    return { 
+      opening_balance: runningBalance >= 0 ? runningBalance : 0, 
+      opening_credit: runningBalance < 0 ? Math.abs(runningBalance) : 0,
+      net_opening_balance: runningBalance,
+      is_manual_override: false 
+    }
 
   } catch (err) {
     console.error("Failed to calculate opening balance:", err)

@@ -153,11 +153,11 @@ describe("NaeemUnclePage", () => {
       }
     ]);
 
-    // October cheque recorded on 1 Nov but allocated to October deliveries
+    // October cheque received on 30 Oct and allocated to October deliveries
     (getAllnaeemPayments as any).mockResolvedValue([
       {
         id: "848f90d5-0a56-40c8-b72b-f91a32a2da74",
-        payment_date: "2026-11-01",
+        payment_date: "2026-10-30",
         amount: 8000,
         payment_method: "Cheque",
         cheque_number: "117",

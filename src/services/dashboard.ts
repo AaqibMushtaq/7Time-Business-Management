@@ -769,7 +769,8 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
 
   const naeemOpeningBalance = Number(balRes?.opening_balance) || 0
   const naeemTotalDue = naeemOpeningBalance + naeemRevenue
-  const naeemPending = naeemTotalDue - naeemReceived
+  const naeemOpeningCredit = Number(balRes?.opening_credit) || (Number(balRes?.opening_balance) < 0 ? Math.abs(Number(balRes?.opening_balance)) : 0)
+  const naeemPending = naeemTotalDue - naeemReceived - naeemOpeningCredit
 
   // Critical Accounting Rule: Subtract NAEEM from combined General Delivery only when
   // the existing data confirms that NAEEM is already included in that combined amount.

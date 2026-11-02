@@ -138,7 +138,8 @@ export async function getUnifiedReceivables(
   }, 0) || 0
 
   const naeemOpening = Number(naeemBalRes?.opening_balance || 0)
-  const naeemOutstanding = (naeemOpening + naeemRevenue) - naeemReceived
+  const naeemCredit = Number(naeemBalRes?.opening_credit || 0) || (Number(naeemBalRes?.opening_balance) < 0 ? Math.abs(Number(naeemBalRes?.opening_balance)) : 0)
+  const naeemOutstanding = (naeemOpening + naeemRevenue) - naeemReceived - naeemCredit
   const latestNaeemPayDate = naeemPayRes.data && naeemPayRes.data.length > 0 ? naeemPayRes.data[0].payment_date : null
 
   if (naeemOutstanding > 0) {

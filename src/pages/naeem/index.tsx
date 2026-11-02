@@ -366,12 +366,23 @@ export default function NaeemUnclePage() {
               ) : balError ? (
                 <p className="text-base font-bold text-[#B42318] py-1">Error</p>
               ) : (
-                <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.openingBalance)}</p>
+                <>
+                  <p className="text-2xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.openingBalance)}</p>
+                  {summary.openingCredit && summary.openingCredit > 0 ? (
+                    <span className="text-xs font-semibold text-[#087443] block mt-0.5">
+                      Advance Credit: +{formatMoney(summary.openingCredit)}
+                    </span>
+                  ) : null}
+                </>
               )}
             </div>
             <div className="flex items-center justify-between mt-3 pt-2 border-t border-[#D9E0E8]">
               <p className="text-xs text-[#52627A] font-medium truncate pr-2">
-                {summary.isManualOverride ? "Manual override" : "Carried forward"}
+                {summary.isManualOverride
+                  ? "Manual override"
+                  : summary.openingCredit && summary.openingCredit > 0
+                  ? "Advance credit carried forward"
+                  : "Carried forward"}
               </p>
               <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-[#2563EB] hover:bg-[#EBF2FE] -mr-2 cursor-pointer" onClick={() => { setBalanceInput(summary.openingBalance.toString()); setIsBalanceModalOpen(true); }}>
                 Edit
@@ -1136,7 +1147,7 @@ export default function NaeemUnclePage() {
                       <Table className="border-collapse">
                         <TableHeader>
                           <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
-                            <TableHead className="font-semibold text-xs tracking-wider uppercase whitespace-nowrap text-[#172B4D] py-3.5 px-4">Payment Date</TableHead>
+                            <TableHead className="font-semibold text-xs tracking-wider uppercase whitespace-nowrap text-[#172B4D] py-3.5 px-4">Payment Received</TableHead>
                             <TableHead className="font-semibold text-xs tracking-wider uppercase text-[#52627A] py-3.5 px-4">Method</TableHead>
                             <TableHead className="text-right font-semibold text-xs tracking-wider uppercase text-[#172B4D] py-3.5 px-4">Amount</TableHead>
                             <TableHead className="font-semibold text-xs tracking-wider uppercase text-[#52627A] py-3.5 px-4">Reference</TableHead>
@@ -1148,7 +1159,16 @@ export default function NaeemUnclePage() {
                         <TableBody>
                           {allPayments?.map((pay) => (
                             <TableRow key={pay.id} className="group hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors">
-                              <TableCell className="font-medium text-[#172B4D] font-mono whitespace-nowrap py-3 px-4">{formatDate(pay.payment_date)}</TableCell>
+                              <TableCell className="font-medium text-[#172B4D] font-mono whitespace-nowrap py-3 px-4">
+                                <div>
+                                  <span>{formatDate(pay.payment_date)}</span>
+                                  {pay.payment_method === "Cheque" && pay.cheque_date && (
+                                    <div className="text-[11px] font-sans font-normal text-[#52627A] mt-0.5">
+                                      Cheque Date: {formatDate(pay.cheque_date)}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
                               <TableCell className="py-3 px-4">
                                 <span className="inline-flex items-center px-2 py-0.5 bg-[#F1F4F8] text-[#52627A] border border-[#D9E0E8] rounded text-xs font-medium whitespace-nowrap">
                                   {pay.payment_method}
@@ -1201,9 +1221,16 @@ export default function NaeemUnclePage() {
                         <div key={pay.id} className="p-4 space-y-2.5 bg-white hover:bg-[#F8F7F2]/50 transition-colors">
                           <div className="flex justify-between items-start">
                             <div>
-                              <span className="text-xs font-mono font-semibold text-[#52627A] bg-[#F1F4F8] px-2 py-0.5 rounded border border-[#D9E0E8]">
-                                {formatDate(pay.payment_date)}
-                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-mono font-semibold text-[#52627A] bg-[#F1F4F8] px-2 py-0.5 rounded border border-[#D9E0E8]">
+                                  Payment Received: {formatDate(pay.payment_date)}
+                                </span>
+                                {pay.payment_method === "Cheque" && pay.cheque_date && (
+                                  <span className="text-[11px] font-mono text-[#52627A] bg-[#F8F7F2] px-2 py-0.5 rounded border border-[#D9E0E8]">
+                                    Cheque Date: {formatDate(pay.cheque_date)}
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-1.5 mt-1">
                                 <span className="text-xs font-semibold px-2 py-0.5 rounded bg-[#F1F4F8] text-[#52627A] border border-[#D9E0E8]">
                                   {pay.payment_method}
@@ -1264,6 +1291,11 @@ export default function NaeemUnclePage() {
                 <div className="p-4 bg-[#F8F7F2] rounded-xl border border-[#D9E0E8]">
                   <p className="text-xs uppercase tracking-wider text-[#52627A] font-semibold mb-1">Opening Obligation</p>
                   <p className="text-xl font-bold font-mono text-[#172B4D]">{formatMoney(summary.openingBalance)}</p>
+                  {summary.openingCredit && summary.openingCredit > 0 ? (
+                    <p className="text-xs font-semibold text-[#087443] mt-1">
+                      Advance Credit: +{formatMoney(summary.openingCredit)}
+                    </p>
+                  ) : null}
                   <p className="text-xs text-[#52627A] mt-2">
                     {summary.isManualOverride ? "Set via manual balance override" : "Closing balance carried from previous month"}
                   </p>
@@ -1292,7 +1324,7 @@ export default function NaeemUnclePage() {
                     <p className="text-xs text-[#52627A]">
                       {summary.totalDue === 0 
                         ? "No open balance or billing for this period" 
-                        : `${formatMoney(summary.totalReceived)} collected of ${formatMoney(summary.totalDue)} total obligations`}
+                        : `${formatMoney(summary.totalReceived + (summary.priorAdvanceConsumed || 0))} collected of ${formatMoney(summary.totalDue)} total obligations`}
                     </p>
                   </div>
                   <div className="flex items-center gap-4 text-xs font-mono font-bold">
@@ -1341,6 +1373,14 @@ export default function NaeemUnclePage() {
             <span className="bg-[#0F1E36] px-2.5 py-1.5 rounded-lg border border-[#1E293B]">
               <span className="text-[#94A3B8]">Receipts:</span> <strong className="text-[#34D399]">{formatMoney(summary.totalReceived)}</strong>
             </span>
+            {summary.priorAdvanceConsumed && summary.priorAdvanceConsumed > 0 ? (
+              <>
+                <span className="text-[#64748B]">-</span>
+                <span className="bg-[#0F1E36] px-2.5 py-1.5 rounded-lg border border-[#1E293B]">
+                  <span className="text-[#94A3B8]">Prior Advance:</span> <strong className="text-[#34D399]">{formatMoney(summary.priorAdvanceConsumed)}</strong>
+                </span>
+              </>
+            ) : null}
             <span className="text-[#64748B]">=</span>
             <span className="bg-[#1E293B] px-3 py-1.5 rounded-lg border border-[#334155] font-bold text-[#FBBF24]">
               <span className="text-[#94A3B8] font-normal">Outstanding:</span> {formatMoney(summary.outstanding)}

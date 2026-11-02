@@ -29,12 +29,18 @@ export function processRecords(records: naeemDailyRecord[] | undefined | null) {
 
 export interface NaeemSummary {
   openingBalance: number;
+  openingCredit?: number;
   isManualOverride: boolean;
   currentMonthBilled: number;
   totalDue: number;
   totalReceived: number;
   paymentsAllocated: number;
   allocatedToDeliveries: number;
+  allocatedToPriorDeliveries?: number;
+  allocatedToFutureDeliveries?: number;
+  unresolvedAllocations?: number;
+  priorAdvanceConsumed?: number;
+  deliverySettlementFromPriorAdvance?: number;
   unallocatedAdvance: number;
   outstanding: number;
   collectionPercentage: number;
@@ -48,77 +54,44 @@ export interface NaeemSummary {
 /**
  * Determines whether a payment belongs to the accounting period of a given targetMonth (YYYY-MM).
  *
- * Rules:
- * 1. If payment has allocations, inspect the months of the allocated deliveries:
- *    - If any allocation is for targetMonth deliveries, it belongs to targetMonth.
- *    - If ALL allocations are for deliveries prior to targetMonth (e.g. November cheque allocated
- *      to October deliveries), it settled prior obligations; its accounting effect belongs to the
- *      prior period and it must NOT be counted in targetMonth's receipts.
- * 2. If payment has no delivery allocations, inspect cheque_date (for Cheques) or payment_date.
+ * Payment-Period Recognition Rule:
+ * Cash receipts are recognized strictly by payment_date (the date received and recorded).
+ * cheque_date is retained solely as cheque metadata and does NOT shift the accounting month.
  */
 export function isPaymentForMonth(
   payment: naeemPayment,
   targetMonth?: string,
-  currentMonthRecordIds?: Set<string>
+  _currentMonthRecordIds?: Set<string>
 ): boolean {
   if (!targetMonth) return true;
-
-  const allocations = payment.allocations || [];
-
-  if (allocations.length > 0) {
-    const allocatedMonths = new Set<string>();
-    let hasCurrentMonthRecord = false;
-
-    for (const alloc of allocations) {
-      if (
-        currentMonthRecordIds &&
-        alloc.daily_record_id &&
-        currentMonthRecordIds.has(alloc.daily_record_id)
-      ) {
-        hasCurrentMonthRecord = true;
-      }
-      const dDate = (alloc as any).daily_record?.delivery_date || (alloc as any).delivery_date;
-      if (dDate) {
-        allocatedMonths.add(dDate.substring(0, 7));
-      }
-    }
-
-    if (hasCurrentMonthRecord || allocatedMonths.has(targetMonth)) {
-      return true;
-    }
-
-    if (allocatedMonths.size > 0) {
-      const allPrior = Array.from(allocatedMonths).every((m) => m < targetMonth);
-      if (allPrior) {
-        return false;
-      }
-    }
-
-    if (
-      payment.payment_method === "Cheque" &&
-      payment.cheque_date &&
-      payment.cheque_date.substring(0, 7) < targetMonth
-    ) {
-      return false;
-    }
-  }
-
-  // Direct receipts without delivery allocations (or advance payments):
-  const effectiveDate =
-    payment.payment_method === "Cheque" && payment.cheque_date
-      ? payment.cheque_date
-      : payment.payment_date;
-
-  return effectiveDate ? effectiveDate.startsWith(targetMonth) : false;
+  return Boolean(payment.payment_date && payment.payment_date.startsWith(targetMonth));
 }
 
 export function calculateSummary(
-  balanceData: { opening_balance: number; is_manual_override: boolean } | undefined | null,
+  balanceData: { opening_balance: number; is_manual_override: boolean; opening_credit?: number } | undefined | null,
   processedRecords: ReturnType<typeof processRecords>,
   payments: naeemPayment[] | undefined | null,
   selectedMonth?: string
 ): NaeemSummary {
-  const openingBalance = Number(balanceData?.opening_balance) || 0;
+  const rawOpening = Number(balanceData?.opening_balance) || 0;
+  let openingCredit = Math.max(0, Number(balanceData?.opening_credit) || 0);
+  let openingBalance = rawOpening;
+
+  // Handle negative opening_balance (e.g. from dynamic calculation billed - received < 0 or legacy input)
+  if (rawOpening < 0) {
+    openingCredit = Math.abs(rawOpening);
+    openingBalance = 0;
+  } else if (rawOpening > 0 && openingCredit > 0) {
+    // If both exist, net them out cleanly
+    if (rawOpening >= openingCredit) {
+      openingBalance = rawOpening - openingCredit;
+      openingCredit = 0;
+    } else {
+      openingCredit = openingCredit - rawOpening;
+      openingBalance = 0;
+    }
+  }
+
   const isManualOverride = balanceData?.is_manual_override === true;
 
   const currentMonthBilled = (processedRecords || []).reduce(
@@ -137,11 +110,9 @@ export function calculateSummary(
       ? processedRecords[0].delivery_date.substring(0, 7)
       : undefined);
 
-  // Payments belonging to this month's accounting period
+  // Payments received strictly during this month (based solely on payment_date)
   const monthPayments = activeMonth
-    ? (payments || []).filter((p) =>
-        isPaymentForMonth(p, activeMonth, currentMonthRecordIds)
-      )
+    ? (payments || []).filter((p) => isPaymentForMonth(p, activeMonth))
     : payments || [];
 
   // Total payments received during this month only
@@ -150,32 +121,136 @@ export function calculateSummary(
     0
   );
 
-  // Amount allocated to this month's deliveries
-  const allocatedToDeliveries = (processedRecords || []).reduce(
+  // Fast map of loaded current-month records to their delivery dates
+  const recordMap = new Map<string, string>();
+  for (const r of processedRecords || []) {
+    if (r.id && r.delivery_date) {
+      recordMap.set(r.id, r.delivery_date);
+    }
+  }
+
+  // Categorize this month's payments into mutually exclusive categories based on actual delivery date:
+  // 1. Amount allocated to current-month deliveries (delivery_date in activeMonth)
+  // 2. Amount allocated to prior-month deliveries (delivery_date < activeMonth)
+  // 3. Amount allocated to future-month deliveries (delivery_date > activeMonth)
+  // 4. Amount with missing or unresolved delivery relations
+  let allocatedToCurrentDeliveries = 0;
+  let allocatedToPriorDeliveries = 0;
+  let allocatedToFutureDeliveries = 0;
+  let unresolvedAllocations = 0;
+
+  for (const p of monthPayments) {
+    for (const a of p.allocations || []) {
+      const amt = Number(a.allocated_amount) || 0;
+      if (amt <= 0) continue;
+
+      // Resolve the actual related delivery date from relation, flat property, or recordMap
+      const rawDate =
+        (a.daily_record && typeof a.daily_record === "object" && !Array.isArray(a.daily_record)
+          ? a.daily_record.delivery_date
+          : undefined) ||
+        (Array.isArray(a.daily_record) && a.daily_record[0]
+          ? (a.daily_record[0] as any).delivery_date
+          : undefined) ||
+        (a as any).delivery_date ||
+        (a.daily_record_id ? recordMap.get(a.daily_record_id) : undefined);
+
+      if (!rawDate || typeof rawDate !== "string" || rawDate.length < 7) {
+        // Missing or unresolved delivery relation: do not silently assume prior or current
+        unresolvedAllocations += amt;
+        if (typeof console !== "undefined" && console.warn) {
+          console.warn(
+            `[NAEEM Accounting Warning] Unresolved allocation detected on payment ${p.id || '(unknown)'}: allocation ${a.id || '(no-id)'} referencing daily_record_id ${a.daily_record_id || 'null'} has no valid delivery date.`
+          );
+        }
+        continue;
+      }
+
+      const deliveryMonth = rawDate.substring(0, 7);
+
+      if (!activeMonth || deliveryMonth === activeMonth) {
+        allocatedToCurrentDeliveries += amt;
+      } else if (deliveryMonth < activeMonth) {
+        allocatedToPriorDeliveries += amt;
+      } else {
+        // Future delivery: deliveryMonth > activeMonth
+        allocatedToFutureDeliveries += amt;
+      }
+    }
+  }
+
+  // 3. Unallocated payment advance from this month's receipts
+  const paymentsAllocated =
+    allocatedToCurrentDeliveries +
+    allocatedToPriorDeliveries +
+    allocatedToFutureDeliveries +
+    unresolvedAllocations;
+  const unallocatedAdvance = Math.max(0, totalReceived - paymentsAllocated);
+
+  // Cross-period advance settlement calculation:
+  // Deliveries in current month may have allocations originating from payments received in prior months
+  const totalAllocationsOnCurrentDeliveries = (processedRecords || []).reduce(
     (s, r) => s + (r.calculatedStatus === "No Order" ? 0 : Number(r.calculatedReceived) || 0),
     0
   );
+  const deliverySettlementFromPriorAdvance = Math.max(
+    0,
+    totalAllocationsOnCurrentDeliveries - allocatedToCurrentDeliveries
+  );
 
-  // Total amount allocated from this month's valid payments
-  const paymentsAllocatedFromThisMonth = monthPayments.reduce((sum, p) => {
-    const pAlloc = (p.allocations || []).reduce(
-      (aSum, a) => aSum + (Number(a.allocated_amount) || 0),
-      0
-    );
-    return sum + pAlloc;
-  }, 0);
+  // Consume carried-forward opening credit against deliveries settled by prior advance
+  const priorAdvanceConsumedByAllocations = Math.min(
+    openingCredit,
+    deliverySettlementFromPriorAdvance
+  );
+  let remainingOpeningCredit = openingCredit - priorAdvanceConsumedByAllocations;
 
-  const paymentsAllocated = Math.max(paymentsAllocatedFromThisMonth, allocatedToDeliveries);
-  const unallocatedAdvance = Math.max(0, totalReceived - paymentsAllocated);
-
-  // Current month unpaid delivery balance
+  // Step 1: Current-month delivery obligations
+  // Delivery balance remaining after direct delivery allocations (both current and prior advance)
   const currentMonthDeliveryBalance = (processedRecords || []).reduce(
     (s, r) => s + (r.calculatedStatus === "No Order" ? 0 : Number(r.calculatedBalance) || 0),
     0
   );
 
-  // Outstanding obligations: genuine unpaid obligations remaining (Opening balance + Unpaid deliveries)
-  const outstanding = Math.max(0, openingBalance + currentMonthDeliveryBalance);
+  // If there is still opening credit and remaining unpaid deliveries, apply remaining opening credit
+  const creditAppliedToUnpaidDeliveries = Math.min(
+    currentMonthDeliveryBalance,
+    remainingOpeningCredit
+  );
+  remainingOpeningCredit -= creditAppliedToUnpaidDeliveries;
+  const deliveryBalanceAfterPriorCredit = currentMonthDeliveryBalance - creditAppliedToUnpaidDeliveries;
+
+  const priorAdvanceConsumed = priorAdvanceConsumedByAllocations + creditAppliedToUnpaidDeliveries;
+
+  // Step 2: Prior-month allocations reduce opening balance directly
+  const openingAfterPriorAllocations = Math.max(0, openingBalance - allocatedToPriorDeliveries);
+  const excessPriorAllocations = Math.max(0, allocatedToPriorDeliveries - openingBalance);
+
+  // Step 3: Unallocated advance (+ any excess prior allocations) settles remaining obligations
+  const totalAvailableAdvance = unallocatedAdvance + excessPriorAllocations;
+
+  // Advance reduces remaining opening balance first:
+  const advanceToOpening = Math.min(openingAfterPriorAllocations, totalAvailableAdvance);
+  const remainingOpeningBalance = openingAfterPriorAllocations - advanceToOpening;
+  const advanceAfterOpening = totalAvailableAdvance - advanceToOpening;
+
+  // Remaining advance reduces remaining delivery balance:
+  const advanceToDeliveries = Math.min(deliveryBalanceAfterPriorCredit, advanceAfterOpening);
+  const remainingDeliveryBalance = deliveryBalanceAfterPriorCredit - advanceToDeliveries;
+
+  // Step 4: Any surplus cash beyond all obligations is preserved as credit balance
+  // Future delivery allocations, unresolved allocations, and remaining opening credit are preserved as credit (held cash)
+  const advanceCredit = advanceAfterOpening - advanceToDeliveries;
+  const creditBalance =
+    advanceCredit +
+    allocatedToFutureDeliveries +
+    unresolvedAllocations +
+    remainingOpeningCredit;
+
+  // Step 5: Total Outstanding Balance = Remaining Deliveries + Remaining Opening Balance
+  // Reconciled check: Math.max(0, totalDue - totalReceived - priorAdvanceConsumed)
+  const outstanding = remainingDeliveryBalance + remainingOpeningBalance;
+  const netBalance = outstanding;
 
   const noOrderDays = (processedRecords || []).filter(
     (r) => r.calculatedStatus === "No Order"
@@ -183,7 +258,7 @@ export function calculateSummary(
   const tripCount = (processedRecords || []).length - noOrderDays;
 
   // Percentage calculations bounded [0, 100]
-  const settled = Math.max(0, totalDue - outstanding);
+  const settled = Math.min(totalDue, Math.max(0, totalDue - outstanding));
   const collectionPercentage =
     totalDue > 0
       ? Math.min(100, Math.max(0, Math.round((settled / totalDue) * 100)))
@@ -193,17 +268,20 @@ export function calculateSummary(
       ? Math.min(100, Math.max(0, Math.round((outstanding / totalDue) * 100)))
       : 0;
 
-  const netBalance = Math.max(0, outstanding - unallocatedAdvance);
-  const creditBalance = Math.max(0, unallocatedAdvance - outstanding);
-
   return {
     openingBalance,
+    openingCredit,
+    priorAdvanceConsumed,
+    deliverySettlementFromPriorAdvance,
     isManualOverride,
     currentMonthBilled,
     totalDue,
     totalReceived,
     paymentsAllocated,
-    allocatedToDeliveries,
+    allocatedToDeliveries: allocatedToCurrentDeliveries,
+    allocatedToPriorDeliveries,
+    allocatedToFutureDeliveries,
+    unresolvedAllocations,
     unallocatedAdvance,
     outstanding,
     collectionPercentage,
