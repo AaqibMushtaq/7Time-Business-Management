@@ -73,6 +73,7 @@ export interface ManagedUserAccount {
   id: string
   email: string
   full_name: string
+  phone?: string | null
   system_role: SystemRole
   is_active: boolean
   created_at: string

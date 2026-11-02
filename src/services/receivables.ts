@@ -41,8 +41,30 @@ export interface UnifiedReceivablesSummary {
  */
 export async function getUnifiedReceivables(
   targetYear: number = new Date().getFullYear(),
-  targetMonth: number = new Date().getMonth() + 1
+  targetMonth: number = new Date().getMonth() + 1,
+  workspaceId?: string | null
 ): Promise<UnifiedReceivablesSummary> {
+  let resellersQuery = supabase.from("reseller_customers").select("id, name, phone, opening_balance").order("name")
+  let salesQuery = supabase.from("wholesale_sales").select("id, customer_id, total_sale, amount_received, sale_date").limit(999999)
+  let resellerPaymentsQuery = supabase.from("reseller_payments").select("id, customer_id, amount, payment_date").limit(999999)
+  let creditsQuery = supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, entry_type, entry_date").limit(999999)
+  let naeemDelQuery = supabase.from("naeem_daily_records").select("id, final_fare, status, delivery_date").order("delivery_date", { ascending: false })
+  let naeemPayQuery = supabase.from("naeem_payments").select("id, amount, payment_date").order("payment_date", { ascending: false })
+  let generalEntriesQuery = supabase
+    .from("general_delivery_entries")
+    .select("id, daily_record_id, customer_name, description, amount, received_amount, created_at, daily_record:general_daily_records(record_date)")
+    .limit(999999)
+
+  if (workspaceId) {
+    resellersQuery = resellersQuery.eq("workspace_id", workspaceId)
+    salesQuery = salesQuery.eq("workspace_id", workspaceId)
+    resellerPaymentsQuery = resellerPaymentsQuery.eq("workspace_id", workspaceId)
+    creditsQuery = creditsQuery.eq("workspace_id", workspaceId)
+    naeemDelQuery = naeemDelQuery.eq("workspace_id", workspaceId)
+    naeemPayQuery = naeemPayQuery.eq("workspace_id", workspaceId)
+    generalEntriesQuery = generalEntriesQuery.eq("workspace_id", workspaceId)
+  }
+
   const [
     resellersRes,
     allSalesRes,
@@ -53,17 +75,14 @@ export async function getUnifiedReceivables(
     naeemBalRes,
     generalEntriesRes
   ] = await Promise.all([
-    supabase.from("reseller_customers").select("id, name, phone, opening_balance").order("name"),
-    supabase.from("wholesale_sales").select("id, customer_id, total_sale, amount_received, sale_date").limit(999999),
-    supabase.from("reseller_payments").select("id, customer_id, amount, payment_date").limit(999999),
-    supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, entry_type, entry_date").limit(999999),
-    supabase.from("naeem_daily_records").select("id, final_fare, status, delivery_date").order("delivery_date", { ascending: false }),
-    supabase.from("naeem_payments").select("id, amount, payment_date").order("payment_date", { ascending: false }),
-    getnaeemMonthlyBalance(targetYear, targetMonth).catch((): NaeemMonthlyBalanceResult => ({ opening_balance: 0, is_manual_override: false })),
-    supabase
-      .from("general_delivery_entries")
-      .select("id, daily_record_id, customer_name, description, amount, received_amount, created_at, daily_record:general_daily_records(record_date)")
-      .limit(999999)
+    resellersQuery,
+    salesQuery,
+    resellerPaymentsQuery,
+    creditsQuery,
+    naeemDelQuery,
+    naeemPayQuery,
+    getnaeemMonthlyBalance(targetYear, targetMonth, workspaceId).catch((): NaeemMonthlyBalanceResult => ({ opening_balance: 0, is_manual_override: false })),
+    generalEntriesQuery
   ])
 
   if (resellersRes.error) throw new Error(resellersRes.error.message)

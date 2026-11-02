@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatDate, formatMoney } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import {
   PageContainer,
   PageHeader,
@@ -52,6 +53,7 @@ import {
 export default function DealerPaymentsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { currentWorkspace } = useAuth()
 
   const [dealerId, setDealerId] = useState("")
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0])
@@ -74,8 +76,8 @@ export default function DealerPaymentsPage() {
     isLoading: isLoadingPayments,
     isError: isPaymentsError,
   } = useQuery({
-    queryKey: ["dealerPayments"],
-    queryFn: getDealerPayments,
+    queryKey: ["dealerPayments", currentWorkspace?.id],
+    queryFn: () => getDealerPayments(currentWorkspace?.id),
   })
 
   // 2. Fetch dealers
@@ -84,8 +86,8 @@ export default function DealerPaymentsPage() {
     isLoading: isLoadingDealers,
     isError: isDealersError,
   } = useQuery({
-    queryKey: ["dealers"],
-    queryFn: getDealers,
+    queryKey: ["dealers", currentWorkspace?.id],
+    queryFn: () => getDealers(currentWorkspace?.id),
   })
 
   // 3. Fetch purchases for authoritative accounts payable calculations
@@ -94,8 +96,8 @@ export default function DealerPaymentsPage() {
     isLoading: isLoadingPurchases,
     isError: isPurchasesError,
   } = useQuery({
-    queryKey: ["purchases"],
-    queryFn: getPurchases,
+    queryKey: ["purchases", currentWorkspace?.id],
+    queryFn: () => getPurchases(currentWorkspace?.id),
   })
 
   // Contextual selected dealer object
@@ -278,7 +280,11 @@ export default function DealerPaymentsPage() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, payment: payload })
     } else {
-      createMutation.mutate(payload)
+      if (!currentWorkspace?.id) {
+        alert("Active workspace context is required to record a payment. Please select a workspace.")
+        return
+      }
+      createMutation.mutate({ ...payload, workspace_id: currentWorkspace?.id })
     }
   }
 

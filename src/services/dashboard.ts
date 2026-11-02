@@ -249,8 +249,21 @@ export interface DashboardStatsResult {
   balancesBreakdown: OutstandingBalancesBreakdownData
 }
 
-export const getDashboardStats = async (range: DateRange = "ALL", customStart?: string, customEnd?: string): Promise<DashboardStatsResult> => {
+export const getDashboardStats = async (
+  range: DateRange = "ALL",
+  customStart?: string,
+  customEnd?: string,
+  workspaceId?: string
+): Promise<DashboardStatsResult> => {
   const now = new Date()
+
+  // Helper to scope queries by active workspace ID
+  const applyWs = (query: any) => {
+    if (workspaceId) {
+      return query.eq("workspace_id", workspaceId)
+    }
+    return query
+  }
 
   // Helper to apply date filters to queries based on date column name
   const applyDateFilter = (query: any, dateColumn: string) => {
@@ -325,24 +338,24 @@ export const getDashboardStats = async (range: DateRange = "ALL", customStart?: 
     allNaeemPayRes
   ] = await Promise.all([
     supabase.from("app_settings").select("low_stock_threshold").single(),
-    supabase.from("products").select("id, name, buying_cost, wholesale_price, stock_quantity"),
-    applyDateFilter(supabase.from("purchases").select("id, total_amount, amount_paid, purchase_date, dealer_id, dealer:dealers(id, name)"), "purchase_date"),
-    supabase.from("purchases").select("total_amount, amount_paid, dealer_id, purchase_date").limit(999999),
-    supabase.from("dealer_payments").select("amount, dealer_id, payment_date").limit(999999),
-    applyDateFilter(supabase.from("dealer_payments").select("id, amount, payment_date, dealer_id, dealer:dealers(name)"), "payment_date"),
-    applyDateFilter(supabase.from("wholesale_sales").select("id, total_sale, amount_received, profit, quantity, buying_cost, sale_date, customer_id, customer:reseller_customers(id, name)"), "sale_date"),
-    supabase.from("wholesale_sales").select("total_sale, amount_received, profit, quantity, buying_cost, customer_id, sale_date").limit(999999),
-    supabase.from("reseller_payments").select("amount, customer_id, payment_date").limit(999999),
-    applyDateFilter(supabase.from("reseller_payments").select("id, amount, payment_date, customer_id, customer:reseller_customers(name)"), "payment_date"),
-    applyDateFilter(supabase.from("general_daily_records").select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount, received_amount)"), "record_date"),
-    applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id, delivery_date"), "delivery_date"),
-    applyDateFilter(supabase.from("naeem_payments").select("amount, payment_date"), "payment_date"),
-    getnaeemMonthlyBalance(targetYear, targetMonth).catch((): NaeemMonthlyBalanceResult => ({ opening_balance: 0, is_manual_override: false })),
-    supabase.from("dealers").select("id, name, opening_balance"),
-    supabase.from("reseller_customers").select("id, name, phone, opening_balance"),
-    supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, balance, entry_type, funding_source, entry_date").limit(999999),
-    supabase.from("general_daily_records").select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount, received_amount)").limit(999999),
-    supabase.from("naeem_payments").select("amount, payment_date").limit(999999)
+    applyWs(supabase.from("products").select("id, name, buying_cost, wholesale_price, stock_quantity")),
+    applyWs(applyDateFilter(supabase.from("purchases").select("id, total_amount, amount_paid, purchase_date, dealer_id, dealer:dealers(id, name)"), "purchase_date")),
+    applyWs(supabase.from("purchases").select("total_amount, amount_paid, dealer_id, purchase_date").limit(999999)),
+    applyWs(supabase.from("dealer_payments").select("amount, dealer_id, payment_date").limit(999999)),
+    applyWs(applyDateFilter(supabase.from("dealer_payments").select("id, amount, payment_date, dealer_id, dealer:dealers(name)"), "payment_date")),
+    applyWs(applyDateFilter(supabase.from("wholesale_sales").select("id, total_sale, amount_received, profit, quantity, buying_cost, sale_date, customer_id, customer:reseller_customers(id, name)"), "sale_date")),
+    applyWs(supabase.from("wholesale_sales").select("total_sale, amount_received, profit, quantity, buying_cost, customer_id, sale_date").limit(999999)),
+    applyWs(supabase.from("reseller_payments").select("amount, customer_id, payment_date").limit(999999)),
+    applyWs(applyDateFilter(supabase.from("reseller_payments").select("id, amount, payment_date, customer_id, customer:reseller_customers(name)"), "payment_date")),
+    applyWs(applyDateFilter(supabase.from("general_daily_records").select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount, received_amount)"), "record_date")),
+    applyWs(applyDateFilter(supabase.from("naeem_daily_records").select("final_fare, status, route_id, delivery_date"), "delivery_date")),
+    applyWs(applyDateFilter(supabase.from("naeem_payments").select("amount, payment_date"), "payment_date")),
+    getnaeemMonthlyBalance(targetYear, targetMonth, workspaceId).catch((): NaeemMonthlyBalanceResult => ({ opening_balance: 0, is_manual_override: false })),
+    applyWs(supabase.from("dealers").select("id, name, opening_balance")),
+    applyWs(supabase.from("reseller_customers").select("id, name, phone, opening_balance")),
+    applyWs(supabase.from("customer_credits").select("id, customer_id, total_amount, amount_paid, balance, entry_type, funding_source, entry_date").limit(999999)),
+    applyWs(supabase.from("general_daily_records").select("id, record_date, fuel_expenses, entries:general_delivery_entries(amount, received_amount)").limit(999999)),
+    applyWs(supabase.from("naeem_payments").select("amount, payment_date").limit(999999))
   ])
 
   // Explicit check for database query errors to prevent silent data corruption or zero balances

@@ -2,9 +2,7 @@ import { useMemo, useCallback } from "react"
 import { useAuth } from "@/components/auth/useAuth"
 import type { ModuleKey } from "@/types/auth"
 
-const ALL_MODULES: ModuleKey[] = [
-  "personal_ledger",
-  "zakat_tracker",
+export const BUSINESS_MODULES: ModuleKey[] = [
   "dealers",
   "products",
   "price_calculator",
@@ -14,6 +12,16 @@ const ALL_MODULES: ModuleKey[] = [
   "wholesale_sales",
   "deliveries",
   "reports",
+]
+
+export const PERSONAL_MODULES: ModuleKey[] = [
+  "personal_ledger",
+  "zakat_tracker",
+]
+
+export const ALL_MODULES: ModuleKey[] = [
+  ...PERSONAL_MODULES,
+  ...BUSINESS_MODULES,
   "ai_assistant",
 ]
 
@@ -60,6 +68,18 @@ export function useModuleAccess() {
     return enabledModules.length > 0
   }, [user, isAdmin, enabledModules])
 
+  const hasBusinessModules = useMemo(() => {
+    if (!user) return true
+    if (isAdmin) return true
+    return BUSINESS_MODULES.some((key) => hasModule(key))
+  }, [user, isAdmin, hasModule])
+
+  const hasPersonalModules = useMemo(() => {
+    if (!user) return true
+    if (isAdmin) return true
+    return PERSONAL_MODULES.some((key) => hasModule(key))
+  }, [user, isAdmin, hasModule])
+
   const getDefaultRoute = useCallback((): string => {
     if (isAdmin) return "/"
     if (hasModule("personal_ledger")) return "/local-customers"
@@ -83,6 +103,8 @@ export function useModuleAccess() {
     hasModule,
     enabledModules,
     hasAnyModule,
+    hasBusinessModules,
+    hasPersonalModules,
     getDefaultRoute,
   }
 }

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatMoney, formatDate } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import { 
   Loader2, 
   Wallet, 
@@ -37,6 +38,7 @@ export default function RecordResellerPaymentModal({
   onPaymentSuccess
 }: RecordResellerPaymentModalProps) {
   const queryClient = useQueryClient()
+  const { currentWorkspace } = useAuth()
 
   const [selectedId, setSelectedId] = useState<string>("")
   const customerId = selectedReseller?.id || selectedId || (resellers.length > 0 ? resellers[0].id : "")
@@ -158,6 +160,11 @@ export default function RecordResellerPaymentModal({
 
     if (!customerId) {
       setFormError("Please select a person.")
+      return
+    }
+
+    if (!currentWorkspace?.id) {
+      setFormError("Active workspace context is required to record a settlement. Please select a workspace.")
       return
     }
 

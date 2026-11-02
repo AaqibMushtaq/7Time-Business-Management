@@ -10,23 +10,40 @@ export interface Dealer {
   opening_balance?: number
   created_at?: string
   outstanding?: number // added for UI
+  workspace_id?: string
 }
 
-export const getDealers = async (): Promise<Dealer[]> => {
-  const { data, error } = await supabase
+export const getDealers = async (workspaceId?: string): Promise<Dealer[]> => {
+  let query = supabase
     .from("dealers")
     .select("*")
     .order("name")
+
+  if (workspaceId) {
+    query = query.eq("workspace_id", workspaceId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data || []
 }
 
-export const getDealersWithBalances = async (): Promise<Dealer[]> => {
+export const getDealersWithBalances = async (workspaceId?: string): Promise<Dealer[]> => {
+  let dealersQuery = supabase.from("dealers").select("*").order("name")
+  let purchasesQuery = supabase.from("purchases").select("dealer_id, total_amount, amount_paid")
+  let paymentsQuery = supabase.from("dealer_payments").select("dealer_id, amount")
+
+  if (workspaceId) {
+    dealersQuery = dealersQuery.eq("workspace_id", workspaceId)
+    purchasesQuery = purchasesQuery.eq("workspace_id", workspaceId)
+    paymentsQuery = paymentsQuery.eq("workspace_id", workspaceId)
+  }
+
   const [dealersRes, purchasesRes, paymentsRes] = await Promise.all([
-    supabase.from("dealers").select("*").order("name"),
-    supabase.from("purchases").select("dealer_id, total_amount, amount_paid"),
-    supabase.from("dealer_payments").select("dealer_id, amount")
+    dealersQuery,
+    purchasesQuery,
+    paymentsQuery
   ])
 
   if (dealersRes.error) throw new Error(dealersRes.error.message)

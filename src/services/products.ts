@@ -13,16 +13,23 @@ export interface Product {
   category?: string | null
   created_at?: string
   dealer?: Dealer // For joined queries
+  workspace_id?: string
 }
 
-export const getProducts = async (): Promise<Product[]> => {
-  const { data, error } = await supabase
+export const getProducts = async (workspaceId?: string): Promise<Product[]> => {
+  let query = supabase
     .from("products")
     .select(`
       *,
       dealer:dealers(id, name)
     `)
     .order("name")
+
+  if (workspaceId) {
+    query = query.eq("workspace_id", workspaceId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data || []

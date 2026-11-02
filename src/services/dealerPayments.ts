@@ -11,16 +11,23 @@ export interface DealerPayment {
   notes: string | null
   created_at?: string
   dealer?: Dealer
+  workspace_id?: string
 }
 
-export const getDealerPayments = async (): Promise<DealerPayment[]> => {
-  const { data, error } = await supabase
+export const getDealerPayments = async (workspaceId?: string): Promise<DealerPayment[]> => {
+  let query = supabase
     .from("dealer_payments")
     .select(`
       *,
       dealer:dealers(id, name)
     `)
     .order("payment_date", { ascending: false })
+
+  if (workspaceId) {
+    query = query.eq("workspace_id", workspaceId)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data || []

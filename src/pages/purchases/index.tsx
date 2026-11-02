@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatDate, formatMoney } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import { ProductIdentity, ProductSelector } from "@/components/products"
 import {
   PageContainer,
@@ -47,6 +48,7 @@ import {
 export default function PurchasesPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { currentWorkspace } = useAuth()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [dealerId, setDealerId] = useState("")
@@ -66,8 +68,8 @@ export default function PurchasesPage() {
     isLoading: isLoadingPurchases,
     isError: isPurchasesError,
   } = useQuery({
-    queryKey: ["purchases"],
-    queryFn: getPurchases,
+    queryKey: ["purchases", currentWorkspace?.id],
+    queryFn: () => getPurchases(currentWorkspace?.id),
   })
 
   const {
@@ -75,21 +77,21 @@ export default function PurchasesPage() {
     isLoading: isLoadingDealers,
     isError: isDealersError,
   } = useQuery({
-    queryKey: ["dealers"],
-    queryFn: getDealers,
+    queryKey: ["dealers", currentWorkspace?.id],
+    queryFn: () => getDealers(currentWorkspace?.id),
   })
 
   const { data: products } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
+    queryKey: ["products", currentWorkspace?.id],
+    queryFn: () => getProducts(currentWorkspace?.id),
   })
 
   const {
     data: dealerPayments = [],
     isLoading: isLoadingPayments,
   } = useQuery({
-    queryKey: ["dealerPayments"],
-    queryFn: getDealerPayments,
+    queryKey: ["dealerPayments", currentWorkspace?.id],
+    queryFn: () => getDealerPayments(currentWorkspace?.id),
   })
 
   // Reconcile purchases across all dealers in FIFO order applying payments and opening balances
@@ -268,7 +270,11 @@ export default function PurchasesPage() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, purchase: payload })
     } else {
-      createMutation.mutate(payload)
+      if (!currentWorkspace?.id) {
+        alert("Active workspace context is required to record a purchase. Please select a workspace.")
+        return
+      }
+      createMutation.mutate({ ...payload, workspace_id: currentWorkspace?.id })
     }
   }
 

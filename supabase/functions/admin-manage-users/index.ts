@@ -4,6 +4,30 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
+// Accurate interfaces matching the 7TIME database schema
+export interface ProfileRecord {
+  id: string;
+  email: string;
+  full_name: string | null;
+  system_role: "SUPER_ADMIN" | "ADMIN" | "USER" | string;
+  is_active: boolean;
+  phone?: string | null;
+}
+
+export interface WorkspaceRecord {
+  id: string;
+  name: string;
+  workspace_type: string;
+  owner_id: string;
+}
+
+export interface EntitlementRecord {
+  user_id: string;
+  module_id: string;
+  is_enabled: boolean;
+  granted_at: string;
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -96,10 +120,10 @@ Deno.serve(async (req: Request) => {
         });
         if (authErr) return createErrorResponse(`Failed to list users: ${authErr.message}`, 500);
 
-        // Fetch profiles
+        // Fetch profiles - selecting columns verified to exist in the database schema
         const { data: profiles, error: pErr } = await adminClient
           .from("profiles")
-          .select("*");
+          .select("id, email, full_name, system_role, is_active");
         if (pErr) return createErrorResponse(`Failed to fetch profiles: ${pErr.message}`, 500);
 
         // Fetch entitlements
@@ -109,28 +133,43 @@ Deno.serve(async (req: Request) => {
         if (entErr) return createErrorResponse(`Failed to fetch entitlements: ${entErr.message}`, 500);
 
         // Fetch workspaces
-        const { data: workspaces } = await adminClient
+        const { data: workspaces, error: wsErr } = await adminClient
           .from("workspaces")
           .select("id, name, workspace_type, owner_id");
+        if (wsErr) return createErrorResponse(`Failed to fetch workspaces: ${wsErr.message}`, 500);
 
-        const profileMap = new Map((profiles || []).map((p: any) => [p.id, p]));
-        const entMap = new Map<string, any[]>();
-        for (const e of entitlements || []) {
-          if (!entMap.has(e.user_id)) entMap.set(e.user_id, []);
-          entMap.get(e.user_id)!.push(e);
+        // Build typed lookup maps for resilient mapping
+        const profileMap = new Map<string, ProfileRecord>();
+        if (profiles && Array.isArray(profiles)) {
+          for (const p of profiles as ProfileRecord[]) {
+            profileMap.set(p.id, p);
+          }
         }
 
-        const enrichedUsers = (authUsers || []).map((u: any) => {
-          const prof = profileMap.get(u.id) || {};
+        const entMap = new Map<string, EntitlementRecord[]>();
+        if (entitlements && Array.isArray(entitlements)) {
+          for (const e of entitlements as EntitlementRecord[]) {
+            if (!entMap.has(e.user_id)) entMap.set(e.user_id, []);
+            entMap.get(e.user_id)!.push(e);
+          }
+        }
+
+        const workspaceList: WorkspaceRecord[] = Array.isArray(workspaces)
+          ? (workspaces as WorkspaceRecord[])
+          : [];
+
+        const enrichedUsers = (authUsers || []).map((u) => {
+          const prof = profileMap.get(u.id);
           const userEnts = entMap.get(u.id) || [];
-          const userWorkspaces = (workspaces || []).filter((w: any) => w.owner_id === u.id);
+          const userWorkspaces = workspaceList.filter((w) => w.owner_id === u.id);
 
           return {
             id: u.id,
-            email: u.email,
-            full_name: prof.full_name || u.user_metadata?.full_name || "",
-            system_role: prof.system_role || "USER",
-            is_active: prof.is_active ?? true,
+            email: prof?.email || u.email || "",
+            phone: prof?.phone || u.phone || u.user_metadata?.phone || "",
+            full_name: prof?.full_name || u.user_metadata?.full_name || "",
+            system_role: prof?.system_role || "USER",
+            is_active: prof?.is_active ?? true,
             created_at: u.created_at,
             last_sign_in_at: u.last_sign_in_at,
             entitlements: userEnts,
@@ -145,7 +184,7 @@ Deno.serve(async (req: Request) => {
       // ACTION: create_user
       // ----------------------------------------------------------------------
       case "create_user": {
-        const { email, password, full_name, initial_modules } = body;
+        const { email, password, full_name, phone, initial_modules } = body;
         if (!email || !password) {
           return createErrorResponse("Email and password are required.", 400);
         }
@@ -158,7 +197,8 @@ Deno.serve(async (req: Request) => {
           email,
           password,
           email_confirm: true,
-          user_metadata: { full_name: full_name || "" },
+          phone: phone?.trim() || undefined,
+          user_metadata: { full_name: full_name || "", phone: phone?.trim() || "" },
         });
 
         if (createAuthErr || !newAuthData.user) {
@@ -168,14 +208,18 @@ Deno.serve(async (req: Request) => {
         const newUserId = newAuthData.user.id;
 
         // 2. Ensure profile exists (handled by trigger, or fallback insert)
-        await adminClient.from("profiles").upsert({
+        const newProfPayload: Record<string, any> = {
           id: newUserId,
           email,
           full_name: full_name || "",
           system_role: "USER",
           is_active: true,
           updated_at: new Date().toISOString(),
-        });
+        };
+        if (phone?.trim()) {
+          newProfPayload.phone = phone.trim();
+        }
+        await adminClient.from("profiles").upsert(newProfPayload);
 
         // 3. Create personal workspace for the new user
         const { data: wsData, error: wsErr } = await adminClient
@@ -239,34 +283,60 @@ Deno.serve(async (req: Request) => {
       // ----------------------------------------------------------------------
       case "toggle_module": {
         const { user_id, module_id, is_enabled } = body;
-        if (!user_id || !module_id || typeof is_enabled !== "boolean") {
-          return createErrorResponse("user_id, module_id, and boolean is_enabled are required.", 400);
+        if (!user_id || typeof user_id !== "string" || !module_id || typeof module_id !== "string" || typeof is_enabled !== "boolean") {
+          return createErrorResponse("user_id (string), module_id (string), and boolean is_enabled are required.", 400);
         }
 
-        // Prevent disabling all modules on primary administrator
+        // Prevent disabling all modules on primary administrator or Super Admin
         if (user_id === callerUser.id && !is_enabled) {
-          const { data: targetProf } = await adminClient
-            .from("profiles")
-            .select("system_role")
-            .eq("id", user_id)
-            .single();
-          if (targetProf?.system_role === "SUPER_ADMIN") {
-            // Allowed, but keep at least settings/admin
-          }
+          return createErrorResponse("Super Administrator accounts permanently retain all module entitlements.", 400);
         }
 
-        const { error: toggleErr } = await adminClient
+        const { data: targetProf } = await adminClient
+          .from("profiles")
+          .select("system_role")
+          .eq("id", user_id)
+          .maybeSingle();
+
+        if (targetProf?.system_role === "SUPER_ADMIN" && !is_enabled) {
+          return createErrorResponse("Super Administrator accounts permanently retain all module entitlements.", 400);
+        }
+
+        // Check if an existing entitlement row exists for this user and module
+        const { data: existingEnt, error: fetchEntErr } = await adminClient
           .from("user_module_entitlements")
-          .upsert(
-            {
+          .select("id")
+          .eq("user_id", user_id)
+          .eq("module_id", module_id)
+          .maybeSingle();
+
+        if (fetchEntErr) {
+          console.error("Error checking existing entitlement:", fetchEntErr);
+        }
+
+        let toggleErr = null;
+        if (existingEnt?.id) {
+          const { error: updateErr } = await adminClient
+            .from("user_module_entitlements")
+            .update({
+              is_enabled,
+              granted_by: callerUser.id,
+              granted_at: new Date().toISOString(),
+            })
+            .eq("id", existingEnt.id);
+          toggleErr = updateErr;
+        } else {
+          const { error: insertErr } = await adminClient
+            .from("user_module_entitlements")
+            .insert({
               user_id,
               module_id,
               is_enabled,
               granted_by: callerUser.id,
               granted_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id,module_id" }
-          );
+            });
+          toggleErr = insertErr;
+        }
 
         if (toggleErr) {
           return createErrorResponse(`Failed to update entitlement: ${toggleErr.message}`, 500);
@@ -320,6 +390,254 @@ Deno.serve(async (req: Request) => {
         });
 
         if (pwErr) return createErrorResponse(`Failed to reset password: ${pwErr.message}`, 400);
+
+        return createJsonResponse({ success: true, user_id });
+      }
+
+      // ----------------------------------------------------------------------
+      // ACTION: update_user / edit_user
+      // ----------------------------------------------------------------------
+      case "edit_user":
+      case "update_user": {
+        const { user_id, full_name, email, phone } = body;
+
+        // 1. Validate target user ID (must be valid UUID)
+        if (
+          !user_id ||
+          typeof user_id !== "string" ||
+          !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user_id)
+        ) {
+          return createErrorResponse("Valid UUID user_id is required.", 400);
+        }
+
+        // 2. Confirm target account exists
+        const { data: targetProfile, error: profErr } = await adminClient
+          .from("profiles")
+          .select("id, system_role, email, full_name")
+          .eq("id", user_id)
+          .maybeSingle();
+
+        if (profErr || !targetProfile) {
+          return createErrorResponse("Target user profile not found.", 404);
+        }
+
+        // 3. Validate full_name
+        let cleanName: string | undefined = undefined;
+        if (full_name !== undefined) {
+          if (typeof full_name !== "string" || full_name.trim().length < 2) {
+            return createErrorResponse("Full name must be at least 2 characters long.", 400);
+          }
+          if (full_name.trim().length > 100) {
+            return createErrorResponse("Full name cannot exceed 100 characters.", 400);
+          }
+          cleanName = full_name.trim();
+        }
+
+        // 4. Validate email and check duplicates
+        let cleanEmail: string | undefined = undefined;
+        if (email !== undefined) {
+          if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+            return createErrorResponse("A valid email address is required.", 400);
+          }
+          const normalizedEmail = email.trim().toLowerCase();
+          if (normalizedEmail !== targetProfile.email?.toLowerCase()) {
+            // Check for duplicate in profiles table
+            const { data: dupProfile } = await adminClient
+              .from("profiles")
+              .select("id")
+              .eq("email", normalizedEmail)
+              .neq("id", user_id)
+              .maybeSingle();
+
+            if (dupProfile) {
+              return createErrorResponse("An account with this email address already exists.", 409);
+            }
+            cleanEmail = normalizedEmail;
+          }
+        }
+
+        // 5. Clean phone input (optional)
+        let cleanPhone: string | null | undefined = undefined;
+        if (phone !== undefined) {
+          if (typeof phone === "string") {
+            cleanPhone = phone.trim() || null;
+          } else if (phone === null) {
+            cleanPhone = null;
+          } else {
+            return createErrorResponse("Phone must be a valid string or null.", 400);
+          }
+        }
+
+        // 6. Update Supabase Auth user (email and user_metadata)
+        const { data: authUserData } = await adminClient.auth.admin.getUserById(user_id);
+        const currentMeta = authUserData?.user?.user_metadata || {};
+
+        const authUpdates: Record<string, any> = {
+          user_metadata: {
+            ...currentMeta,
+            ...(cleanName !== undefined ? { full_name: cleanName } : {}),
+            ...(cleanPhone !== undefined ? { phone: cleanPhone } : {}),
+          },
+        };
+
+        if (cleanEmail) {
+          authUpdates.email = cleanEmail;
+          authUpdates.email_confirm = true;
+        }
+
+        const { error: authUpdateErr } = await adminClient.auth.admin.updateUserById(
+          user_id,
+          authUpdates
+        );
+
+        if (authUpdateErr) {
+          const isDup =
+            authUpdateErr.message?.toLowerCase().includes("already") ||
+            authUpdateErr.message?.toLowerCase().includes("unique") ||
+            (authUpdateErr as any).status === 422;
+          return createErrorResponse(
+            isDup
+              ? "An account with this email address already exists."
+              : `Failed to update auth credentials: ${authUpdateErr.message}`,
+            isDup ? 409 : 400
+          );
+        }
+
+        // 7. Verify whether column 'phone' exists on public.profiles before attempting update
+        let hasPhoneCol = false;
+        try {
+          const { error: colErr } = await adminClient
+            .from("profiles")
+            .select("phone")
+            .limit(0);
+          hasPhoneCol = !colErr;
+        } catch {
+          hasPhoneCol = false;
+        }
+
+        // 8. Update public.profiles table (strictly updating only supported profile fields)
+        const profileUpdates: Record<string, any> = {
+          updated_at: new Date().toISOString(),
+        };
+        if (cleanName !== undefined) profileUpdates.full_name = cleanName;
+        if (cleanEmail !== undefined) profileUpdates.email = cleanEmail;
+        if (hasPhoneCol && cleanPhone !== undefined) {
+          profileUpdates.phone = cleanPhone;
+        }
+
+        const { error: profUpdateErr } = await adminClient
+          .from("profiles")
+          .update(profileUpdates)
+          .eq("id", user_id);
+
+        if (profUpdateErr) {
+          return createErrorResponse(`Failed to update profile: ${profUpdateErr.message}`, 500);
+        }
+
+        // 9. Return consistent structured response without altering role, memberships, or entitlements
+        return createJsonResponse({
+          success: true,
+          user: {
+            id: user_id,
+            email: cleanEmail || targetProfile.email,
+            full_name: cleanName !== undefined ? cleanName : targetProfile.full_name,
+            phone:
+              cleanPhone !== undefined
+                ? cleanPhone
+                : hasPhoneCol
+                ? (targetProfile as any).phone
+                : currentMeta.phone || null,
+          },
+        });
+      }
+
+      // ----------------------------------------------------------------------
+      // ACTION: delete_user / delete_account
+      // ----------------------------------------------------------------------
+      case "delete_account":
+      case "delete_user": {
+        const { user_id } = body;
+        if (!user_id) {
+          return createErrorResponse("user_id is required.", 400);
+        }
+
+        // 1. Prevent deleting own administrator account
+        if (user_id === callerUser.id) {
+          return createErrorResponse("You cannot delete your own administrator account.", 400);
+        }
+
+        // 2. Prevent deleting an Enterprise Super Administrator
+        const { data: targetProfile, error: profFetchErr } = await adminClient
+          .from("profiles")
+          .select("id, email, system_role")
+          .eq("id", user_id)
+          .maybeSingle();
+
+        if (profFetchErr) {
+          return createErrorResponse(`Failed to verify target account: ${profFetchErr.message}`, 500);
+        }
+
+        if (targetProfile?.system_role === "SUPER_ADMIN") {
+          return createErrorResponse("Cannot delete an Enterprise Super Administrator account. Demote the user first.", 400);
+        }
+
+        // 3. Handle workspaces owned by target user to prevent ON DELETE RESTRICT constraint violations
+        const { data: ownedWorkspaces, error: wsFetchErr } = await adminClient
+          .from("workspaces")
+          .select("id, name, workspace_type")
+          .eq("owner_id", user_id);
+
+        if (wsFetchErr) {
+          console.error("Error fetching owned workspaces:", wsFetchErr);
+        }
+
+        for (const ws of ownedWorkspaces || []) {
+          // Check if workspace contains domain accounting records before deleting
+          const [creditsRes, salesRes, purchasesRes, generalRecsRes, naeemRecsRes] = await Promise.all([
+            adminClient.from("customer_credits").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id),
+            adminClient.from("wholesale_sales").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id),
+            adminClient.from("purchases").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id),
+            adminClient.from("general_daily_records").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id),
+            adminClient.from("naeem_daily_records").select("id", { count: "exact", head: true }).eq("workspace_id", ws.id),
+          ]);
+
+          const hasData =
+            (creditsRes.count || 0) > 0 ||
+            (salesRes.count || 0) > 0 ||
+            (purchasesRes.count || 0) > 0 ||
+            (generalRecsRes.count || 0) > 0 ||
+            (naeemRecsRes.count || 0) > 0;
+
+          if (!hasData) {
+            // Delete empty workspace and its member relations
+            await adminClient.from("workspace_members").delete().eq("workspace_id", ws.id);
+            await adminClient.from("workspaces").delete().eq("id", ws.id);
+          } else {
+            // Reassign workspace ownership to administering Super Admin to preserve company records
+            await adminClient
+              .from("workspaces")
+              .update({ owner_id: callerUser.id, updated_at: new Date().toISOString() })
+              .eq("id", ws.id);
+          }
+        }
+
+        // 4. Remove all workspace memberships for this user
+        await adminClient.from("workspace_members").delete().eq("user_id", user_id);
+
+        // 5. Remove all user module entitlements
+        await adminClient.from("user_module_entitlements").delete().eq("user_id", user_id);
+
+        // 6. Delete user profile
+        const { error: delProfErr } = await adminClient.from("profiles").delete().eq("id", user_id);
+        if (delProfErr) {
+          console.error("Warning: Profile delete error:", delProfErr);
+        }
+
+        // 7. Delete authentication record from Supabase Auth
+        const { error: delAuthErr } = await adminClient.auth.admin.deleteUser(user_id);
+        if (delAuthErr) {
+          return createErrorResponse(`Failed to delete user account: ${delAuthErr.message}`, 500);
+        }
 
         return createJsonResponse({ success: true, user_id });
       }

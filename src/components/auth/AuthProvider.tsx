@@ -1,8 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import type { User, Session } from "@supabase/supabase-js";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { AuthContext } from "./AuthContext";
 import type { UserProfile, Workspace, ModuleKey } from "@/types/auth";
+
+const WORKSPACE_STORAGE_KEY = "7time_active_workspace_id";
 
 const hasStoredSession =
   typeof window !== "undefined" &&
@@ -27,6 +30,7 @@ const ALL_MODULES: ModuleKey[] = [
 ];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -112,7 +116,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setWorkspaces(userWorkspaces);
       if (userWorkspaces.length > 0) {
-        setCurrentWorkspace((prev) => prev || userWorkspaces[0]);
+        const storedId = typeof localStorage !== "undefined" ? localStorage.getItem(WORKSPACE_STORAGE_KEY) : null;
+        const matched = storedId ? userWorkspaces.find((w) => w.id === storedId) : null;
+        const resolved = matched || userWorkspaces[0];
+        setCurrentWorkspace(resolved);
+        if (typeof localStorage !== "undefined" && resolved) {
+          localStorage.setItem(WORKSPACE_STORAGE_KEY, resolved.id);
+        }
+      } else {
+        setCurrentWorkspace(null);
       }
     } catch (err) {
       console.error("Error loading user context:", err);
@@ -174,8 +186,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [fetchUserData]);
 
+  const handleSetCurrentWorkspace = useCallback(
+    async (workspace: Workspace | null) => {
+      if (workspace) {
+        const isAuthorized = workspaces.some((w) => w.id === workspace.id) || isAdmin;
+        if (!isAuthorized) {
+          console.warn("Unauthorized workspace switch rejected:", workspace.id);
+          return;
+        }
+        // Abort in-flight queries from previous workspace to prevent stale data overwrites
+        await queryClient.cancelQueries();
+        setCurrentWorkspace(workspace);
+        if (typeof localStorage !== "undefined") {
+          localStorage.setItem(WORKSPACE_STORAGE_KEY, workspace.id);
+        }
+        // Invalidate active query cache to immediately refresh authorized workspace data
+        queryClient.invalidateQueries();
+      } else {
+        await queryClient.cancelQueries();
+        setCurrentWorkspace(null);
+        if (typeof localStorage !== "undefined") {
+          localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+        }
+        queryClient.invalidateQueries();
+      }
+    },
+    [workspaces, isAdmin, queryClient]
+  );
+
   const signOut = async () => {
     await supabase.auth.signOut();
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(WORKSPACE_STORAGE_KEY);
+    }
+    queryClient.clear();
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -198,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         signOut,
         refreshProfile,
-        setCurrentWorkspace,
+        setCurrentWorkspace: handleSetCurrentWorkspace,
       }}
     >
       {children}

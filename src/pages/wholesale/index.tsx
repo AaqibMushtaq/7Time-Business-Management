@@ -8,7 +8,8 @@ import {
   type WholesaleSale 
 } from "@/services/wholesaleSales"
 import { calculateWholesaleSale } from "@/lib/wholesaleCalculations"
-import { getResellers } from "@/services/resellers"
+import { useAuth } from "@/components/auth/useAuth"
+import { getWholesaleCustomers } from "@/services/resellers"
 import { getProducts } from "@/services/products"
 import { ProductIdentity } from "@/components/products"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -52,19 +53,21 @@ export default function WholesaleSalesPage() {
   const [editNotes, setEditNotes] = useState("")
   const [editError, setEditError] = useState<string | null>(null)
 
+  const { currentWorkspace } = useAuth()
+
   const { data: sales, isLoading: isLoadingSales } = useQuery({
-    queryKey: ["wholesaleSales"],
-    queryFn: getWholesaleSales,
+    queryKey: ["wholesaleSales", currentWorkspace?.id],
+    queryFn: () => getWholesaleSales(currentWorkspace?.id),
   })
 
   const { data: customers } = useQuery({
-    queryKey: ["resellers"],
-    queryFn: getResellers,
+    queryKey: ["resellers", "BUSINESS", currentWorkspace?.id],
+    queryFn: () => getWholesaleCustomers(currentWorkspace?.id),
   })
 
   const { data: products } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
+    queryKey: ["products", currentWorkspace?.id],
+    queryFn: () => getProducts(currentWorkspace?.id),
   })
 
   const [formError, setFormError] = useState<string | null>(null)
@@ -319,6 +322,11 @@ export default function WholesaleSalesPage() {
       return
     }
 
+    if (!currentWorkspace?.id) {
+      setFormError("Active workspace context is required to record a sale. Please select a workspace.")
+      return
+    }
+
     createMutation.mutate({
       customer_id: customerId,
       product_id: productId,
@@ -334,6 +342,7 @@ export default function WholesaleSalesPage() {
       payment_status: paymentStatus,
       payment_method: paymentMethod,
       notes: notes.trim() ? notes.trim() : null,
+      workspace_id: currentWorkspace?.id,
     })
   }
 

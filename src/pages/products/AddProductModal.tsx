@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { createProduct } from "@/services/products"
 import type { Dealer } from "@/services/dealers"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/components/auth/useAuth"
 import { ProductFormFields } from "@/components/products"
 import { X, Loader2, Plus, AlertCircle, Package } from "lucide-react"
 
@@ -20,6 +21,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   onSuccess,
 }) => {
   const queryClient = useQueryClient()
+  const { currentWorkspace } = useAuth()
 
   const [name, setName] = useState("")
   const [category, setCategory] = useState("")
@@ -104,6 +106,11 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       return
     }
 
+    if (!currentWorkspace?.id) {
+      setFormError("Active workspace context is required to create a product. Please select a workspace.")
+      return
+    }
+
     createMutation.mutate({
       name: trimmedName,
       dealer_id: dealerId,
@@ -113,6 +120,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       retail_price: retail,
       stock_quantity: 0,
       category: trimmedCategory,
+      workspace_id: currentWorkspace?.id,
     })
   }
 

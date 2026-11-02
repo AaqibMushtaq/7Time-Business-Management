@@ -8,16 +8,7 @@ import { DashboardSkeleton } from "./DashboardSkeleton"
 import { useModuleAccess } from "@/hooks/useModuleAccess"
 
 export default function DashboardPage() {
-  const { user, isAdmin, hasModule, hasAnyModule, getDefaultRoute, profile, loading } = useModuleAccess()
-
-  const hasBusinessModules =
-    isAdmin ||
-    hasModule("purchases") ||
-    hasModule("wholesale_sales") ||
-    hasModule("dealers") ||
-    hasModule("products") ||
-    hasModule("inventory") ||
-    hasModule("deliveries")
+  const { user, hasAnyModule, hasBusinessModules, getDefaultRoute, profile, loading } = useModuleAccess()
 
   const {
     viewMode,
@@ -32,7 +23,7 @@ export default function DashboardPage() {
     refetch,
     handlePrevMonth,
     handleNextMonth,
-  } = useDashboardSummary()
+  } = useDashboardSummary({ enabled: !loading && hasBusinessModules })
 
   // When loading in an authenticated session, show skeleton
   if (loading) {

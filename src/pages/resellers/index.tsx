@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { 
   getResellersWithBalances, 
-  createReseller, 
-  updateReseller, 
-  deleteReseller, 
+  createPersonalCustomer, 
+  updatePersonalCustomer, 
+  deletePersonalCustomer, 
   type ResellerCustomer 
 } from "@/services/resellers"
 import type { CustomerCreditType } from "@/services/customerCredits"
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatMoney } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import { 
   Loader2, 
   Plus, 
@@ -42,6 +43,7 @@ type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_CREDIT_BALANCE" | "HA
 export default function ResellersPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { currentWorkspace } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState<CustomerFilterType>("ALL")
   
@@ -68,17 +70,18 @@ export default function ResellersPage() {
 
   // Delete modal state
   const [customerToDelete, setCustomerToDelete] = useState<{ id: string; name: string } | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
 
   const { data: resellers = [], isLoading, error: resellersError } = useQuery({
-    queryKey: ["resellers"],
-    queryFn: getResellersWithBalances,
+    queryKey: ["resellers", "PERSONAL", currentWorkspace?.id],
+    queryFn: () => getResellersWithBalances("PERSONAL", currentWorkspace?.id),
   })
 
   // Create mutation
   const createMutation = useMutation({
-    mutationFn: createReseller,
+    mutationFn: createPersonalCustomer,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resellers"] })
+      queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
       closeCustomerModal()
     },
     onError: (err: any) => {
@@ -88,9 +91,9 @@ export default function ResellersPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string, data: any }) => updateReseller(id, data),
+    mutationFn: ({ id, data }: { id: string, data: any }) => updatePersonalCustomer(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resellers"] })
+      queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
       closeCustomerModal()
     },
     onError: (err: any) => {
@@ -100,11 +103,15 @@ export default function ResellersPage() {
 
   // Delete mutation
   const deleteMutation = useMutation({
-    mutationFn: deleteReseller,
+    mutationFn: deletePersonalCustomer,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["resellers"] })
+      queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
       setCustomerToDelete(null)
+      setDeleteError(null)
     },
+    onError: (err: any) => {
+      setDeleteError(err.message || "Failed to delete person")
+    }
   })
 
   // Modal handlers
@@ -155,8 +162,21 @@ export default function ResellersPage() {
     payload.opening_balance = obTrimmed !== "" && !isNaN(Number(obTrimmed)) ? Number(obTrimmed) : 0
 
     if (editingCustomer) {
+      if (!editingCustomer.contact_type || editingCustomer.contact_type !== "PERSONAL") {
+        setCustomerFormError(
+          `Cannot edit contact: Contact classification is ${editingCustomer.contact_type ? `'${editingCustomer.contact_type}'` : "unspecified/null"}. Editing is restricted in Personal Ledger to prevent unsafe reclassification.`
+        )
+        return
+      }
+      payload.contact_type = editingCustomer.contact_type
       updateMutation.mutate({ id: editingCustomer.id, data: payload })
     } else {
+      if (!currentWorkspace?.id) {
+        setCustomerFormError("Active workspace context is required to create a contact. Please select a workspace.")
+        return
+      }
+      payload.contact_type = "PERSONAL"
+      payload.workspace_id = currentWorkspace?.id
       createMutation.mutate(payload as any)
     }
   }
@@ -813,10 +833,17 @@ export default function ResellersPage() {
       {/* Accessible Destructive Confirmation Modal */}
       <ConfirmDialog
         open={Boolean(customerToDelete)}
-        onOpenChange={(open) => !open && setCustomerToDelete(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCustomerToDelete(null)
+            setDeleteError(null)
+          }
+        }}
         title="Delete Person"
         description={
-          customerToDelete
+          deleteError
+            ? `Error: ${deleteError}`
+            : customerToDelete
             ? `Are you sure you want to delete ${customerToDelete.name}? All personal ledger records, customer credits, and cash loans will be permanently removed.`
             : ""
         }

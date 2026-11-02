@@ -23,6 +23,7 @@ import {
   Table as TableIcon,
   Download,
 } from "lucide-react"
+import { useAuth } from "@/components/auth/useAuth"
 import { EditProductModal } from "./EditProductModal"
 import { AddProductModal } from "./AddProductModal"
 import { ProductGrid } from "./ProductGrid"
@@ -80,15 +81,17 @@ export default function ProductsPage() {
     unit: "all",
   })
 
+  const { currentWorkspace } = useAuth()
+
   // Queries
   const { data: products = [], isLoading: isLoadingProducts } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
+    queryKey: ["products", currentWorkspace?.id],
+    queryFn: () => getProducts(currentWorkspace?.id),
   })
 
   const { data: dealers = [] } = useQuery({
-    queryKey: ["dealers"],
-    queryFn: getDealers,
+    queryKey: ["dealers", currentWorkspace?.id],
+    queryFn: () => getDealers(currentWorkspace?.id),
   })
 
   // Invalidate cache

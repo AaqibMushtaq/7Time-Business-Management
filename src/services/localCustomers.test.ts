@@ -27,7 +27,9 @@ describe("Local Customers Domain Service", () => {
 
     ;(supabase.from as any).mockReturnValue({
       select: vi.fn().mockReturnValue({
-        order: vi.fn().mockResolvedValue({ data: mockCustomers, error: null })
+        order: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: mockCustomers, error: null })
+        })
       })
     })
 
@@ -41,7 +43,9 @@ describe("Local Customers Domain Service", () => {
       if (table === "reseller_customers") {
         return {
           select: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: [{ id: "c1", name: "Alpha", opening_balance: 100 }], error: null })
+            order: vi.fn().mockReturnValue({
+              eq: vi.fn().mockResolvedValue({ data: [{ id: "c1", name: "Alpha", opening_balance: 100 }], error: null })
+            })
           })
         }
       }
@@ -61,7 +65,7 @@ describe("Local Customers Domain Service", () => {
 
   it("createLocalCustomer inserts new customer into underlying storage", async () => {
     const newCustomer = { name: "New Person", phone: "555", address: "Lane 1" }
-    const created = { id: "p1", ...newCustomer }
+    const created = { id: "p1", ...newCustomer, contact_type: "PERSONAL" }
 
     ;(supabase.from as any).mockReturnValue({
       insert: vi.fn().mockReturnValue({
@@ -77,16 +81,13 @@ describe("Local Customers Domain Service", () => {
   })
 
   it("updateLocalCustomer updates customer record in underlying storage", async () => {
-    const updated = { id: "p1", name: "Updated Person", phone: "555" }
-    ;(supabase.from as any).mockReturnValue({
-      update: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          select: vi.fn().mockReturnValue({
-            single: vi.fn().mockResolvedValue({ data: updated, error: null })
-          })
-        })
-      })
-    })
+    const updated = { id: "p1", name: "Updated Person", phone: "555", contact_type: "PERSONAL" }
+    const chain: any = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({ data: [updated], error: null })
+    }
+    ;(supabase.from as any).mockReturnValue(chain)
 
     const result = await updateLocalCustomer("p1", { name: "Updated Person" })
     expect(supabase.from).toHaveBeenCalledWith("reseller_customers")
@@ -94,11 +95,12 @@ describe("Local Customers Domain Service", () => {
   })
 
   it("deleteLocalCustomer deletes customer from underlying storage", async () => {
-    ;(supabase.from as any).mockReturnValue({
-      delete: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ error: null })
-      })
-    })
+    const chain: any = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      select: vi.fn().mockResolvedValue({ data: [{ id: "p1" }], error: null })
+    }
+    ;(supabase.from as any).mockReturnValue(chain)
 
     await deleteLocalCustomer("p1")
     expect(supabase.from).toHaveBeenCalledWith("reseller_customers")

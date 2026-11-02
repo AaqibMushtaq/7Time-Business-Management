@@ -10,6 +10,7 @@ import {
   type UnitDefinition
 } from "@/lib/productCalculator"
 import { formatMoney } from "@/lib/utils"
+import { useAuth } from "@/components/auth/useAuth"
 import {
   PageContainer,
   LoadingState,
@@ -47,6 +48,7 @@ const CATEGORIES = ["All", "Honey", "Spices", "Oils", "Dry Fruits", "Beverages",
 type Category = (typeof CATEGORIES)[number]
 
 export default function ProductCalculatorPage() {
+  const { currentWorkspace } = useAuth()
   const {
     data: products = [],
     isLoading,
@@ -54,8 +56,8 @@ export default function ProductCalculatorPage() {
     error,
     refetch
   } = useQuery({
-    queryKey: ["products"],
-    queryFn: getProducts,
+    queryKey: ["products", currentWorkspace?.id],
+    queryFn: () => getProducts(currentWorkspace?.id),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   })

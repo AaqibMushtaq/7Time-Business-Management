@@ -25,14 +25,14 @@ export interface GeneralDailyRecord {
   entries?: GeneralDeliveryEntry[]
 }
 
-export async function getGeneralDailyRecords(month: string) {
+export async function getGeneralDailyRecords(month: string, workspace_id?: string | null) {
   // month format: YYYY-MM
   const startDate = `${month}-01`
   const [year, m] = month.split('-')
   const lastDay = new Date(parseInt(year), parseInt(m), 0).getDate()
   const endDate = `${month}-${lastDay}`
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("general_daily_records")
     .select(`
       *,
@@ -41,6 +41,12 @@ export async function getGeneralDailyRecords(month: string) {
     .gte("record_date", startDate)
     .lte("record_date", endDate)
     .order("record_date", { ascending: true })
+
+  if (workspace_id) {
+    query = query.eq("workspace_id", workspace_id)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data as GeneralDailyRecord[]

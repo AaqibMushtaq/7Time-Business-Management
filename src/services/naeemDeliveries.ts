@@ -64,24 +64,30 @@ export interface naeemDailyRecord {
   allocations?: naeemPaymentAllocation[]
 }
 
-export async function getnaeemRoutes() {
-  const { data, error } = await supabase
+export async function getnaeemRoutes(workspace_id?: string | null) {
+  let query = supabase
     .from("naeem_routes")
     .select("*")
     .order("name")
+
+  if (workspace_id) {
+    query = query.eq("workspace_id", workspace_id)
+  }
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return data as naeemRoute[]
 }
 
-export async function getnaeemRecords(month: string) {
+export async function getnaeemRecords(month: string, workspace_id?: string | null) {
   const startDate = `${month}-01`
   const [year, m] = month.split('-')
   const lastDay = new Date(parseInt(year), parseInt(m), 0).getDate()
   const endDate = `${month}-${lastDay}`
 
   // 1. Fetch daily records and routes (Disambiguated via route_id foreign key)
-  const { data: recordsData, error: recordsError } = await supabase
+  let recordsQuery = supabase
     .from("naeem_daily_records")
     .select(`
       *,
@@ -90,6 +96,12 @@ export async function getnaeemRecords(month: string) {
     .gte("delivery_date", startDate)
     .lte("delivery_date", endDate)
     .order("delivery_date", { ascending: true })
+
+  if (workspace_id) {
+    recordsQuery = recordsQuery.eq("workspace_id", workspace_id)
+  }
+
+  const { data: recordsData, error: recordsError } = await recordsQuery
 
   if (recordsError) throw new Error(recordsError.message)
   
@@ -127,14 +139,14 @@ export async function getnaeemRecords(month: string) {
   return finalRecords as naeemDailyRecord[]
 }
 
-export async function getnaeemPayments(month: string) {
+export async function getnaeemPayments(month: string, workspace_id?: string | null) {
   const startDate = `${month}-01`
   const [year, m] = month.split('-')
   const lastDay = new Date(parseInt(year), parseInt(m), 0).getDate()
   const endDate = `${month}-${lastDay}`
 
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("naeem_payments")
       .select(`
         *,
@@ -147,6 +159,12 @@ export async function getnaeemPayments(month: string) {
       .lte("payment_date", endDate)
       .order("payment_date", { ascending: false })
 
+    if (workspace_id) {
+      query = query.eq("workspace_id", workspace_id)
+    }
+
+    const { data, error } = await query
+
     if (error) {
       console.error("[NAEEM] naeem_payments query failed:", error);
       throw error;
@@ -158,9 +176,9 @@ export async function getnaeemPayments(month: string) {
   }
 }
 
-export async function getAllnaeemPayments() {
+export async function getAllnaeemPayments(workspace_id?: string | null) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("naeem_payments")
       .select(`
         *,
@@ -170,6 +188,12 @@ export async function getAllnaeemPayments() {
         )
       `)
       .order("payment_date", { ascending: false })
+
+    if (workspace_id) {
+      query = query.eq("workspace_id", workspace_id)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error("[NAEEM] naeem_payments fetch all failed:", error);
@@ -362,15 +386,20 @@ export interface NaeemMonthlyBalanceResult {
   is_manual_override: boolean;
 }
 
-export async function getnaeemMonthlyBalance(year: number, month: number): Promise<NaeemMonthlyBalanceResult> {
+export async function getnaeemMonthlyBalance(year: number, month: number, workspace_id?: string | null): Promise<NaeemMonthlyBalanceResult> {
   try {
     // 1. Check if current month has a manual override
-    const { data: currentMonthData, error: currentMonthError } = await supabase
+    let currentMonthQuery = supabase
       .from("naeem_monthly_balances")
       .select("*")
       .eq("year", year)
       .eq("month", month)
-      .maybeSingle()
+
+    if (workspace_id) {
+      currentMonthQuery = currentMonthQuery.eq("workspace_id", workspace_id)
+    }
+
+    const { data: currentMonthData, error: currentMonthError } = await currentMonthQuery.maybeSingle()
 
     if (currentMonthError) {
       console.warn("Error fetching current month balance:", currentMonthError.message)
@@ -387,7 +416,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
     }
 
     // 2. If no manual override, find the most recent manual override before this month
-    const { data: allBalances, error: balancesError } = await supabase
+    let balancesQuery = supabase
       .from("naeem_monthly_balances")
       .select("*")
       .or(`year.lt.${year},and(year.eq.${year},month.lt.${month})`)
@@ -395,6 +424,12 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
       .order("year", { ascending: false })
       .order("month", { ascending: false })
       .limit(1)
+
+    if (workspace_id) {
+      balancesQuery = balancesQuery.eq("workspace_id", workspace_id)
+    }
+
+    const { data: allBalances, error: balancesError } = await balancesQuery
 
     if (balancesError) {
       console.warn("Error fetching past balances:", balancesError.message)
@@ -411,12 +446,17 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
       runningBalance = Number(allBalances[0].opening_balance)
     } else {
       // Find the earliest record to start calculating from
-      const { data: earliestRecord, error: earliestError } = await supabase
+      let earliestQuery = supabase
         .from("naeem_daily_records")
         .select("delivery_date")
         .order("delivery_date", { ascending: true })
         .limit(1)
-        .maybeSingle()
+
+      if (workspace_id) {
+        earliestQuery = earliestQuery.eq("workspace_id", workspace_id)
+      }
+
+      const { data: earliestRecord, error: earliestError } = await earliestQuery.maybeSingle()
 
       if (earliestError) {
         console.warn("Error fetching earliest record:", earliestError.message)
@@ -454,7 +494,7 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
     const lastDayPrevMonth = new Date(prevYear, prevMonth, 0).getDate()
     const endDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${lastDayPrevMonth}`
 
-    const { data: recordsData, error: recordsError } = await supabase
+    let recsQuery = supabase
       .from("naeem_daily_records")
       .select(`
         final_fare,
@@ -464,13 +504,25 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
       .gte("delivery_date", startDateStr)
       .lte("delivery_date", endDateStr)
 
+    if (workspace_id) {
+      recsQuery = recsQuery.eq("workspace_id", workspace_id)
+    }
+
+    const { data: recordsData, error: recordsError } = await recsQuery
+
     if (recordsError) throw recordsError
 
-    const { data: paymentsData, error: paymentsError } = await supabase
+    let paysQuery = supabase
       .from("naeem_payments")
       .select("amount")
       .gte("payment_date", startDateStr)
       .lte("payment_date", endDateStr)
+
+    if (workspace_id) {
+      paysQuery = paysQuery.eq("workspace_id", workspace_id)
+    }
+
+    const { data: paymentsData, error: paymentsError } = await paysQuery
 
     if (paymentsError) throw paymentsError
 
@@ -503,12 +555,17 @@ export async function getnaeemMonthlyBalance(year: number, month: number): Promi
 
 export async function upsertnaeemMonthlyBalance(year: number, month: number, opening_balance: number, workspace_id?: string) {
   // Check if balance record already exists for this year/month in the active workspace
-  const { data: existing, error: findError } = await supabase
+  let findQuery = supabase
     .from("naeem_monthly_balances")
     .select("id")
     .eq("year", year)
     .eq("month", month)
-    .maybeSingle()
+
+  if (workspace_id) {
+    findQuery = findQuery.eq("workspace_id", workspace_id)
+  }
+
+  const { data: existing, error: findError } = await findQuery.maybeSingle()
 
   if (findError) {
     console.error("NAEEM FIND BALANCE ERROR", findError)
@@ -558,12 +615,18 @@ export async function upsertnaeemMonthlyBalance(year: number, month: number, ope
   }
 }
 
-export async function deletenaeemMonthlyBalance(year: number, month: number) {
-  const { error } = await supabase
+export async function deletenaeemMonthlyBalance(year: number, month: number, workspace_id?: string) {
+  let delQuery = supabase
     .from("naeem_monthly_balances")
     .delete()
     .eq("year", year)
     .eq("month", month)
+
+  if (workspace_id) {
+    delQuery = delQuery.eq("workspace_id", workspace_id)
+  }
+
+  const { error } = await delQuery
     
   if (error) {
     console.error("NAEEM CLEAR BALANCE ERROR", error)
