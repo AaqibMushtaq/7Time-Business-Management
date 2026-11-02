@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase"
-import { getnaeemMonthlyBalance } from "@/services/naeemDeliveries"
+import { getnaeemMonthlyBalance, type NaeemMonthlyBalanceResult } from "@/services/naeemDeliveries"
 
 export type DebtorSource = "WHOLESALE_RESELLER" | "PERSONAL_LEDGER" | "NAEEM" | "GENERAL_DELIVERY" | "OTHER"
 
@@ -81,7 +81,7 @@ export async function getUnifiedReceivables(
     creditsQuery,
     naeemDelQuery,
     naeemPayQuery,
-    getnaeemMonthlyBalance(targetYear, targetMonth, workspaceId).catch(() => ({ opening_balance: 0, is_manual_override: false })),
+    getnaeemMonthlyBalance(targetYear, targetMonth, workspaceId).catch((): NaeemMonthlyBalanceResult => ({ opening_balance: 0, is_manual_override: false })),
     generalEntriesQuery
   ])
 
@@ -157,7 +157,8 @@ export async function getUnifiedReceivables(
   }, 0) || 0
 
   const naeemOpening = Number(naeemBalRes?.opening_balance || 0)
-  const naeemOutstanding = (naeemOpening + naeemRevenue) - naeemReceived
+  const naeemCredit = Number(naeemBalRes?.opening_credit || 0) || (Number(naeemBalRes?.opening_balance) < 0 ? Math.abs(Number(naeemBalRes?.opening_balance)) : 0)
+  const naeemOutstanding = (naeemOpening + naeemRevenue) - naeemReceived - naeemCredit
   const latestNaeemPayDate = naeemPayRes.data && naeemPayRes.data.length > 0 ? naeemPayRes.data[0].payment_date : null
 
   if (naeemOutstanding > 0) {

@@ -15,6 +15,11 @@ export interface naeemPaymentAllocation {
   allocated_amount: number
   created_at?: string
   workspace_id?: string | null
+  daily_record?: {
+    id: string
+    delivery_date: string
+    final_fare?: number
+  }
 }
 
 export interface naeemMonthlyBalance {
@@ -145,7 +150,10 @@ export async function getnaeemPayments(month: string, workspace_id?: string | nu
       .from("naeem_payments")
       .select(`
         *,
-        allocations:naeem_payment_allocations(*)
+        allocations:naeem_payment_allocations(
+          *,
+          daily_record:naeem_daily_records(id, delivery_date, final_fare)
+        )
       `)
       .gte("payment_date", startDate)
       .lte("payment_date", endDate)
@@ -164,6 +172,30 @@ export async function getnaeemPayments(month: string, workspace_id?: string | nu
     return data as naeemPayment[]
   } catch (err) {
     console.error("[NAEEM] naeem_payments fetch failed:", err);
+    throw err;
+  }
+}
+
+export async function getAllnaeemPayments() {
+  try {
+    const { data, error } = await supabase
+      .from("naeem_payments")
+      .select(`
+        *,
+        allocations:naeem_payment_allocations(
+          *,
+          daily_record:naeem_daily_records(id, delivery_date, final_fare)
+        )
+      `)
+      .order("payment_date", { ascending: false })
+
+    if (error) {
+      console.error("[NAEEM] naeem_payments fetch all failed:", error);
+      throw error;
+    }
+    return data as naeemPayment[]
+  } catch (err) {
+    console.error("[NAEEM] naeem_payments fetch all failed:", err);
     throw err;
   }
 }
@@ -342,7 +374,13 @@ export async function upsertnaeemRoute(route: Partial<naeemRoute>) {
   return data[0] as naeemRoute
 }
 
-export async function getnaeemMonthlyBalance(year: number, month: number, workspace_id?: string | null): Promise<{ opening_balance: number; is_manual_override: boolean }> {
+export interface NaeemMonthlyBalanceResult {
+  opening_balance: number;
+  opening_credit?: number;
+  is_manual_override: boolean;
+}
+
+export async function getnaeemMonthlyBalance(year: number, month: number, workspace_id?: string | null): Promise<NaeemMonthlyBalanceResult> {
   try {
     // 1. Check if current month has a manual override
     let currentMonthQuery = supabase
@@ -363,7 +401,12 @@ export async function getnaeemMonthlyBalance(year: number, month: number, worksp
     }
 
     if (currentMonthData && currentMonthData.is_manual_override) {
-      return { opening_balance: Number(currentMonthData.opening_balance), is_manual_override: true }
+      const ob = Number(currentMonthData.opening_balance) || 0
+      return { 
+        opening_balance: ob >= 0 ? ob : 0, 
+        ...(ob < 0 ? { opening_credit: Math.abs(ob) } : {}),
+        is_manual_override: true 
+      }
     }
 
     // 2. If no manual override, find the most recent manual override before this month
@@ -434,7 +477,11 @@ export async function getnaeemMonthlyBalance(year: number, month: number, worksp
 
     // If start date is after prev date (e.g. target month is the earliest month)
     if (startYear > prevYear || (startYear === prevYear && startMonth > prevMonth)) {
-      return { opening_balance: runningBalance, is_manual_override: false }
+      return { 
+        opening_balance: runningBalance >= 0 ? runningBalance : 0, 
+        ...(runningBalance < 0 ? { opening_credit: Math.abs(runningBalance) } : {}),
+        is_manual_override: false 
+      }
     }
 
     const startDateStr = `${startYear}-${String(startMonth).padStart(2, '0')}-01`
@@ -488,7 +535,11 @@ export async function getnaeemMonthlyBalance(year: number, month: number, worksp
 
     runningBalance = runningBalance + billed - received
 
-    return { opening_balance: runningBalance, is_manual_override: false }
+    return { 
+      opening_balance: runningBalance >= 0 ? runningBalance : 0, 
+      ...(runningBalance < 0 ? { opening_credit: Math.abs(runningBalance) } : {}),
+      is_manual_override: false 
+    }
 
   } catch (err) {
     console.error("Failed to calculate opening balance:", err)
