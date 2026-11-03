@@ -858,6 +858,72 @@ describe("zakatService & Adapter Layer", () => {
       expect(ok).toBe(true)
     })
 
+    it("fetchIndianBullionRates retries with anon Authorization header when initial invocation encounters 401", async () => {
+      // First invoke fails with 401
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: null,
+        error: { context: { status: 401 }, message: "FunctionsHttpError: Edge Function returned a non-2xx status code" } as any,
+      })
+
+      // Retry invoke succeeds with anon key
+      const mockPayload = {
+        provider: "TrackLivePrice",
+        original_benchmark: "IBJA",
+        currency: "INR",
+        unit: "g",
+        source_status: "LIVE",
+        effective_date: "2026-10-30",
+        published_at: "2026-10-30 PM Closing",
+        retrieved_at: "2026-10-30T17:00:00Z",
+        gold: { purity_999: 14005.4, session: "PM" },
+        silver: { purity_999: 181.34, session: "PM" },
+      }
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: { success: true, mode: "ibja_rates", data: mockPayload },
+        error: null,
+      })
+
+      const rates = await fetchIndianBullionRates()
+
+      expect(supabase.functions.invoke).toHaveBeenCalledTimes(2)
+      expect(rates).not.toBeNull()
+      expect(rates?.gold.purity_999).toBe(14005.4)
+    })
+
+    it("fetchHistoricalMetalRates retries with anon Authorization header when initial invocation encounters 401", async () => {
+      // First invoke fails with 401
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: null,
+        error: { status: 401, message: "Unauthorized: Invalid or expired caller token" } as any,
+      })
+
+      // Retry invoke succeeds with anon key
+      const mockPoints = [
+        {
+          date: "2026-10-30",
+          goldRate: 14005.4,
+          silverRate: 181.34,
+          source: "TrackLivePrice",
+          status: "MARKET_CLOSE",
+          isLive: false,
+        },
+      ]
+      vi.mocked(supabase.functions.invoke).mockResolvedValueOnce({
+        data: {
+          success: true,
+          mode: "ibja_history",
+          data: { points: mockPoints },
+        },
+        error: null,
+      })
+
+      const points = await fetchHistoricalMetalRates(30)
+
+      expect(supabase.functions.invoke).toHaveBeenCalledTimes(2)
+      expect(points).toHaveLength(1)
+      expect(points[0].goldRate).toBe(14005.4)
+    })
+
     it("manages Srinagar local resale rates in localStorage", () => {
       localStorage.clear()
       expect(fetchSrinagarLocalRates()).toEqual([])

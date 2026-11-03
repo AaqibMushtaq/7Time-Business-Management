@@ -92,8 +92,8 @@ Deno.serve(async (req: Request) => {
     // Authorization Check: Verify Caller Identity
     // Accepts Service Role Key, Authenticated Supabase User JWT, or Anon Key
     // ------------------------------------------------------------------------
-    const authHeader = req.headers.get("Authorization")
-    const apikeyHeader = req.headers.get("apikey")
+    const authHeader = req.headers.get("Authorization") || ""
+    const apikeyHeader = req.headers.get("apikey") || ""
     if (!authHeader && !apikeyHeader) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing Authorization or apikey header." }),
@@ -101,9 +101,10 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    const token = (authHeader ? authHeader.replace(/^Bearer\s+/i, "") : apikeyHeader || "").trim()
-    let isServiceRole = token === supabaseServiceKey
-    let isAnon = token === supabaseAnonKey
+    const bearerToken = authHeader.replace(/^Bearer\s+/i, "").trim()
+    const token = (bearerToken || apikeyHeader).trim()
+    let isServiceRole = token === supabaseServiceKey || bearerToken === supabaseServiceKey || apikeyHeader === supabaseServiceKey
+    let isAnon = token === supabaseAnonKey || bearerToken === supabaseAnonKey || apikeyHeader === supabaseAnonKey
 
     try {
       const parts = token.split(".")
@@ -119,29 +120,60 @@ Deno.serve(async (req: Request) => {
       // ignore token parse errors
     }
 
-    if (!isServiceRole && !isAnon) {
-      const authClient = createClient(supabaseUrl, supabaseAnonKey || supabaseServiceKey, {
-        global: { headers: { Authorization: authHeader || `Bearer ${token}` } },
-      })
-      const {
-        data: { user },
-        error: authError,
-      } = await authClient.auth.getUser()
-
-      if (authError || !user) {
-        return new Response(
-          JSON.stringify({ success: false, error: "Unauthorized: Invalid or expired caller token." }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        )
-      }
-    }
-
     // Parse request payload
     let reqBody: Record<string, unknown> = {}
     if (req.method === "POST") {
       reqBody = await req.json().catch(() => ({}))
     }
-    const action = (reqBody.action as string) || "ibja_rates"
+    const action = ((reqBody.action as string) || "ibja_rates").trim()
+    const isPublicReadAction = ["ibja_rates", "rates", "ibja_history", "history"].includes(action)
+
+    // Verify caller user JWT if bearer token was provided
+    let callerUser: { id: string; email?: string } | null = null
+    let callerAuthError: string | null = null
+
+    if (bearerToken && !isServiceRole && !isAnon) {
+      const authClient = createClient(supabaseUrl, supabaseAnonKey || supabaseServiceKey, {
+        auth: { persistSession: false },
+      })
+      const {
+        data: { user },
+        error: authError,
+      } = await authClient.auth.getUser(bearerToken)
+
+      if (!authError && user) {
+        callerUser = user
+      } else {
+        callerAuthError = authError?.message || "Invalid or expired caller token"
+      }
+    }
+
+    // Authorization decision:
+    // 1. Privileged actions (e.g. save_manual_ibja) strictly require an authenticated caller user or service_role
+    if (!isPublicReadAction) {
+      if (!isServiceRole && !callerUser) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Unauthorized: Active user session required to modify precious metal rates. (${callerAuthError || "Missing session"})`,
+          }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+    } else {
+      // 2. Public market benchmarks (ibja_rates, ibja_history) are readable by any authenticated user,
+      //    service_role, or any client with a valid Supabase project anon key.
+      const hasValidApiKey = isAnon || apikeyHeader === supabaseAnonKey || bearerToken === supabaseAnonKey
+      if (!isServiceRole && !callerUser && !hasValidApiKey) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: "Unauthorized: Missing valid Supabase authorization credentials or anon key.",
+          }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+      }
+    }
 
     const privilegedClient = createClient(supabaseUrl, supabaseServiceKey)
 

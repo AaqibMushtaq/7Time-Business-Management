@@ -27,6 +27,7 @@ import { Button } from "../ui/button"
 import { UpdateNotificationBanner } from "../common/UpdateNotificationBanner"
 import { getCurrentAppVersion, forceAppReload } from "@/lib/versionManager"
 import { WorkspaceSelector } from "@/components/workspace/WorkspaceSelector"
+import { UserProfileDropdown } from "./UserProfileDropdown"
 
 interface NavItemDef {
   name: string
@@ -212,15 +213,20 @@ function SidebarContent({ user, profile, isAdmin, hasModule, signOut, pathname, 
 
       {/* User & Version Footer */}
       <div className="p-4 border-t border-slate-200/80 bg-slate-50/60 shrink-0 space-y-3">
-        <div className="flex items-center text-sm p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-          <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold border border-blue-200 flex items-center justify-center mr-2.5 text-xs shrink-0">
+        <Link
+          to="/settings/profile"
+          onClick={onClose}
+          className="flex items-center text-sm p-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs hover:border-blue-300 hover:bg-blue-50/40 transition-all group cursor-pointer focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-hidden"
+          title="Manage your profile & security"
+        >
+          <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-700 font-extrabold border border-blue-200 flex items-center justify-center mr-2.5 text-xs shrink-0 group-hover:bg-blue-100 transition-colors">
             {user?.email?.charAt(0).toUpperCase() || "A"}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-bold text-slate-900 leading-tight">{userDisplayName}</div>
-            <div className="text-[10px] text-slate-500 font-medium">{userRoleLabel}</div>
+            <div className="truncate text-xs font-bold text-slate-900 leading-tight group-hover:text-blue-600 transition-colors">{userDisplayName}</div>
+            <div className="text-[10px] text-slate-500 font-medium">{userRoleLabel} • Manage Profile</div>
           </div>
-        </div>
+        </Link>
         <Button 
           variant="ghost" 
           className="w-full justify-start text-xs font-semibold text-slate-600 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors h-10 focus-visible:ring-2 focus-visible:ring-red-600 focus-visible:outline-hidden"
@@ -260,6 +266,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/naeem")) return "NAEEM Dedicated Route"
   if (pathname.startsWith("/reports")) return "Business Reports"
   if (pathname.startsWith("/zakat")) return "Zakat Tracker"
+  if (pathname.startsWith("/settings/profile")) return "My Account & Profile"
   if (pathname.startsWith("/settings/accounts")) return "Account & Module Management"
   if (pathname.startsWith("/settings")) return "System Settings"
   if (pathname.startsWith("/backup")) return "Data Backup"
@@ -376,19 +383,15 @@ export function AppLayout() {
               <span>v{getCurrentAppVersion()}</span>
             </button>
 
-            {/* User Profile Badge */}
-            <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 font-bold border border-blue-200 flex items-center justify-center text-xs shrink-0 shadow-2xs">
-                {user?.email?.charAt(0).toUpperCase() || "A"}
-              </div>
-              <div className="hidden xl:block text-left">
-                <span className="text-xs font-semibold text-slate-900 block leading-tight truncate max-w-[150px]">
-                  {profile?.full_name || user?.email || "Admin User"}
-                </span>
-                <span className="text-[10px] text-slate-500 block leading-tight font-medium">
-                  {isAdmin ? "Enterprise Admin" : "Standard User"}
-                </span>
-              </div>
+            {/* User Profile Dropdown */}
+            <div className="pl-3 border-l border-slate-200">
+              <UserProfileDropdown
+                userEmail={user?.email}
+                newEmail={(user as any)?.new_email}
+                profile={profile}
+                isAdmin={isAdmin}
+                signOut={signOut}
+              />
             </div>
           </div>
         </header>
