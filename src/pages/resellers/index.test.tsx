@@ -15,11 +15,20 @@ import {
 } from "@/services/customerCredits"
 import { supabase } from "@/lib/supabase"
 
+const { mockCreateReseller, mockUpdateReseller, mockDeleteReseller } = vi.hoisted(() => ({
+  mockCreateReseller: vi.fn(),
+  mockUpdateReseller: vi.fn(),
+  mockDeleteReseller: vi.fn()
+}))
+
 vi.mock("@/services/resellers", () => ({
   getResellersWithBalances: vi.fn(),
-  createReseller: vi.fn(),
-  updateReseller: vi.fn(),
-  deleteReseller: vi.fn()
+  createReseller: mockCreateReseller,
+  createPersonalCustomer: vi.fn((...args) => mockCreateReseller(...args)),
+  updateReseller: mockUpdateReseller,
+  updatePersonalCustomer: vi.fn((...args) => mockUpdateReseller(...args)),
+  deleteReseller: mockDeleteReseller,
+  deletePersonalCustomer: vi.fn((...args) => mockDeleteReseller(...args))
 }))
 
 vi.mock("@/services/resellerPayments", () => ({
@@ -65,7 +74,8 @@ describe("Personal Ledger (ResellersPage Component)", () => {
       funds_unallocated_outstanding: 0,
       total_owed: 4000,
       outstanding: 7000,
-      created_at: "2026-10-01"
+      created_at: "2026-10-01",
+      contact_type: "PERSONAL"
     },
     {
       id: "cust-2",
@@ -81,7 +91,8 @@ describe("Personal Ledger (ResellersPage Component)", () => {
       funds_unallocated_outstanding: 0,
       total_owed: 0,
       outstanding: 0,
-      created_at: "2026-10-05"
+      created_at: "2026-10-05",
+      contact_type: "PERSONAL"
     }
   ]
 

@@ -42,7 +42,7 @@ export default function CreateCustomerCreditModal({
   onSuccess
 }: CreateCustomerCreditModalProps) {
   const queryClient = useQueryClient()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   const [entryType, setEntryType] = useState<CustomerCreditType>(initialType)
   const [fundingSource, setFundingSource] = useState<CustomerCreditFundingSource>("7TIME_FUNDS")
@@ -178,7 +178,7 @@ export default function CreateCustomerCreditModal({
       return
     }
 
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       setFormError("Active workspace context is required to record a personal ledger entry. Please select a workspace.")
       return
     }
@@ -229,7 +229,7 @@ export default function CreateCustomerCreditModal({
       initial_payment_method: upfrontPaymentMethod,
       initial_payment_reference: upfrontReference.trim() || undefined,
       notes: notes.trim() || null,
-      workspace_id: currentWorkspace?.id
+      ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {})
     })
   }
 

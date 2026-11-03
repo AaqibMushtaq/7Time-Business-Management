@@ -31,7 +31,7 @@ import { DailyEditModal } from "./DailyEditModal"
 
 export default function GeneralDeliveriesPage() {
   const queryClient = useQueryClient()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
   
   const [selectedMonth, setSelectedMonth] = useState(() => {
     return localStorage.getItem("general_delivery_month") || new Date().toISOString().substring(0, 7)
@@ -157,7 +157,7 @@ export default function GeneralDeliveriesPage() {
         delivery_expression: params.expression.trim() || null,
         fuel_expenses: params.fuel,
         remarks: params.remarks.trim() || null,
-        workspace_id: currentWorkspace?.id
+        ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {})
       })
     },
     onSuccess: () => {
@@ -224,7 +224,7 @@ export default function GeneralDeliveriesPage() {
     e.preventDefault()
     if (!editingDate) return
 
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       setModalError("Active workspace context is required to save deliveries. Please select a workspace.")
       return
     }

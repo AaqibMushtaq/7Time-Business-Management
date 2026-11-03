@@ -64,7 +64,7 @@ export default function NaeemUnclePage() {
   const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false)
   const [balanceInput, setBalanceInput] = useState("")
 
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   // Data Queries
   const { data: routes } = useQuery({ 
@@ -227,10 +227,10 @@ export default function NaeemUnclePage() {
 
   const saveBalanceMut = useMutation({
     mutationFn: (amount: number) => {
-      if (!currentWorkspace?.id) {
+      if (user && !currentWorkspace?.id) {
         throw new Error("Active workspace context is required to update balance. Please select a workspace.")
       }
-      return upsertnaeemMonthlyBalance(currentYear, currentMonth, amount, currentWorkspace.id)
+      return upsertnaeemMonthlyBalance(currentYear, currentMonth, amount, currentWorkspace?.id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemMonthlyBalance"] })
@@ -245,10 +245,10 @@ export default function NaeemUnclePage() {
 
   const clearBalanceMut = useMutation({
     mutationFn: () => {
-      if (!currentWorkspace?.id) {
+      if (user && !currentWorkspace?.id) {
         throw new Error("Active workspace context is required to clear balance. Please select a workspace.")
       }
-      return deletenaeemMonthlyBalance(currentYear, currentMonth, currentWorkspace.id)
+      return deletenaeemMonthlyBalance(currentYear, currentMonth, currentWorkspace?.id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["naeemMonthlyBalance"] })
@@ -282,7 +282,7 @@ export default function NaeemUnclePage() {
     e.preventDefault()
     if (!routeId) return
 
-    if (!editingRecord && !currentWorkspace?.id) {
+    if (!editingRecord && user && !currentWorkspace?.id) {
       alert("Active workspace context is required to record a delivery. Please select a workspace.")
       return
     }
@@ -299,7 +299,7 @@ export default function NaeemUnclePage() {
       balance: finalFare,
       status: isNoOrder ? "No Order" : (editingRecord?.status === "Paid" ? "Paid" : "Pending"),
       notes,
-      workspace_id: currentWorkspace?.id
+      ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {})
     })
   }
 
@@ -326,7 +326,7 @@ export default function NaeemUnclePage() {
       allocated_amount: a.allocated_amount
     }))
 
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       alert("Active workspace context is required to record a payment. Please select a workspace.")
       return
     }
@@ -341,7 +341,7 @@ export default function NaeemUnclePage() {
         cheque_date: payMethod === "Cheque" ? payChqDate : null,
         bank_name: payMethod === "Cheque" || payMethod === "Bank Transfer" ? payBank : null,
         notes: payNotes,
-        workspace_id: currentWorkspace?.id
+        ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {})
       },
       allocations
     })
