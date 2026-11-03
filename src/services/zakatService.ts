@@ -154,11 +154,48 @@ export interface DailyMetalRatesResult {
   attribution?: string
 }
 
+/**
+ * Invokes the fetch-metal-rates Edge Function with proactive session handling
+ * and transparent 401 retry for public market benchmarks.
+ */
+async function invokeMetalRatesAction<T = any>(
+  body: Record<string, unknown>,
+  isPublicRead: boolean = false
+): Promise<{ data: T | null; error: any }> {
+  // 1. Initial invocation using the standard client session
+  let result = await supabase.functions.invoke("fetch-metal-rates", { body })
+
+  // 2. If 401 Unauthorized occurs on a public read operation (e.g. expired user token in browser),
+  //    refresh session or retry with anon authorization so users are never blocked from viewing market rates.
+  const is401 =
+    result.error &&
+    (String(result.error).includes("401") ||
+      (result.error as any)?.context?.status === 401 ||
+      (result.error as any)?.status === 401)
+
+  if (is401 && isPublicRead) {
+    if (typeof supabase.auth?.getSession === "function") {
+      await supabase.auth.getSession().catch(() => null)
+    }
+
+    const anonKey = import.meta.env?.VITE_SUPABASE_ANON_KEY
+    if (anonKey) {
+      const retryResult = await supabase.functions.invoke("fetch-metal-rates", {
+        body,
+        headers: { Authorization: `Bearer ${anonKey}` },
+      })
+      if (!retryResult.error && (retryResult.data as any)?.success) {
+        result = retryResult
+      }
+    }
+  }
+
+  return result as { data: T | null; error: any }
+}
+
 export async function fetchIndianBullionRates(): Promise<IndianBullionRatesResponse | null> {
   try {
-    const { data, error } = await supabase.functions.invoke("fetch-metal-rates", {
-      body: { action: "ibja_rates" },
-    })
+    const { data, error } = await invokeMetalRatesAction<any>({ action: "ibja_rates" }, true)
     if (error || !data?.success || !data?.data) {
       console.warn("fetchIndianBullionRates invoke error:", error || data?.error)
       return null
@@ -205,9 +242,7 @@ export async function fetchDailyMetalRates(date?: string): Promise<DailyMetalRat
 
 export async function triggerRemoteRatesRefresh(): Promise<boolean> {
   try {
-    const { data, error } = await supabase.functions.invoke("fetch-metal-rates", {
-      body: { action: "ibja_rates" },
-    })
+    const { data, error } = await invokeMetalRatesAction<any>({ action: "ibja_rates" }, true)
     if (error) {
       console.warn("fetch-metal-rates Edge Function error:", error)
       return false
@@ -223,9 +258,10 @@ export async function fetchHistoricalMetalRates(
   days: 7 | 30 = 30,
   sessionMode: "both" | "close" = "close"
 ): Promise<HistoricalMetalRatePoint[]> {
-  const { data, error } = await supabase.functions.invoke("fetch-metal-rates", {
-    body: { action: "ibja_history", days, sessionMode },
-  })
+  const { data, error } = await invokeMetalRatesAction<any>(
+    { action: "ibja_history", days, sessionMode },
+    true
+  )
 
   if (error) {
     console.error("fetchHistoricalMetalRates Edge Function error:", error)
@@ -240,12 +276,13 @@ export async function fetchHistoricalMetalRates(
 }
 
 export async function saveManualIbjaRates(entry: ManualIbjaRateEntry): Promise<boolean> {
-  const { data, error } = await supabase.functions.invoke("fetch-metal-rates", {
-    body: {
+  const { data, error } = await invokeMetalRatesAction<any>(
+    {
       action: "save_manual_ibja",
       ...entry,
     },
-  })
+    false
+  )
 
   if (error || !data?.success) {
     console.error("saveManualIbjaRates error:", error || data?.error)

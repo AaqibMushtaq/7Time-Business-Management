@@ -29,6 +29,7 @@ const NaeemUnclePage = lazy(() => import("./pages/naeem"))
 const ReportsPage = lazy(() => import("./pages/reports"))
 const SettingsPage = lazy(() => import("./pages/settings"))
 const AccountManagementPage = lazy(() => import("./pages/settings/AccountManagement"))
+const ProfilePage = lazy(() => import("./pages/settings/ProfilePage"))
 const BackupPage = lazy(() => import("./pages/backup"))
 const AuditLogPage = lazy(() => import("./pages/audit"))
 const AIAssistantPage = lazy(() => import("./pages/assistant"))
@@ -181,6 +182,9 @@ function App() {
                         <ReportsPage />
                       </ModuleRouteGuard>
                     } />
+                    
+                    <Route path="settings/profile" element={<ProfilePage />} />
+                    <Route path="profile" element={<Navigate to="/settings/profile" replace />} />
                     
                     <Route path="settings" element={
                       <ModuleRouteGuard adminOnly>

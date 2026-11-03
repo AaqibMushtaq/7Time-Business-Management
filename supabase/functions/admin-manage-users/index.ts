@@ -48,6 +48,27 @@ function createErrorResponse(message: string, status = 400): Response {
   });
 }
 
+function formatPersonalWorkspaceName(fullName?: string | null, email?: string | null): string {
+  const cleanName = fullName?.trim();
+  if (cleanName && cleanName.length >= 2) {
+    if (cleanName.toLowerCase().endsWith("'s workspace")) {
+      return cleanName;
+    }
+    return `${cleanName}'s Workspace`;
+  }
+
+  const cleanEmail = email?.trim();
+  if (cleanEmail && cleanEmail.includes("@")) {
+    const localPart = cleanEmail.split("@")[0]?.trim();
+    if (localPart && localPart.length >= 2) {
+      const formatted = localPart.charAt(0).toUpperCase() + localPart.slice(1);
+      return `${formatted}'s Workspace`;
+    }
+  }
+
+  return "Personal Workspace";
+}
+
 Deno.serve(async (req: Request) => {
   // 1. CORS Preflight
   if (req.method === "OPTIONS") {
@@ -221,11 +242,12 @@ Deno.serve(async (req: Request) => {
         }
         await adminClient.from("profiles").upsert(newProfPayload);
 
-        // 3. Create personal workspace for the new user
+        // 3. Create personal workspace for the new user with dynamic naming
+        const personalWsName = formatPersonalWorkspaceName(full_name, email);
         const { data: wsData, error: wsErr } = await adminClient
           .from("workspaces")
           .insert({
-            name: `${full_name || email}'s Workspace`,
+            name: personalWsName,
             workspace_type: "PERSONAL",
             owner_id: newUserId,
             is_active: true,
@@ -532,6 +554,19 @@ Deno.serve(async (req: Request) => {
 
         if (profUpdateErr) {
           return createErrorResponse(`Failed to update profile: ${profUpdateErr.message}`, 500);
+        }
+
+        // 8b. Synchronize target user's personal workspace name (never touch business workspaces or other users' workspaces)
+        if (cleanName !== undefined && cleanName.length >= 2) {
+          const syncWsName = formatPersonalWorkspaceName(cleanName, cleanEmail || targetProfile.email);
+          await adminClient
+            .from("workspaces")
+            .update({
+              name: syncWsName,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("owner_id", user_id)
+            .eq("workspace_type", "PERSONAL");
         }
 
         // 9. Return consistent structured response without altering role, memberships, or entitlements

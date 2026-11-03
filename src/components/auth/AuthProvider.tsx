@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { AuthContext } from "./AuthContext";
 import type { UserProfile, Workspace, ModuleKey } from "@/types/auth";
+import { formatPersonalWorkspaceName } from "@/lib/workspaceUtils";
 
 const WORKSPACE_STORAGE_KEY = "7time_active_workspace_id";
 
@@ -109,7 +110,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (Array.isArray(memberData)) {
         for (const m of memberData) {
           if (m.workspaces && typeof m.workspaces === "object") {
-            userWorkspaces.push(m.workspaces as unknown as Workspace);
+            const ws = { ...(m.workspaces as unknown as Workspace) };
+            // Enforce global dynamic personal workspace naming synchronized with owner profile
+            if (ws.workspace_type === "PERSONAL" && ws.owner_id === currentUser.id && userProfile) {
+              const authoritativeName = formatPersonalWorkspaceName(userProfile.full_name, currentUser.email);
+              if (ws.name !== authoritativeName) {
+                // Asynchronously synchronize the authoritative database record via Supabase client
+                supabase
+                  .from("workspaces")
+                  .update({ name: authoritativeName })
+                  .eq("id", ws.id)
+                  .eq("owner_id", currentUser.id)
+                  .eq("workspace_type", "PERSONAL")
+                  .then(({ error: syncErr }) => {
+                    if (syncErr) {
+                      console.warn("Personal workspace auto-sync notice:", syncErr.message);
+                    }
+                  });
+                // Update local representation immediately so all consuming components receive the correct name
+                ws.name = authoritativeName;
+              }
+            }
+            userWorkspaces.push(ws);
           }
         }
       }
@@ -134,8 +156,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refreshProfile = useCallback(async () => {
     if (user) {
       await fetchUserData(user);
+      await queryClient.invalidateQueries();
     }
-  }, [user, fetchUserData]);
+  }, [user, fetchUserData, queryClient]);
 
   useEffect(() => {
     let isMounted = true;
