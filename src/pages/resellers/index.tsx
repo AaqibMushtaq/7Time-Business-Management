@@ -43,7 +43,7 @@ type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_CREDIT_BALANCE" | "HA
 export default function ResellersPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState<CustomerFilterType>("ALL")
   
@@ -171,12 +171,14 @@ export default function ResellersPage() {
       payload.contact_type = editingCustomer.contact_type
       updateMutation.mutate({ id: editingCustomer.id, data: payload })
     } else {
-      if (!currentWorkspace?.id) {
+      if (user && !currentWorkspace?.id) {
         setCustomerFormError("Active workspace context is required to create a contact. Please select a workspace.")
         return
       }
       payload.contact_type = "PERSONAL"
-      payload.workspace_id = currentWorkspace?.id
+      if (currentWorkspace?.id) {
+        payload.workspace_id = currentWorkspace.id
+      }
       createMutation.mutate(payload as any)
     }
   }

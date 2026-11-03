@@ -53,7 +53,7 @@ export default function WholesaleSalesPage() {
   const [editNotes, setEditNotes] = useState("")
   const [editError, setEditError] = useState<string | null>(null)
 
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   const { data: sales, isLoading: isLoadingSales } = useQuery({
     queryKey: ["wholesaleSales", currentWorkspace?.id],
@@ -322,7 +322,7 @@ export default function WholesaleSalesPage() {
       return
     }
 
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       setFormError("Active workspace context is required to record a sale. Please select a workspace.")
       return
     }
@@ -342,7 +342,7 @@ export default function WholesaleSalesPage() {
       payment_status: paymentStatus,
       payment_method: paymentMethod,
       notes: notes.trim() ? notes.trim() : null,
-      workspace_id: currentWorkspace?.id,
+      ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {}),
     })
   }
 

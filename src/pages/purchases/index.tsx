@@ -48,7 +48,7 @@ import {
 export default function PurchasesPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [dealerId, setDealerId] = useState("")
@@ -270,11 +270,11 @@ export default function PurchasesPage() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, purchase: payload })
     } else {
-      if (!currentWorkspace?.id) {
+      if (user && !currentWorkspace?.id) {
         alert("Active workspace context is required to record a purchase. Please select a workspace.")
         return
       }
-      createMutation.mutate({ ...payload, workspace_id: currentWorkspace?.id })
+      createMutation.mutate({ ...payload, ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {}) })
     }
   }
 

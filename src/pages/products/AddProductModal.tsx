@@ -21,7 +21,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
   onSuccess,
 }) => {
   const queryClient = useQueryClient()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   const [name, setName] = useState("")
   const [category, setCategory] = useState("")
@@ -106,7 +106,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       return
     }
 
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       setFormError("Active workspace context is required to create a product. Please select a workspace.")
       return
     }
@@ -120,7 +120,7 @@ export const AddProductModal: React.FC<AddProductModalProps> = ({
       retail_price: retail,
       stock_quantity: 0,
       category: trimmedCategory,
-      workspace_id: currentWorkspace?.id,
+      ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {}),
     })
   }
 

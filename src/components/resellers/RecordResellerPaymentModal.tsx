@@ -38,7 +38,7 @@ export default function RecordResellerPaymentModal({
   onPaymentSuccess
 }: RecordResellerPaymentModalProps) {
   const queryClient = useQueryClient()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   const [selectedId, setSelectedId] = useState<string>("")
   const customerId = selectedReseller?.id || selectedId || (resellers.length > 0 ? resellers[0].id : "")
@@ -163,7 +163,7 @@ export default function RecordResellerPaymentModal({
       return
     }
 
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       setFormError("Active workspace context is required to record a settlement. Please select a workspace.")
       return
     }

@@ -39,7 +39,7 @@ import {
 export default function DealerDetailPage() {
   const { id } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   // Active detail tab
   const [activeTab, setActiveTab] = useState<"overview" | "purchases" | "payments">("overview")
@@ -330,7 +330,7 @@ export default function DealerDetailPage() {
         wholesale_price: wholesale,
         retail_price: retail,
         stock_quantity: 0,
-        workspace_id: currentWorkspace?.id
+        ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {})
       }
     }
   }
@@ -338,7 +338,7 @@ export default function DealerDetailPage() {
   const handleCreateProductOnly = (e?: React.MouseEvent) => {
     if (e) e.preventDefault()
     if (!id) return
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       setNewProductError("Active workspace context is required to create a product. Please select a workspace.")
       return
     }
@@ -452,7 +452,7 @@ export default function DealerDetailPage() {
           balance,
           reference: purchaseForm.reference.trim() || null,
           notes: purchaseForm.notes.trim() || null,
-          workspace_id: currentWorkspace?.id
+          ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {})
         })
         return
       } catch (err: any) {
@@ -503,7 +503,7 @@ export default function DealerDetailPage() {
     setPaymentError(null)
     if (!id) return
 
-    if (!currentWorkspace?.id) {
+    if (user && !currentWorkspace?.id) {
       setPaymentError("Active workspace context is required to record a payment. Please select a workspace.")
       return
     }

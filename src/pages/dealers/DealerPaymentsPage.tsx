@@ -53,7 +53,7 @@ import {
 export default function DealerPaymentsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
 
   const [dealerId, setDealerId] = useState("")
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split("T")[0])
@@ -280,11 +280,11 @@ export default function DealerPaymentsPage() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, payment: payload })
     } else {
-      if (!currentWorkspace?.id) {
+      if (user && !currentWorkspace?.id) {
         alert("Active workspace context is required to record a payment. Please select a workspace.")
         return
       }
-      createMutation.mutate({ ...payload, workspace_id: currentWorkspace?.id })
+      createMutation.mutate({ ...payload, ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {}) })
     }
   }
 

@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 import WholesaleSalesPage from "./index"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { getWholesaleSales, createWholesaleSale, updateWholesaleSale, deleteWholesaleSale } from "@/services/wholesaleSales"
-import { getResellers } from "@/services/resellers"
+import { getResellers, getWholesaleCustomers } from "@/services/resellers"
 import { getProducts } from "@/services/products"
 
 vi.mock("@/services/wholesaleSales", () => ({
@@ -14,7 +14,8 @@ vi.mock("@/services/wholesaleSales", () => ({
 }))
 
 vi.mock("@/services/resellers", () => ({
-  getResellers: vi.fn()
+  getResellers: vi.fn(),
+  getWholesaleCustomers: vi.fn()
 }))
 
 vi.mock("@/services/products", () => ({
@@ -34,6 +35,10 @@ describe("WholesaleSalesPage Component", () => {
     })
 
     ;(getResellers as any).mockResolvedValue([
+      { id: "cust-1", name: "Alpha Reseller", phone: "111", address: "Market 1" }
+    ])
+
+    ;(getWholesaleCustomers as any).mockResolvedValue([
       { id: "cust-1", name: "Alpha Reseller", phone: "111", address: "Market 1" }
     ])
 

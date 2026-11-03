@@ -49,9 +49,13 @@ export function useDashboardSummary(options?: UseDashboardSummaryOptions) {
     queryKey: ["dashboardStats", viewMode, selectedYear, selectedMonth, currentWorkspace?.id],
     queryFn: () => {
       if (viewMode === "ALL_TIME") {
-        return getDashboardStats("ALL", undefined, undefined, currentWorkspace?.id)
+        return currentWorkspace?.id
+          ? getDashboardStats("ALL", undefined, undefined, currentWorkspace.id)
+          : getDashboardStats("ALL")
       }
-      return getDashboardStats("CUSTOM", startDateStr, endDateStr, currentWorkspace?.id)
+      return currentWorkspace?.id
+        ? getDashboardStats("CUSTOM", startDateStr, endDateStr, currentWorkspace.id)
+        : getDashboardStats("CUSTOM", startDateStr, endDateStr)
     },
     enabled: isQueryEnabled,
   })

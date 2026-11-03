@@ -23,7 +23,7 @@ import {
 export default function DealersPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { currentWorkspace } = useAuth()
+  const { currentWorkspace, user } = useAuth()
   const [searchQuery, setSearchQuery] = useState("")
 
   // Form state
@@ -102,13 +102,13 @@ export default function DealersPage() {
       opening_balance: formData.opening_balance !== "" && !isNaN(Number(formData.opening_balance))
         ? Number(formData.opening_balance)
         : 0,
-      workspace_id: currentWorkspace?.id
+      ...(currentWorkspace?.id ? { workspace_id: currentWorkspace.id } : {})
     }
 
     if (editingId) {
       updateMutation.mutate({ id: editingId, data: payload })
     } else {
-      if (!currentWorkspace?.id) {
+      if (user && !currentWorkspace?.id) {
         setFormError("Active workspace context is required to create a dealer. Please select a workspace.")
         return
       }
