@@ -30,6 +30,7 @@ export interface CustomerCredit {
   entry_type: CustomerCreditType
   entry_date: string
   funding_source?: CustomerCreditFundingSource | null
+  account?: string | null
   product_id: string | null
   product_name: string | null
   category: string | null
@@ -59,6 +60,7 @@ export interface CreateCustomerCreditInput {
   entry_type: CustomerCreditType
   entry_date?: string
   funding_source?: CustomerCreditFundingSource | null
+  account?: string | null
   // Product Credit fields
   product_id?: string | null
   product_name?: string | null
@@ -81,6 +83,7 @@ export interface UpdateCustomerCreditInput {
   entry_date?: string
   entry_type?: CustomerCreditType
   funding_source?: CustomerCreditFundingSource | null
+  account?: string | null
   product_id?: string | null
   product_name?: string | null
   category?: string | null
@@ -291,6 +294,7 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
     rate_per_unit: rate_per_unit ?? (entry_type === "PRODUCT_CREDIT" && quantity ? total_amount / quantity : null),
     description: entry_type === "OTHER_CREDIT" ? description?.trim() || null : (description?.trim() || null),
     funding_source: input.funding_source || null,
+    account: input.account?.trim() || null,
     total_amount: Number(total_amount),
     amount_paid: 0,
     balance: Number(total_amount),
@@ -394,6 +398,7 @@ export async function updateCustomerCredit(id: string, input: UpdateCustomerCred
     updatePayload.total_amount = tot
   }
   if (input.funding_source !== undefined) updatePayload.funding_source = input.funding_source || null
+  if (input.account !== undefined) updatePayload.account = input.account?.trim() || null
   if (input.notes !== undefined) updatePayload.notes = input.notes?.trim() || null
 
   const { error } = await supabase

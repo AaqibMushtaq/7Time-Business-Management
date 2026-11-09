@@ -5,20 +5,33 @@ import ResellersPage from "./index"
 import ResellerDetailPage from "./ResellerDetailPage"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { 
-  getResellersWithBalances,
-  updateReseller
+  getResellersWithBalances
 } from "@/services/resellers"
 import { 
-  recordMultiEntryPayment, 
-  getCustomerCredits,
-  updateCustomerCredit
+  getCustomerCredits
 } from "@/services/customerCredits"
+import {
+  getPersonalTransactions,
+  getPersonalQarzEntries
+} from "@/services/personalLedger"
 import { supabase } from "@/lib/supabase"
 
-const { mockCreateReseller, mockUpdateReseller, mockDeleteReseller } = vi.hoisted(() => ({
+const { 
+  mockCreateReseller, 
+  mockUpdateReseller, 
+  mockDeleteReseller,
+  mockCreatePersonalTransaction,
+  mockCreatePersonalQarzEntry,
+  mockRecordPersonalQarzRepayment,
+  mockCreateCustomerCredit
+} = vi.hoisted(() => ({
   mockCreateReseller: vi.fn(),
   mockUpdateReseller: vi.fn(),
-  mockDeleteReseller: vi.fn()
+  mockDeleteReseller: vi.fn(),
+  mockCreatePersonalTransaction: vi.fn(),
+  mockCreatePersonalQarzEntry: vi.fn(),
+  mockRecordPersonalQarzRepayment: vi.fn(),
+  mockCreateCustomerCredit: vi.fn()
 }))
 
 vi.mock("@/services/resellers", () => ({
@@ -43,10 +56,24 @@ vi.mock("@/services/customerCredits", async (importOriginal) => {
     ...actual,
     getCustomerCredits: vi.fn(),
     recordMultiEntryPayment: vi.fn(),
-    createCustomerCredit: vi.fn(),
+    createCustomerCredit: mockCreateCustomerCredit,
     updateCustomerCredit: vi.fn(),
     deleteCustomerCredit: vi.fn(),
     autoAllocateCustomerPayments: vi.fn(),
+  }
+})
+
+vi.mock("@/services/personalLedger", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/personalLedger")>()
+  return {
+    ...actual,
+    getPersonalTransactions: vi.fn(),
+    getPersonalQarzEntries: vi.fn(),
+    createPersonalTransaction: mockCreatePersonalTransaction,
+    createPersonalQarzEntry: mockCreatePersonalQarzEntry,
+    recordPersonalQarzRepayment: mockRecordPersonalQarzRepayment,
+    deletePersonalTransaction: vi.fn(),
+    deletePersonalQarzEntry: vi.fn(),
   }
 })
 
@@ -56,7 +83,15 @@ vi.mock("@/lib/supabase", () => ({
   }
 }))
 
-describe("Personal Ledger (ResellersPage Component)", () => {
+vi.mock("@/components/auth/useAuth", () => ({
+  useAuth: () => ({
+    user: { id: "user-test", email: "test@7time.com" },
+    currentWorkspace: { id: "ws-test", name: "Personal Workspace" },
+    signOut: vi.fn(),
+  }),
+}))
+
+describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
   let queryClient: QueryClient
 
   const mockCustomers = [
@@ -96,38 +131,88 @@ describe("Personal Ledger (ResellersPage Component)", () => {
     }
   ]
 
-  const mockCreditsCust1 = [
+  const mockTransactions = [
     {
-      id: "cred-101",
-      customer_id: "cust-1",
-      entry_type: "PRODUCT_CREDIT",
-      entry_date: "2026-10-10",
-      product_name: "Cooking Oil 5L",
-      quantity: 5,
-      unit: "tins",
-      rate_per_unit: 500,
-      total_amount: 2500,
-      amount_paid: 0,
-      balance: 2500,
-      status: "PENDING",
-      allocations: []
+      id: "tx-1",
+      user_id: "user-test",
+      workspace_id: "ws-test",
+      entry_type: "INCOME" as const,
+      amount: 45000,
+      transaction_date: "2026-11-01",
+      category: "Salary",
+      particulars: "Monthly Software Consulting",
+      account: "Bank Account"
     },
     {
-      id: "loan-201",
-      customer_id: "cust-1",
-      entry_type: "CASH_LOAN",
-      entry_date: "2026-10-11",
-      product_name: null,
-      total_amount: 1500,
-      amount_paid: 0,
-      balance: 1500,
-      status: "PENDING",
-      allocations: []
+      id: "tx-2",
+      user_id: "user-test",
+      workspace_id: "ws-test",
+      entry_type: "EXPENSE" as const,
+      amount: 12000,
+      transaction_date: "2026-11-02",
+      category: "Groceries",
+      particulars: "Supermarket Supplies",
+      account: "Cash"
+    },
+    {
+      id: "tx-3",
+      user_id: "user-test",
+      workspace_id: "ws-test",
+      entry_type: "TRANSFER" as const,
+      amount: 5000,
+      transaction_date: "2026-11-02",
+      category: "Transfer",
+      particulars: "ATM Cash Withdrawal",
+      account: "Bank Account",
+      to_account: "Cash"
+    }
+  ]
+
+  const mockQarzEntries = [
+    {
+      id: "qarz-101",
+      user_id: "user-test",
+      workspace_id: "ws-test",
+      person_name: "Bilal Ahmad",
+      direction: "GIVEN" as const,
+      original_amount: 15000,
+      amount_repaid: 5000,
+      balance: 10000,
+      transaction_date: "2026-10-25",
+      account: "Bank Account",
+      status: "PARTIALLY_REPAID" as const,
+      repayments: [
+        {
+          id: "repay-1",
+          qarz_entry_id: "qarz-101",
+          user_id: "user-test",
+          workspace_id: "ws-test",
+          amount: 5000,
+          repayment_date: "2026-10-30",
+          payment_account: "Cash",
+          notes: "First partial return"
+        }
+      ]
+    },
+    {
+      id: "qarz-102",
+      user_id: "user-test",
+      workspace_id: "ws-test",
+      person_name: "Uncle Zahoor",
+      direction: "RECEIVED" as const,
+      original_amount: 20000,
+      amount_repaid: 0,
+      balance: 20000,
+      transaction_date: "2026-10-28",
+      account: "Cash",
+      status: "OUTSTANDING" as const,
+      repayments: []
     }
   ]
 
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
     queryClient = new QueryClient({
       defaultOptions: {
         queries: { retry: false },
@@ -136,398 +221,451 @@ describe("Personal Ledger (ResellersPage Component)", () => {
     })
 
     ;(getResellersWithBalances as any).mockResolvedValue(mockCustomers)
-    ;(getCustomerCredits as any).mockResolvedValue(mockCreditsCust1)
-    ;(recordMultiEntryPayment as any).mockResolvedValue({
-      paymentId: "pay-new",
-      totalAmount: 1500,
-      allocatedAmount: 1500,
-      advanceAmount: 0
-    })
+    ;(getCustomerCredits as any).mockResolvedValue([])
+    ;(getPersonalTransactions as any).mockResolvedValue(mockTransactions)
+    ;(getPersonalQarzEntries as any).mockResolvedValue(mockQarzEntries)
 
-    // Mock for Supabase queries
-    ;(supabase.from as any).mockImplementation((table: string) => {
-      if (table === "reseller_customers") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: mockCustomers[0], error: null })
-            })
-          })
-        }
-      }
-      if (table === "customer_credits") {
-        return {
-          select: vi.fn().mockReturnValue({
-            order: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: mockCreditsCust1, error: null }),
-            }),
-            eq: vi.fn().mockResolvedValue({ data: mockCreditsCust1, error: null })
-          })
-        }
-      }
-      if (table === "wholesale_sales") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ data: [], error: null })
-            })
-          })
-        }
-      }
-      if (table === "reseller_payments") {
-        return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              order: vi.fn().mockResolvedValue({ 
-                data: [
-                  {
-                    id: "pay-hist-1",
-                    customer_id: "cust-1",
-                    payment_date: "2026-10-08",
-                    amount: 2000,
-                    payment_method: "CASH",
-                    reference: "REC-101",
-                    notes: "Initial deposit"
-                  }
-                ], 
-                error: null 
-              })
-            })
-          })
-        }
-      }
-      if (table === "products") {
-        return {
-          select: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: [], error: null })
-          })
-        }
-      }
-      return {
-        select: vi.fn().mockReturnValue({
+    mockCreatePersonalTransaction.mockImplementation((input: any) => Promise.resolve({
+      ...input,
+      id: "new-tx-" + Date.now()
+    }))
+
+    mockCreatePersonalQarzEntry.mockImplementation((input: any) => Promise.resolve({
+      ...input,
+      id: "new-qarz-" + Date.now(),
+      amount_repaid: 0,
+      balance: input.original_amount,
+      status: "OUTSTANDING",
+      repayments: []
+    }))
+
+    mockRecordPersonalQarzRepayment.mockImplementation((input: any) => Promise.resolve({
+      ...input,
+      id: "new-repay-" + Date.now()
+    }))
+
+    mockCreateCustomerCredit.mockImplementation((input: any) => Promise.resolve({
+      ...input,
+      id: "new-cred-" + Date.now(),
+      amount_paid: 0,
+      balance: input.total_amount,
+      status: "PENDING"
+    }))
+
+    // Supabase dummy mock
+    ;(supabase.from as any).mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
           order: vi.fn().mockResolvedValue({ data: [], error: null }),
-          eq: vi.fn().mockResolvedValue({ data: [], error: null })
-        })
-      }
+          single: vi.fn().mockResolvedValue({ data: null, error: null })
+        }),
+        order: vi.fn().mockResolvedValue({ data: [], error: null })
+      })
     })
   })
 
-  const renderResellersApp = (initialRoute = "/local-customers") => {
+  const renderApp = (initialRoute = "/local-customers") => {
     return render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[initialRoute]}>
           <Routes>
             <Route path="/local-customers" element={<ResellersPage />} />
             <Route path="/local-customers/:id" element={<ResellerDetailPage />} />
+            <Route path="/reseller-payments" element={<Navigate to="/local-customers" replace />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>
     )
   }
 
-  it("renders page title, summary cards distinguishing Expense on Behalf and Qard Hasan, and people list", async () => {
-    renderResellersApp()
+  it("renders page header with PERSONAL badge and 4 independent financial summary cards", async () => {
+    renderApp()
 
-    // Page title and subtitle
+    // 3.1 Page Header
     expect(await screen.findByText("Personal Ledger")).toBeDefined()
-    expect(screen.getByText(/Track purchases made on behalf of people, money lent or owed/i)).toBeDefined()
+    expect(screen.getByText("PERSONAL")).toBeDefined()
+    expect(screen.getByText("Personal financial ledger for income, expenses, transfers and Qarz-e-Hasana.")).toBeDefined()
+    expect(screen.getByRole("button", { name: /Add Entry/i })).toBeDefined()
 
-    // Summary Metric Cards with distinct badges (Receivables and Payables)
-    expect(screen.getByText("Total People")).toBeDefined()
-    expect(screen.getAllByText("Receivable (They Owe Me)").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getAllByText("Payable (I Owe Them)").length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText("7TIME Funds")).toBeDefined()
-    expect(screen.getByText("Personal Funds")).toBeDefined()
+    // 3.2 Four Summary Cards
+    expect(screen.getByText("Total Income")).toBeDefined()
+    expect(screen.getByText("Total Expense")).toBeDefined()
+    expect(screen.getByText("Net Balance")).toBeDefined()
+    expect(screen.getAllByText("Qarz-e-Hasana").length).toBeGreaterThanOrEqual(2)
 
-    // Customers rendered in table after loading
-    expect(await screen.findByText("Ishfaq ATM")).toBeDefined()
-    expect(screen.getByText("Tariq Wholesale")).toBeDefined()
-    expect(screen.getByText("+91 9876543210")).toBeDefined()
+    // Submetrics of Qarz-e-Hasana card
+    expect(screen.getByText("Receivables:")).toBeDefined()
+    expect(screen.getByText("Payables:")).toBeDefined()
+
+    // Strictly verify 7TIME Funds is NOT rendered
+    expect(screen.queryByText("7TIME Funds")).toBeNull()
+    expect(screen.queryByText("7TIME Business Funds")).toBeNull()
   })
 
-  it("opens Create Entry modal with Expense on Behalf type when + Record Expense on Behalf is clicked", async () => {
-    renderResellersApp()
+  it("displays transaction feed and filters by tabs: All Entries, Income, Expense, Transfers, and Qarz", async () => {
+    renderApp()
 
-    await screen.findByText("Ishfaq ATM")
+    // All Entries initially rendered
+    expect(await screen.findByText("Monthly Software Consulting")).toBeDefined()
+    expect(screen.getByText("Supermarket Supplies")).toBeDefined()
+    expect(screen.getByText("ATM Cash Withdrawal")).toBeDefined()
+    expect(screen.getByText(/Qarz given to Bilal Ahmad/i)).toBeDefined()
+    expect(screen.getByText(/Qarz received from Uncle Zahoor/i)).toBeDefined()
+    expect(screen.getByText(/Repayment received from Bilal Ahmad/i)).toBeDefined()
 
-    // Click global + Record Expense on Behalf button
-    const expOnBehalfBtn = screen.getByRole("button", { name: /\+ Record Expense on Behalf/i })
-    fireEvent.click(expOnBehalfBtn)
+    // Filter by Income
+    const incomeTab = screen.getByRole("button", { name: /Income/i })
+    fireEvent.click(incomeTab)
+    expect(screen.getByText("Monthly Software Consulting")).toBeDefined()
+    expect(screen.queryByText("Supermarket Supplies")).toBeNull()
 
-    expect(await screen.findByRole("dialog")).toBeDefined()
-    expect(screen.getByText("Record Expense on Behalf")).toBeDefined()
-    expect(screen.getByLabelText(/Item \/ Expense Name/i)).toBeDefined()
+    // Filter by Expense
+    const expenseTab = screen.getByRole("button", { name: /Expense/i })
+    fireEvent.click(expenseTab)
+    expect(screen.getByText("Supermarket Supplies")).toBeDefined()
+    expect(screen.queryByText("Monthly Software Consulting")).toBeNull()
+
+    // Filter by Transfers
+    const transferTab = screen.getByRole("button", { name: /Transfers/i })
+    fireEvent.click(transferTab)
+    expect(screen.getByText("ATM Cash Withdrawal")).toBeDefined()
+    expect(screen.queryByText("Supermarket Supplies")).toBeNull()
+
+    // Filter by Qarz-e-Hasana
+    const qarzTab = screen.getByRole("button", { name: /^Qarz-e-Hasana/i })
+    fireEvent.click(qarzTab)
+    expect(screen.getByText(/Qarz given to Bilal Ahmad/i)).toBeDefined()
+    expect(screen.getByText(/Qarz received from Uncle Zahoor/i)).toBeDefined()
+    expect(screen.queryByText("Monthly Software Consulting")).toBeNull()
   })
 
-  it("opens Qard Hasan modal when + Give Qard Hasan is clicked", async () => {
-    renderResellersApp()
+  it("opens Add Entry dropdown and records an Income entry", async () => {
+    renderApp()
 
-    await screen.findByText("Ishfaq ATM")
+    const addEntryBtn = await screen.findByRole("button", { name: /Add Entry/i })
+    fireEvent.click(addEntryBtn)
 
-    // Click global + Give Qard Hasan button
-    const qardHasanBtn = screen.getByRole("button", { name: /\+ Give Qard Hasan/i })
-    fireEvent.click(qardHasanBtn)
+    const addIncomeOpt = screen.getByRole("button", { name: /\+ Add Personal Income/i })
+    fireEvent.click(addIncomeOpt)
 
-    expect(await screen.findByRole("dialog")).toBeDefined()
-    expect(screen.getByText("Give Qard Hasan (Interest-Free Assistance)")).toBeDefined()
-    expect(screen.getByText(/Qard Hasan \(قرض حسن\) — Interest-Free Assistance/i)).toBeDefined()
-    expect(screen.getByLabelText(/Amount Provided \(Rs\)/i)).toBeDefined()
-    expect(screen.queryByLabelText(/Item \/ Expense Name/i)).toBeNull()
-  })
+    expect(screen.getByText("Record Personal Transaction")).toBeDefined()
 
-  it("opens Record Settlement modal with multi-entry allocation support and submits settlement", async () => {
-    renderResellersApp()
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "30000" } })
+    fireEvent.change(screen.getByLabelText(/Particulars \(Description\) \*/i), { target: { value: "Freelance Project Milestone" } })
 
-    await screen.findByText("Ishfaq ATM")
-
-    // Click global Record Settlement button
-    const recordButtons = screen.getAllByRole("button", { name: /settlement/i })
-    fireEvent.click(recordButtons[0])
-
-    expect(await screen.findByRole("dialog")).toBeDefined()
-    expect(screen.getByText("Record Settlement Received")).toBeDefined()
-
-    // Fill in amount
-    const amountInput = screen.getByLabelText(/amount received/i)
-    fireEvent.change(amountInput, { target: { value: "1500" } })
-
-    // Fill in reference
-    const refInput = screen.getByLabelText(/reference/i)
-    fireEvent.change(refInput, { target: { value: "TXN-9988" } })
-
-    // Fill in notes
-    const notesInput = screen.getByLabelText(/notes/i)
-    fireEvent.change(notesInput, { target: { value: "Test settlement note" } })
-
-    // Submit form
-    const submitBtn = screen.getByRole("button", { name: /save settlement/i })
+    const submitBtn = screen.getByRole("button", { name: /Save Income/i })
     fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(recordMultiEntryPayment).toHaveBeenCalled()
-    })
-
-    const callArgs = (recordMultiEntryPayment as any).mock.calls[0][0]
-    expect(callArgs).toMatchObject({
-      totalAmount: 1500,
-      paymentMethod: "CASH",
-      reference: "TXN-9988",
-      notes: "Test settlement note"
+      expect(mockCreatePersonalTransaction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "INCOME",
+          amount: 30000,
+          particulars: "Freelance Project Milestone"
+        })
+      )
     })
   })
 
-  it("opens Personal Ledger panel displaying Expense on Behalf, Qard Hasan, and Settlement History", async () => {
-    renderResellersApp()
+  it("opens Add Entry dropdown and records Qarz Given loan", async () => {
+    renderApp()
 
-    await screen.findByText("Ishfaq ATM")
+    const addEntryBtn = await screen.findByRole("button", { name: /Add Entry/i })
+    fireEvent.click(addEntryBtn)
 
-    // Click on Ishfaq ATM row to open details modal
-    fireEvent.click(screen.getByText("Ishfaq ATM"))
+    const giveQarzOpt = screen.getByRole("button", { name: /\+ Give Qarz/i })
+    fireEvent.click(giveQarzOpt)
 
-    // Details panel should render
+    expect(screen.getByText("Record Qarz-e-Hasana (قرضِ حسنہ)")).toBeDefined()
+    expect(screen.getByText(/Qarz Given \(I Lent Money\)/i)).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText(/Person's Name \*/i), { target: { value: "Farooq Dar" } })
+    fireEvent.change(screen.getByLabelText(/Loan Amount \(₹\) \*/i), { target: { value: "8000" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Record Qarz Given/i })
+    fireEvent.click(submitBtn)
+
     await waitFor(() => {
-      expect(screen.getAllByText("Person Details").length).toBeGreaterThanOrEqual(1)
-      expect(screen.getByRole("button", { name: /all entries/i })).toBeDefined()
+      expect(mockCreatePersonalQarzEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          person_name: "Farooq Dar",
+          direction: "GIVEN",
+          original_amount: 8000
+        })
+      )
     })
-
-    // Click on Settlements Received tab to view settlements
-    const settlementsTab = screen.getByRole("button", { name: /settlements received/i })
-    fireEvent.click(settlementsTab)
-
-    // Settlement history item rendered
-    expect(await screen.findByText("Initial deposit")).toBeDefined()
   })
 
-  it("filters people directory by Has Outstanding, Has Expense on Behalf, and Has Qard Hasan", async () => {
-    renderResellersApp()
+  it("opens Qarz Detail Modal displaying loan terms and repayment timeline", async () => {
+    renderApp()
 
-    await screen.findByText("Ishfaq ATM")
+    await screen.findByText(/Qarz given to Bilal Ahmad/i)
+
+    // Filter by Qarz tab to isolate Qarz entries
+    const qarzTab = screen.getByRole("button", { name: /^Qarz-e-Hasana/i })
+    fireEvent.click(qarzTab)
+
+    const eyeBtns = screen.getAllByTitle("View Qarz Details")
+    expect(eyeBtns.length).toBeGreaterThan(0)
+    // Click the eye button
+    fireEvent.click(eyeBtns[0])
+
+    // Should display loan detail modal
+    expect(await screen.findByText(/Original Amount/i)).toBeDefined()
+    expect(screen.getByText(/Remaining Balance/i)).toBeDefined()
+    expect(screen.getByText(/Repayment History/i)).toBeDefined()
+  })
+
+  it("opens Record Repayment modal and validates that repayments cannot exceed remaining balance", async () => {
+    renderApp()
+
+    await screen.findByText(/Qarz given to Bilal Ahmad/i)
+
+    // Filter by Qarz tab
+    const qarzTab = screen.getByRole("button", { name: /^Qarz-e-Hasana/i })
+    fireEvent.click(qarzTab)
+
+    // Find repayment buttons
+    const repayBtns = screen.getAllByTitle("Record Repayment")
+    expect(repayBtns.length).toBeGreaterThan(0)
+    fireEvent.click(repayBtns[0])
+
+    // The modal opens with repayment form
+    expect(await screen.findByText(/Record Repayment/i)).toBeDefined()
+    expect(screen.getByText("Current Outstanding:")).toBeDefined()
+
+    // Try over-repaying: enter 999999
+    const amountInput = screen.getByLabelText(/Repayment Amount \(₹\) \*/i)
+    fireEvent.change(amountInput, { target: { value: "999999" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Repayment/i })
+    fireEvent.click(submitBtn)
+
+    expect(await screen.findByText(/exceeds outstanding loan balance/i)).toBeDefined()
+    expect(mockRecordPersonalQarzRepayment).not.toHaveBeenCalled()
+
+    // Enter valid repayment
+    fireEvent.change(amountInput, { target: { value: "1000" } })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockRecordPersonalQarzRepayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          amount: 1000
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("allows switching to People & Contacts Directory view without displaying 7TIME Funds", async () => {
+    renderApp()
+
+    // Click People Directory view tab
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    // In People Directory view:
+    expect(await screen.findByText("People & Contacts Directory")).toBeDefined()
+    expect(screen.getByText("Ishfaq ATM")).toBeDefined()
     expect(screen.getByText("Tariq Wholesale")).toBeDefined()
 
-    // Filter by Has Outstanding (Receivable)
-    const select = screen.getByDisplayValue("All People")
-    fireEvent.change(select, { target: { value: "HAS_OUTSTANDING" } })
+    // Verify summary cards: Total People, Receivable, Payable
+    expect(screen.getByText("Total People")).toBeDefined()
+    expect(screen.getByText("Receivable (They Owe Me)")).toBeDefined()
+    expect(screen.getByText("Payable (I Owe Them)")).toBeDefined()
 
-    // Only Ishfaq ATM has outstanding balance
-    expect(screen.getByText("Ishfaq ATM")).toBeDefined()
-    expect(screen.queryByText("Tariq Wholesale")).toBeNull()
+    // Absolutely NO 7TIME Funds card!
+    expect(screen.queryByText("7TIME Funds")).toBeNull()
+    expect(screen.queryByText("7TIME Business Funds")).toBeNull()
   })
 
-  it("verifies backwards-compatible route redirection from /reseller-payments to /local-customers", () => {
-    const { getByText } = render(
-      <MemoryRouter initialEntries={["/reseller-payments"]}>
-        <Routes>
-          <Route path="/local-customers" element={<div>Consolidated Local Customers Destination</div>} />
-          <Route path="/reseller-payments" element={<Navigate to="/local-customers" replace />} />
-        </Routes>
-      </MemoryRouter>
-    )
+  it("verifies route redirection from /reseller-payments to /local-customers", async () => {
+    renderApp("/reseller-payments")
 
-    expect(getByText("Consolidated Local Customers Destination")).toBeDefined()
+    expect(await screen.findByText("Personal Ledger")).toBeDefined()
+    expect(screen.getByText("PERSONAL")).toBeDefined()
   })
 
-  it("opens Edit Details modal, updates person details including notes, and submits to Supabase", async () => {
-    ;(updateReseller as any).mockResolvedValue({
-      id: "cust-1",
-      name: "Ishfaq ATM Updated",
-      phone: "+91 9999988888",
-      address: "Shop 12 New Market",
-      notes: "Preferred customer with prompt settlements"
-    })
+  it("opens Record Expense on Behalf modal and renders simplified Paid From selector with Cash, Bank, UPI, Wallet", async () => {
+    renderApp()
 
-    renderResellersApp()
+    // Switch to People Directory
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
 
-    await screen.findByText("Ishfaq ATM")
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
 
-    // Open detail modal for Ishfaq ATM
-    fireEvent.click(screen.getByText("Ishfaq ATM"))
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    // Find and click "Edit Details" button
-    const editDetailsBtn = await screen.findByRole("button", { name: /edit details/i })
-    fireEvent.click(editDetailsBtn)
+    // Confusing Money Source UI is REMOVED
+    expect(screen.queryByText(/capital origin for this personal dealing/i)).toBeNull()
+    expect(screen.queryByText(/Company business money/i)).toBeNull()
+    expect(screen.queryByText(/Proprietor personal money/i)).toBeNull()
 
-    // Edit Person Details Modal is rendered
-    expect(await screen.findByText("Edit Person Details")).toBeDefined()
+    // New "Paid From" heading and helper text are rendered
+    expect(screen.getByText("Paid From")).toBeDefined()
+    expect(screen.getByText("Select where the money was paid from.")).toBeDefined()
 
-    // Edit Name
-    const nameInput = screen.getByLabelText(/full name/i)
-    fireEvent.change(nameInput, { target: { value: "Ishfaq ATM Updated" } })
+    // Account categories are rendered
+    expect(screen.getByRole("button", { name: /Cash/i })).toBeDefined()
+    expect(screen.getByRole("button", { name: /Bank Account/i })).toBeDefined()
+    expect(screen.getByRole("button", { name: /UPI/i })).toBeDefined()
+    expect(screen.getByRole("button", { name: /Digital Wallet/i })).toBeDefined()
+    expect(screen.getByRole("button", { name: /^Other$/i })).toBeDefined()
+  })
 
-    // Edit Phone
-    const phoneInput = screen.getByLabelText(/phone number/i)
-    fireEvent.change(phoneInput, { target: { value: "+91 9999988888" } })
+  it("records Expense on Behalf selecting Bank Account as payment source and saves successfully", async () => {
+    renderApp()
 
-    // Edit Notes
-    const notesInput = screen.getByLabelText(/personal ledger notes/i)
-    fireEvent.change(notesInput, { target: { value: "Preferred customer with prompt settlements" } })
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
 
-    // Save Changes
-    const saveBtn = screen.getByRole("button", { name: /save changes/i })
-    fireEvent.click(saveBtn)
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // Fill Item / Expense fields
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Equipment Reimbursement" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "6500" } })
+
+    // Select Bank Account category
+    const bankAccountBtn = screen.getByRole("button", { name: /Bank Account/i })
+    fireEvent.click(bankAccountBtn)
+
+    // Verify indicator displays Bank Account
+    expect(screen.getByText(/Paid from Account:/i)).toBeDefined()
+
+    // Submit form
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(updateReseller).toHaveBeenCalledWith("cust-1", expect.objectContaining({
-        name: "Ishfaq ATM Updated",
-        phone: "+91 9999988888",
-        notes: "Preferred customer with prompt settlements"
-      }))
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Office Equipment Reimbursement",
+          total_amount: 6500,
+          funding_source: "PERSONAL_FUNDS",
+          account: "Bank Account",
+          notes: null
+        }),
+        expect.anything()
+      )
     })
   })
 
-  it("supports inline row editing of credit entries in the ledger table", async () => {
-    ;(updateCustomerCredit as any).mockResolvedValue({
-      id: "cred-101",
-      customer_id: "cust-1",
-      entry_type: "PRODUCT_CREDIT",
-      product_name: "Cooking Oil 5L",
-      quantity: 6,
-      rate_per_unit: 500,
-      total_amount: 3000,
-      notes: "Increased by 1 tin"
-    })
+  it("records Expense on Behalf with custom account string and saves structured account", async () => {
+    renderApp()
 
-    renderResellersApp()
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
 
-    await screen.findByText("Ishfaq ATM")
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
 
-    // Open detail modal for Ishfaq ATM
-    fireEvent.click(screen.getByText("Ishfaq ATM"))
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    // Ensure credits table rendered
-    await screen.findByText("Cooking Oil 5L")
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Vehicle Fuel Reimbursement" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "2400" } })
 
-    // Find the inline Edit button (title="Edit Entry")
-    const editBtns = screen.getAllByTitle("Edit Entry")
-    expect(editBtns.length).toBeGreaterThan(0)
-    fireEvent.click(editBtns[0])
+    // Select custom account option
+    const selectElem = screen.getByDisplayValue("Cash")
+    fireEvent.change(selectElem, { target: { value: "CUSTOM" } })
 
-    // Quantity input is now rendered in edit mode with placeholder="Qty"
-    const qtyInput = screen.getByPlaceholderText("Qty")
-    expect(qtyInput).toBeDefined()
+    // Enter custom account name
+    const customInput = screen.getByPlaceholderText(/Enter account name/i)
+    fireEvent.change(customInput, { target: { value: "HDFC Salary Account" } })
 
-    // Change quantity to 6
-    fireEvent.change(qtyInput, { target: { value: "6" } })
-
-    // Save changes
-    const saveBtn = screen.getByRole("button", { name: /save/i })
-    fireEvent.click(saveBtn)
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
 
     await waitFor(() => {
-      expect(updateCustomerCredit).toHaveBeenCalledWith("cred-101", expect.objectContaining({
-        quantity: 6,
-        rate_per_unit: 500,
-        total_amount: 3000
-      }))
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Vehicle Fuel Reimbursement",
+          total_amount: 2400,
+          account: "HDFC Salary Account",
+          notes: null
+        }),
+        expect.anything()
+      )
     })
   })
 
-  it("filters people directory by Payable (I Owe Them)", async () => {
-    const customersWithAdvance = [
-      ...mockCustomers,
-      {
-        id: "cust-3",
-        name: "Adil Advance Payee",
-        phone: "+91 9991112222",
-        address: "Town Market",
-        total_sales: 0,
-        total_received: 3000,
-        product_credit_outstanding: 0,
-        cash_loan_outstanding: 0,
-        funds_7time_outstanding: 0,
-        funds_personal_outstanding: 0,
-        funds_unallocated_outstanding: 0,
-        total_owed: 0,
-        amount_they_owe_me: 0,
-        amount_i_owe_them: 3000,
-        outstanding: -3000,
-        created_at: "2026-10-12"
-      }
-    ]
-    ;(getResellersWithBalances as any).mockResolvedValue(customersWithAdvance)
+  it("allows funding_source to be selected independently of account", async () => {
+    renderApp()
 
-    renderResellersApp()
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
 
-    await screen.findByText("Adil Advance Payee")
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
 
-    // Filter by Payable (I Owe Them)
-    const select = screen.getByDisplayValue("All People")
-    fireEvent.change(select, { target: { value: "HAS_CREDIT_BALANCE" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Supplies" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "1200" } })
 
-    // Only Adil Advance Payee has credit balance
-    expect(screen.getByText("Adil Advance Payee")).toBeDefined()
-    expect(screen.queryByText("Ishfaq ATM")).toBeNull()
+    // Select UPI account
+    const upiBtn = screen.getByRole("button", { name: /UPI/i })
+    fireEvent.click(upiBtn)
+
+    // Explicitly toggle Funding Source to 7TIME Business Funds
+    const businessFundsBtn = screen.getByRole("button", { name: /7TIME Business Funds/i })
+    fireEvent.click(businessFundsBtn)
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Office Supplies",
+          total_amount: 1200,
+          account: "UPI",
+          funding_source: "7TIME_FUNDS",
+          notes: null
+        }),
+        expect.anything()
+      )
+    })
   })
 
-  it("navigates to person ledger page when View person details & ledger button is clicked", async () => {
-    render(
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={["/local-customers"]}>
-          <Routes>
-            <Route path="/local-customers" element={<ResellersPage />} />
-            <Route path="/local-customers/:id" element={<div>Target Person Ledger Destination</div>} />
-          </Routes>
-        </MemoryRouter>
-      </QueryClientProvider>
-    )
+  it("preserves user remarks in notes without account string prefix or suffix", async () => {
+    renderApp()
 
-    await screen.findByText("Ishfaq ATM")
-    const viewButtons = screen.getAllByTitle("View person details & ledger")
-    expect(viewButtons.length).toBeGreaterThan(0)
-    fireEvent.click(viewButtons[0])
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
 
-    expect(await screen.findByText("Target Person Ledger Destination")).toBeDefined()
-  })
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
 
-  it("renders Local Customers page under /local-customers route preserving /resellers alias", () => {
-    const { getByText } = render(
-      <MemoryRouter initialEntries={["/local-customers"]}>
-        <Routes>
-          <Route path="/local-customers" element={<div>Local Customers Primary Route</div>} />
-          <Route path="/resellers" element={<div>Local Customers Legacy Alias</div>} />
-        </Routes>
-      </MemoryRouter>
-    )
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    expect(getByText("Local Customers Primary Route")).toBeDefined()
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Hardware Tools" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "3500" } })
+
+    // Enter user remarks in Notes field
+    const notesInput = screen.getByPlaceholderText(/Any additional notes or transaction details/i)
+    fireEvent.change(notesInput, { target: { value: "Purchased at City Hardware store with bill #889" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Hardware Tools",
+          total_amount: 3500,
+          account: "Cash",
+          notes: "Purchased at City Hardware store with bill #889"
+        }),
+        expect.anything()
+      )
+    })
   })
 })

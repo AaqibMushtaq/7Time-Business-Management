@@ -111,8 +111,8 @@ export default function ReportsPage() {
         if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
         const { data: res } = await query
         data = res || []
-        csvContent = ["ID,Date,Person,Entry Type,Funding Source,Item/Description,Quantity,Unit,Rate,Total Amount,Amount Paid,Balance,Status,Notes"]
-          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.entry_date)},${escapeCSV(r.customer?.name)},${escapeCSV(r.entry_type === 'PRODUCT_CREDIT' ? 'Expense on Behalf' : r.entry_type === 'CASH_LOAN' ? 'Qard Hasan' : 'Other Personal')},${escapeCSV(r.funding_source || 'Unallocated')},${escapeCSV(r.product_name || r.description)},${escapeCSV(r.quantity)},${escapeCSV(r.unit)},${escapeCSV(r.rate_per_unit)},${escapeCSV(r.total_amount)},${escapeCSV(r.amount_paid)},${escapeCSV(r.balance)},${escapeCSV(r.status)},${escapeCSV(r.notes)}`))
+        csvContent = ["ID,Date,Person,Entry Type,Funding Source,Account,Item/Description,Quantity,Unit,Rate,Total Amount,Amount Paid,Balance,Status,Notes"]
+          .concat(data.map(r => `${escapeCSV(r.id)},${escapeCSV(r.entry_date)},${escapeCSV(r.customer?.name)},${escapeCSV(r.entry_type === 'PRODUCT_CREDIT' ? 'Expense on Behalf' : r.entry_type === 'CASH_LOAN' ? 'Qard Hasan' : 'Other Personal')},${escapeCSV(r.funding_source || 'Unallocated')},${escapeCSV(r.account || '')},${escapeCSV(r.product_name || r.description)},${escapeCSV(r.quantity)},${escapeCSV(r.unit)},${escapeCSV(r.rate_per_unit)},${escapeCSV(r.total_amount)},${escapeCSV(r.amount_paid)},${escapeCSV(r.balance)},${escapeCSV(r.status)},${escapeCSV(r.notes)}`))
           .join("\n")
       }
       else if (type === "GENERAL_DELIVERY") {
