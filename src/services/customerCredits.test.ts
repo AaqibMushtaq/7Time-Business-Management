@@ -1074,8 +1074,8 @@ describe("Customer Credits Service", () => {
     })
 
     it("provides correct badge styling and descriptive labels for funding sources", () => {
-      // 7TIME Business Funds
-      expect(getFundingSourceLabel("7TIME_FUNDS")).toBe("7TIME Funds")
+      // Business Funds (formerly 7TIME Funds)
+      expect(getFundingSourceLabel("7TIME_FUNDS")).toBe("Business Funds")
       const tBadge = getFundingSourceBadgeClasses("7TIME_FUNDS")
       expect(tBadge.text).toContain("emerald")
       expect(tBadge.bg).toContain("emerald")
@@ -2380,6 +2380,150 @@ describe("Customer Credits Service", () => {
       const summary = calculateCustomerLedgerSummary([legacyCredit], [], [], 0)
       expect(summary.productCreditTotal).toBe(100)
       expect(summary.fundsUnallocatedTotal).toBe(100)
+    })
+
+    it("creates Expense on Behalf with structured shopkeeper_name and purchase_location", async () => {
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-shop-1",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              funding_source: "PERSONAL_FUNDS",
+              account: "HDFC Bank",
+              shopkeeper_name: "Hotel Afaq",
+              purchase_location: "Lal Chowk, Srinagar",
+              product_name: "Team Lunch Expenses",
+              total_amount: 3200,
+              amount_paid: 0,
+              balance: 3200,
+              status: "PENDING"
+            },
+            error: null
+          })
+        })
+      })
+
+      const selectMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-shop-1",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              funding_source: "PERSONAL_FUNDS",
+              account: "HDFC Bank",
+              shopkeeper_name: "Hotel Afaq",
+              purchase_location: "Lal Chowk, Srinagar",
+              product_name: "Team Lunch Expenses",
+              total_amount: 3200,
+              amount_paid: 0,
+              balance: 3200,
+              status: "PENDING"
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { insert: insertMock, select: selectMock }
+        }
+        return {}
+      })
+
+      const result = await createCustomerCredit({
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        funding_source: "PERSONAL_FUNDS",
+        account: "HDFC Bank",
+        shopkeeper_name: "Hotel Afaq",
+        purchase_location: "Lal Chowk, Srinagar",
+        product_name: "Team Lunch Expenses",
+        total_amount: 3200
+      })
+
+      expect(insertMock).toHaveBeenCalledWith([expect.objectContaining({
+        shopkeeper_name: "Hotel Afaq",
+        purchase_location: "Lal Chowk, Srinagar",
+        account: "HDFC Bank",
+        funding_source: "PERSONAL_FUNDS"
+      })])
+      expect(result.shopkeeper_name).toBe("Hotel Afaq")
+      expect(result.purchase_location).toBe("Lal Chowk, Srinagar")
+    })
+
+    it("updates shopkeeper_name and purchase_location via updateCustomerCredit", async () => {
+      const updateMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+
+      const selectMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-update-shop",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              shopkeeper_name: "Kashmir Oil Store",
+              purchase_location: "Batamaloo",
+              total_amount: 4500
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { update: updateMock, select: selectMock }
+        }
+        return {}
+      })
+
+      const result = await updateCustomerCredit("cred-update-shop", {
+        shopkeeper_name: "Kashmir Oil Store",
+        purchase_location: "Batamaloo"
+      })
+
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({
+        shopkeeper_name: "Kashmir Oil Store",
+        purchase_location: "Batamaloo"
+      }))
+      expect(result.shopkeeper_name).toBe("Kashmir Oil Store")
+      expect(result.purchase_location).toBe("Batamaloo")
+    })
+
+    it("handles historical records with null shopkeeper and location gracefully", () => {
+      const historicalCredit: CustomerCredit = {
+        id: "historical-null-shop",
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        entry_date: "2026-10-01",
+        product_id: null,
+        product_name: "Historical Item",
+        category: null,
+        quantity: 1,
+        unit: "pcs",
+        rate_per_unit: 500,
+        description: null,
+        total_amount: 500,
+        amount_paid: 0,
+        balance: 500,
+        status: "PENDING",
+        notes: null,
+        funding_source: null,
+        account: null,
+        shopkeeper_name: null,
+        purchase_location: null
+      }
+
+      expect(historicalCredit.shopkeeper_name).toBeNull()
+      expect(historicalCredit.purchase_location).toBeNull()
+      const summary = calculateCustomerLedgerSummary([historicalCredit], [], [], 0)
+      expect(summary.productCreditTotal).toBe(500)
     })
   })
 })

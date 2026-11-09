@@ -25,10 +25,12 @@ import {
   Smartphone,
   CreditCard,
   Landmark,
-  CheckCircle2
+  CheckCircle2,
+  Store,
+  MapPin
 } from "lucide-react"
 
-export type AccountCategory = "Cash" | "Bank Account" | "UPI" | "Digital Wallet" | "Other Account"
+export type AccountCategory = "Cash" | "Bank Account" | "UPI" | "Digital Wallet" | "Other"
 
 export interface PaymentAccountOption {
   id: string
@@ -42,7 +44,7 @@ const ACCOUNT_CATEGORIES: { id: AccountCategory; label: string; icon: any }[] = 
   { id: "Bank Account", label: "Bank Account", icon: Building2 },
   { id: "UPI", label: "UPI", icon: Smartphone },
   { id: "Digital Wallet", label: "Digital Wallet", icon: CreditCard },
-  { id: "Other Account", label: "Other", icon: Landmark }
+  { id: "Other", label: "Other", icon: Landmark }
 ]
 
 const DEFAULT_ACCOUNTS: PaymentAccountOption[] = [
@@ -62,16 +64,16 @@ const DEFAULT_ACCOUNTS: PaymentAccountOption[] = [
   { id: "upi-default", name: "UPI", category: "UPI", ownership: "PERSONAL_FUNDS" },
   { id: "upi-gpay", name: "Google Pay", category: "UPI", ownership: "PERSONAL_FUNDS" },
   { id: "upi-phonepe", name: "PhonePe", category: "UPI", ownership: "PERSONAL_FUNDS" },
-  { id: "upi-paytm", name: "Paytm UPI", category: "UPI", ownership: "PERSONAL_FUNDS" },
+  { id: "upi-paytm", name: "Paytm", category: "UPI", ownership: "PERSONAL_FUNDS" },
 
   // Digital Wallet
   { id: "wallet-default", name: "Digital Wallet", category: "Digital Wallet", ownership: "PERSONAL_FUNDS" },
-  { id: "wallet-paytm", name: "Paytm Wallet", category: "Digital Wallet", ownership: "PERSONAL_FUNDS" },
   { id: "wallet-amazon", name: "Amazon Pay", category: "Digital Wallet", ownership: "PERSONAL_FUNDS" },
+  { id: "wallet-paytm", name: "Paytm Wallet", category: "Digital Wallet", ownership: "PERSONAL_FUNDS" },
 
-  // Other Account
-  { id: "other-default", name: "Other Account", category: "Other Account", ownership: "PERSONAL_FUNDS" },
-  { id: "other-company", name: "Company Business Money", category: "Other Account", ownership: "7TIME_FUNDS" },
+  // Other
+  { id: "other-default", name: "Other Account", category: "Other", ownership: "PERSONAL_FUNDS" },
+  { id: "other-business", name: "Business Account", category: "Other", ownership: "7TIME_FUNDS" },
 ]
 
 interface CreateCustomerCreditModalProps {
@@ -112,6 +114,10 @@ export default function CreateCustomerCreditModal({
   const [ratePerUnit, setRatePerUnit] = useState<string>("")
   const [totalAmount, setTotalAmount] = useState<string>("")
 
+  // Shopkeeper & Purchase Location Fields (Expense on Behalf)
+  const [shopkeeperName, setShopkeeperName] = useState<string>("")
+  const [purchaseLocation, setPurchaseLocation] = useState<string>("")
+
   // Other Credit Fields
   const [description, setDescription] = useState<string>("")
 
@@ -134,6 +140,8 @@ export default function CreateCustomerCreditModal({
       setCustomAccountName("")
       setIsCustomAccount(false)
       setFundingSource("PERSONAL_FUNDS")
+      setShopkeeperName("")
+      setPurchaseLocation("")
       if (selectedCustomerId) {
         setCustomerId(selectedCustomerId)
       } else if (customers.length > 0) {
@@ -155,7 +163,7 @@ export default function CreateCustomerCreditModal({
     if (category === "Cash") setUpfrontPaymentMethod("CASH")
     else if (category === "Bank Account") setUpfrontPaymentMethod("BANK_TRANSFER")
     else if (category === "UPI" || category === "Digital Wallet") setUpfrontPaymentMethod("ONLINE")
-    else if (category === "Other Account") setUpfrontPaymentMethod("CHEQUE")
+    else if (category === "Other") setUpfrontPaymentMethod("CHEQUE")
   }
 
   const handleAccountChange = (accountName: string) => {
@@ -244,6 +252,8 @@ export default function CreateCustomerCreditModal({
     setCustomAccountName("")
     setIsCustomAccount(false)
     setFundingSource("PERSONAL_FUNDS")
+    setShopkeeperName("")
+    setPurchaseLocation("")
     setProductName("")
     setSelectedProductId("")
     setCategory("")
@@ -283,8 +293,12 @@ export default function CreateCustomerCreditModal({
     }
 
     if (entryType === "PRODUCT_CREDIT") {
+      if (!shopkeeperName.trim()) {
+        setFormError("Shopkeeper / Paid To is required for Expense on Behalf.")
+        return
+      }
       if (!productName.trim()) {
-        setFormError("Product name is required for Product Credit.")
+        setFormError("Item / Expense Name is required.")
         return
       }
     } else if (entryType === "OTHER_CREDIT") {
@@ -317,6 +331,8 @@ export default function CreateCustomerCreditModal({
       entry_date: entryDate,
       funding_source: fundingSource,
       account: effectiveAccount || null,
+      shopkeeper_name: entryType === "PRODUCT_CREDIT" ? shopkeeperName.trim() : (shopkeeperName.trim() || null),
+      purchase_location: purchaseLocation.trim() || null,
       product_id: selectedProductId || null,
       product_name: entryType === "PRODUCT_CREDIT" ? productName.trim() : null,
       category: category.trim() || null,
@@ -425,7 +441,7 @@ export default function CreateCustomerCreditModal({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} noValidate className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
           {formError && (
             <div className="p-3 bg-[#FDECEC] border border-red-200 rounded-xl flex items-start gap-2.5 text-[#B42318] text-xs font-medium">
               <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-[#B42318]" />
@@ -486,7 +502,7 @@ export default function CreateCustomerCreditModal({
             </div>
 
             {/* Category Pills */}
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 pt-0.5">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-0.5">
               {ACCOUNT_CATEGORIES.map(cat => {
                 const isSelected = paidFromCategory === cat.id
                 const IconComponent = cat.icon
@@ -495,14 +511,14 @@ export default function CreateCustomerCreditModal({
                     key={cat.id}
                     type="button"
                     onClick={() => handleCategorySelect(cat.id)}
-                    className={`flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                    className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
                       isSelected
                         ? "bg-white border-[#2563EB] text-[#2563EB] shadow-xs ring-2 ring-[#2563EB]/15"
                         : "bg-white border-[#D9E0E8] text-[#52627A] hover:text-[#172B4D] hover:bg-slate-50"
                     }`}
                   >
                     <IconComponent className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{cat.label}</span>
+                    <span className="whitespace-nowrap sm:whitespace-normal text-center leading-tight">{cat.label}</span>
                   </button>
                 )
               })}
@@ -539,57 +555,103 @@ export default function CreateCustomerCreditModal({
               )}
             </div>
 
-            {/* Selected Account & Independent Funding Source Indicators */}
-            <div className="flex flex-col gap-2 pt-1">
+            {/* Selected Account Indicator */}
+            <div className="pt-1">
               <div className="flex items-center gap-1.5 text-[11px] text-[#087443] font-medium bg-emerald-50/70 border border-emerald-200/60 rounded-md px-2.5 py-1">
                 <CheckCircle2 className="h-3.5 w-3.5 text-[#087443] shrink-0" />
                 <span>Paid from Account: <strong className="text-[#087443] font-bold">{isCustomAccount ? (customAccountName.trim() || paidFromCategory) : paidFromAccount}</strong></span>
                 <span className="text-[#52627A] text-[10px] ml-auto">({paidFromCategory})</span>
               </div>
+            </div>
+          </div>
 
-              {/* Independent Funding Source Selector */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 bg-white rounded-lg border border-[#D9E0E8]">
-                <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-[#172B4D]">Funding Source (Ownership)</span>
-                  <span className="text-[10px] text-[#52627A]">Origin of funds: personal proprietor capital or company funds</span>
-                </div>
-                <div className="inline-flex rounded-lg border border-[#D9E0E8] p-0.5 bg-[#F8F7F2] text-xs shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => setFundingSource("PERSONAL_FUNDS")}
-                    className={`px-2.5 py-1 rounded-md font-semibold text-[11px] transition-all cursor-pointer ${
-                      fundingSource === "PERSONAL_FUNDS"
-                        ? "bg-[#087443] text-white shadow-xs"
-                        : "text-[#52627A] hover:text-[#172B4D]"
-                    }`}
-                  >
-                    Personal Funds
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFundingSource("7TIME_FUNDS")}
-                    className={`px-2.5 py-1 rounded-md font-semibold text-[11px] transition-all cursor-pointer ${
-                      fundingSource === "7TIME_FUNDS"
-                        ? "bg-[#2563EB] text-white shadow-xs"
-                        : "text-[#52627A] hover:text-[#172B4D]"
-                    }`}
-                  >
-                    7TIME Business Funds
-                  </button>
-                </div>
+          {/* Shopkeeper / Paid To & Purchase Location (Expense on Behalf) */}
+          {entryType === "PRODUCT_CREDIT" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 bg-[#F8F7F2] rounded-xl border border-[#D9E0E8]">
+              <div className="space-y-1.5">
+                <Label htmlFor="shopkeeper-name" className="text-xs font-bold text-[#172B4D] flex items-center gap-1.5">
+                  <Store className="h-3.5 w-3.5 text-[#087443]" />
+                  Shopkeeper / Paid To <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="shopkeeper-name"
+                  placeholder="e.g. Hotel Afaq, Kashmir Oil Store, ABC Traders"
+                  value={shopkeeperName}
+                  onChange={(e) => setShopkeeperName(e.target.value)}
+                  className="bg-white border-[#D9E0E8] text-[#172B4D] focus-visible:ring-[#2563EB]"
+                  required
+                />
+                <span className="text-[11px] text-[#52627A] block">
+                  Shopkeeper, supplier, merchant, or person who received payment.
+                </span>
               </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="purchase-location" className="text-xs font-bold text-[#172B4D] flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-[#52627A]" />
+                  Shop / Purchase Location
+                </Label>
+                <Input
+                  id="purchase-location"
+                  placeholder="e.g. Lal Chowk, Srinagar"
+                  value={purchaseLocation}
+                  onChange={(e) => setPurchaseLocation(e.target.value)}
+                  className="bg-white border-[#D9E0E8] text-[#172B4D] focus-visible:ring-[#2563EB]"
+                />
+                <span className="text-[11px] text-[#52627A] block">
+                  Market, shopping complex, area, or city (optional).
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Funding Source (Ownership) */}
+          <div className="space-y-2 p-3.5 bg-[#F8F7F2] rounded-xl border border-[#D9E0E8]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <Label className="text-xs font-bold text-[#172B4D]">
+                Funding Source (Ownership) <span className="text-red-500">*</span>
+              </Label>
+              <span className="text-[11px] text-[#52627A]">
+                Origin of funds: personal proprietor capital or business funds.
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-0.5">
+              <button
+                type="button"
+                onClick={() => setFundingSource("PERSONAL_FUNDS")}
+                className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  fundingSource === "PERSONAL_FUNDS"
+                    ? "bg-white border-[#2563EB] text-[#2563EB] shadow-xs ring-2 ring-[#2563EB]/15"
+                    : "bg-white border-[#D9E0E8] text-[#52627A] hover:bg-slate-50"
+                }`}
+              >
+                Personal Funds
+              </button>
+              <button
+                type="button"
+                onClick={() => setFundingSource("7TIME_FUNDS")}
+                className={`py-2 px-3 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                  fundingSource === "7TIME_FUNDS"
+                    ? "bg-white border-[#2563EB] text-[#2563EB] shadow-xs ring-2 ring-[#2563EB]/15"
+                    : "bg-white border-[#D9E0E8] text-[#52627A] hover:bg-slate-50"
+                }`}
+              >
+                Business Funds
+              </button>
             </div>
           </div>
 
           {/* 1. EXPENSE ON BEHALF (PRODUCT CREDIT) FIELDS */}
           {entryType === "PRODUCT_CREDIT" && (
             <div className="space-y-3 p-4 bg-[#EAF7EF]/50 rounded-xl border border-emerald-200">
-              <div className="flex items-center gap-2 text-xs font-bold text-[#087443] uppercase tracking-wider">
-                <Package className="h-4 w-4" /> Item / Purchase Spent on Behalf
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                <div className="flex items-center gap-2 font-bold text-[#087443] uppercase tracking-wider">
+                  <Package className="h-4 w-4" /> ITEM / PURCHASE SPENT ON BEHALF
+                </div>
+                <span className="text-[11px] text-[#52627A]">
+                  Purchases made on behalf of this person to be settled later.
+                </span>
               </div>
-              <p className="text-xs text-[#087443]/90">
-                Purchases made on behalf of this person to be settled later.
-              </p>
 
               {/* Optional Inventory Shortcut */}
               {inventoryProducts.length > 0 && (
@@ -777,8 +839,9 @@ export default function CreateCustomerCreditModal({
             {hasUpfrontPayment && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-[#D9E0E8]">
                 <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-[#172B4D]">Amount Paid (Rs) *</Label>
+                  <Label htmlFor="upfront-amount" className="text-xs font-semibold text-[#172B4D]">Amount Paid (Rs) *</Label>
                   <Input
+                    id="upfront-amount"
                     type="number"
                     step="0.01"
                     min="0.01"

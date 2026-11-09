@@ -527,7 +527,8 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    // Fill Item / Expense fields
+    // Fill Shopkeeper and Item / Expense fields
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "ABC Traders" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Equipment Reimbursement" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "6500" } })
 
@@ -547,6 +548,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Office Equipment Reimbursement",
+          shopkeeper_name: "ABC Traders",
           total_amount: 6500,
           funding_source: "PERSONAL_FUNDS",
           account: "Bank Account",
@@ -568,6 +570,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Kashmir Oil Store" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Vehicle Fuel Reimbursement" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "2400" } })
 
@@ -587,6 +590,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Vehicle Fuel Reimbursement",
+          shopkeeper_name: "Kashmir Oil Store",
           total_amount: 2400,
           account: "HDFC Salary Account",
           notes: null
@@ -605,6 +609,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
     fireEvent.click(recordExpenseBtn)
 
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "City Stationers" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Supplies" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "1200" } })
 
@@ -612,8 +617,8 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     const upiBtn = screen.getByRole("button", { name: /UPI/i })
     fireEvent.click(upiBtn)
 
-    // Explicitly toggle Funding Source to 7TIME Business Funds
-    const businessFundsBtn = screen.getByRole("button", { name: /7TIME Business Funds/i })
+    // Explicitly toggle Funding Source to Business Funds (displays as Business Funds, persists as 7TIME_FUNDS)
+    const businessFundsBtn = screen.getByRole("button", { name: /^Business Funds$/i })
     fireEvent.click(businessFundsBtn)
 
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
@@ -624,6 +629,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Office Supplies",
+          shopkeeper_name: "City Stationers",
           total_amount: 1200,
           account: "UPI",
           funding_source: "7TIME_FUNDS",
@@ -645,6 +651,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "City Hardware" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Hardware Tools" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "3500" } })
 
@@ -660,9 +667,108 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Hardware Tools",
+          shopkeeper_name: "City Hardware",
           total_amount: 3500,
           account: "Cash",
           notes: "Purchased at City Hardware store with bill #889"
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("validates that Shopkeeper / Paid To is required for Expense on Behalf", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // Omit shopkeeper name but fill item name and amount
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Cooking Oil 5L" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "850" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    expect(await screen.findByText(/Shopkeeper \/ Paid To is required for Expense on Behalf/i)).toBeDefined()
+    expect(mockCreateCustomerCredit).not.toHaveBeenCalled()
+  })
+
+  it("records Expense on Behalf with both Shopkeeper and optional Purchase Location", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // Fill Shopkeeper and Location
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Hotel Afaq" } })
+    fireEvent.change(screen.getByLabelText(/Shop \/ Purchase Location/i), { target: { value: "Lal Chowk, Srinagar" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Catering Dinner" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "4800" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          shopkeeper_name: "Hotel Afaq",
+          purchase_location: "Lal Chowk, Srinagar",
+          product_name: "Catering Dinner",
+          total_amount: 4800,
+          account: "Cash",
+          funding_source: "PERSONAL_FUNDS"
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("records Expense on Behalf with partial settlement upfront and validates limits", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Bismillah General Store" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Monthly Provisions" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "5000" } })
+
+    // Check upfront partial settlement
+    const upfrontCheckbox = screen.getByLabelText(/Person paid partial settlement upfront\?/i)
+    fireEvent.click(upfrontCheckbox)
+
+    // Verify amount paid field appears
+    const upfrontAmountInput = screen.getByLabelText(/Amount Paid \(Rs\) \*/i)
+    fireEvent.change(upfrontAmountInput, { target: { value: "2000" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Monthly Provisions",
+          shopkeeper_name: "Bismillah General Store",
+          total_amount: 5000,
+          initial_payment_amount: 2000
         }),
         expect.anything()
       )

@@ -48,7 +48,8 @@ import {
   CheckCircle2,
   Info,
   Building2,
-  UserCheck
+  UserCheck,
+  Store
 } from "lucide-react"
 import {
   Table,
@@ -112,6 +113,8 @@ export default function ResellerDetailPanel({
     entry_type: CustomerCreditType
     funding_source: CustomerCreditFundingSource | ""
     account: string
+    shopkeeper_name: string
+    purchase_location: string
     product_name: string
     category: string
     quantity: string
@@ -125,6 +128,8 @@ export default function ResellerDetailPanel({
     entry_type: "PRODUCT_CREDIT",
     funding_source: "7TIME_FUNDS",
     account: "",
+    shopkeeper_name: "",
+    purchase_location: "",
     product_name: "",
     category: "",
     quantity: "1",
@@ -290,6 +295,8 @@ export default function ResellerDetailPanel({
       entry_type: credit.entry_type,
       funding_source: credit.funding_source || "",
       account: credit.account || "",
+      shopkeeper_name: credit.shopkeeper_name || "",
+      purchase_location: credit.purchase_location || "",
       product_name: credit.product_name || "",
       category: credit.category || "",
       quantity: credit.quantity ? credit.quantity.toString() : "",
@@ -319,6 +326,11 @@ export default function ResellerDetailPanel({
       return
     }
 
+    if (editFormData.entry_type === "PRODUCT_CREDIT" && !editFormData.shopkeeper_name.trim()) {
+      setEditInlineError("Shopkeeper / Paid To is required for Expense on Behalf.")
+      return
+    }
+
     if (editFormData.entry_type === "OTHER_CREDIT" && !editFormData.description.trim()) {
       setEditInlineError("Description is required for Other Credit.")
       return
@@ -329,6 +341,8 @@ export default function ResellerDetailPanel({
       entry_type: editFormData.entry_type,
       funding_source: editFormData.funding_source || null,
       account: editFormData.account.trim() || null,
+      shopkeeper_name: editFormData.shopkeeper_name.trim() || null,
+      purchase_location: editFormData.purchase_location.trim() || null,
       product_name: editFormData.entry_type === "PRODUCT_CREDIT" ? editFormData.product_name.trim() : null,
       category: editFormData.category.trim() || null,
       quantity: editFormData.quantity ? parseFloat(editFormData.quantity) : null,
@@ -1136,6 +1150,20 @@ export default function ResellerDetailPanel({
                               <div className="space-y-1.5">
                                 {editFormData.entry_type === "PRODUCT_CREDIT" && (
                                   <>
+                                    <div className="flex gap-1.5">
+                                      <Input
+                                        placeholder="Shopkeeper / Paid To *"
+                                        value={editFormData.shopkeeper_name}
+                                        onChange={(e) => setEditFormData({ ...editFormData, shopkeeper_name: e.target.value })}
+                                        className="h-7 text-xs font-semibold border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1"
+                                      />
+                                      <Input
+                                        placeholder="Purchase Location"
+                                        value={editFormData.purchase_location}
+                                        onChange={(e) => setEditFormData({ ...editFormData, purchase_location: e.target.value })}
+                                        className="h-7 text-xs border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1"
+                                      />
+                                    </div>
                                     <Input
                                       placeholder="Item / Expense Name *"
                                       value={editFormData.product_name}
@@ -1321,6 +1349,15 @@ export default function ResellerDetailPanel({
                                   {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
                                   {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
                                 </div>
+                                {credit.entry_type === "PRODUCT_CREDIT" && credit.shopkeeper_name && (
+                                  <div className="text-[11px] text-[#087443] flex items-center gap-1 font-medium">
+                                    <Store className="h-3 w-3 text-[#087443] shrink-0" />
+                                    <span className="font-semibold">{credit.shopkeeper_name}</span>
+                                    {credit.purchase_location && (
+                                      <span className="text-[#52627A]"> • {credit.purchase_location}</span>
+                                    )}
+                                  </div>
+                                )}
                                 {credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
                                   <div className="text-[11px] text-[#52627A]">
                                     Qty: {credit.quantity} {credit.unit || "pcs"} {credit.rate_per_unit ? `@ Rs ${credit.rate_per_unit}` : ""}
