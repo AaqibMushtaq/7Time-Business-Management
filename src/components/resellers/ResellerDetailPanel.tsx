@@ -111,6 +111,7 @@ export default function ResellerDetailPanel({
     entry_date: string
     entry_type: CustomerCreditType
     funding_source: CustomerCreditFundingSource | ""
+    account: string
     product_name: string
     category: string
     quantity: string
@@ -123,6 +124,7 @@ export default function ResellerDetailPanel({
     entry_date: "",
     entry_type: "PRODUCT_CREDIT",
     funding_source: "7TIME_FUNDS",
+    account: "",
     product_name: "",
     category: "",
     quantity: "1",
@@ -287,6 +289,7 @@ export default function ResellerDetailPanel({
       entry_date: credit.entry_date || "2026-10-15",
       entry_type: credit.entry_type,
       funding_source: credit.funding_source || "",
+      account: credit.account || "",
       product_name: credit.product_name || "",
       category: credit.category || "",
       quantity: credit.quantity ? credit.quantity.toString() : "",
@@ -325,6 +328,7 @@ export default function ResellerDetailPanel({
       entry_date: editFormData.entry_date,
       entry_type: editFormData.entry_type,
       funding_source: editFormData.funding_source || null,
+      account: editFormData.account.trim() || null,
       product_name: editFormData.entry_type === "PRODUCT_CREDIT" ? editFormData.product_name.trim() : null,
       category: editFormData.category.trim() || null,
       quantity: editFormData.quantity ? parseFloat(editFormData.quantity) : null,
@@ -1053,7 +1057,7 @@ export default function ResellerDetailPanel({
                       <TableHead className="w-8"></TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[100px] py-3.5 px-4">Date</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[110px] py-3.5 px-4">Type</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[115px] py-3.5 px-4">Money Source</TableHead>
+                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[130px] py-3.5 px-4">Funding & Account</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[200px] py-3.5 px-4">Item / Description</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right min-w-[100px] py-3.5 px-4">Amount</TableHead>
                       <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right min-w-[90px] py-3.5 px-4">Settled</TableHead>
@@ -1106,17 +1110,25 @@ export default function ResellerDetailPanel({
                               </select>
                             </TableCell>
 
-                            {/* Money Source Select */}
+                            {/* Money Source & Account Select */}
                             <TableCell className="p-2">
-                              <select
-                                value={editFormData.funding_source || ""}
-                                onChange={(e: any) => setEditFormData({ ...editFormData, funding_source: (e.target.value as CustomerCreditFundingSource) || "" })}
-                                className="h-8 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-2 text-xs font-semibold text-[#172B4D] shadow-2xs focus:border-[#2563EB] focus:outline-hidden w-full"
-                              >
-                                <option value="7TIME_FUNDS">7TIME Business Funds</option>
-                                <option value="PERSONAL_FUNDS">Personal Funds</option>
-                                {!editFormData.funding_source && <option value="">Unallocated</option>}
-                              </select>
+                              <div className="space-y-1.5">
+                                <select
+                                  value={editFormData.funding_source || ""}
+                                  onChange={(e: any) => setEditFormData({ ...editFormData, funding_source: (e.target.value as CustomerCreditFundingSource) || "" })}
+                                  className="h-8 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-2 text-xs font-semibold text-[#172B4D] shadow-2xs focus:border-[#2563EB] focus:outline-hidden w-full"
+                                >
+                                  <option value="PERSONAL_FUNDS">Personal Funds</option>
+                                  <option value="7TIME_FUNDS">7TIME Business Funds</option>
+                                  {!editFormData.funding_source && <option value="">Unallocated</option>}
+                                </select>
+                                <Input
+                                  placeholder="Account (e.g. HDFC Bank, Cash)"
+                                  value={editFormData.account}
+                                  onChange={(e) => setEditFormData({ ...editFormData, account: e.target.value })}
+                                  className="h-7 text-xs font-medium border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D]"
+                                />
+                              </div>
                             </TableCell>
 
                             {/* Item / Details Inputs */}
@@ -1282,14 +1294,24 @@ export default function ResellerDetailPanel({
                             </TableCell>
 
                             <TableCell className="whitespace-nowrap">
-                              {(() => {
-                                const fsBadge = getFundingSourceBadgeClasses(credit.funding_source)
-                                return (
-                                  <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-md border ${fsBadge.bg} ${fsBadge.text} ${fsBadge.border}`}>
-                                    {getFundingSourceLabel(credit.funding_source)}
-                                  </span>
-                                )
-                              })()}
+                              <div className="space-y-1">
+                                <div>
+                                  {(() => {
+                                    const fsBadge = getFundingSourceBadgeClasses(credit.funding_source)
+                                    return (
+                                      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-md border ${fsBadge.bg} ${fsBadge.text} ${fsBadge.border}`}>
+                                        {getFundingSourceLabel(credit.funding_source)}
+                                      </span>
+                                    )
+                                  })()}
+                                </div>
+                                {credit.account && (
+                                  <div className="text-[11px] text-[#172B4D] flex items-center gap-1 font-medium">
+                                    <Wallet className="h-3 w-3 text-[#2563EB] shrink-0" />
+                                    <span className="truncate max-w-[130px]" title={credit.account}>{credit.account}</span>
+                                  </div>
+                                )}
+                              </div>
                             </TableCell>
 
                             <TableCell>

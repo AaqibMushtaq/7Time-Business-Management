@@ -100,4 +100,72 @@ describe("ReportsPage Component", () => {
       expect(selectMock).toHaveBeenCalledWith("*, customer:reseller_customers(name), product:products(name)")
     })
   })
+
+  it("exports personal ledger CSV with structured Account column and handles legacy rows without account", async () => {
+    let capturedBlob: Blob | null = null
+    globalThis.URL.createObjectURL = vi.fn((blob: any) => {
+      capturedBlob = blob
+      return "mock-blob-url"
+    })
+
+    const mockCredits = [
+      {
+        id: "cred-1",
+        entry_date: "2026-11-09",
+        entry_type: "PRODUCT_CREDIT",
+        funding_source: "PERSONAL_FUNDS",
+        account: "HDFC Bank",
+        product_name: "Cooking Oil 15L",
+        quantity: 1,
+        unit: "tin",
+        rate_per_unit: 2200,
+        total_amount: 2200,
+        amount_paid: 0,
+        balance: 2200,
+        status: "PENDING",
+        notes: "Brand Sunflower",
+        customer: { name: "Aaqib" },
+      },
+      {
+        id: "cred-legacy",
+        entry_date: "2026-10-01",
+        entry_type: "CASH_LOAN",
+        funding_source: "7TIME_FUNDS",
+        account: null,
+        description: "Emergency loan",
+        total_amount: 5000,
+        amount_paid: 1000,
+        balance: 4000,
+        status: "PARTIAL",
+        notes: "Historical unallocated credit",
+        customer: { name: "Zaid" },
+      }
+    ]
+
+    const selectMock = vi.fn().mockReturnValue({
+      limit: vi.fn().mockResolvedValue({ data: mockCredits, error: null }),
+    })
+    ;(supabase.from as any).mockReturnValue({ select: selectMock })
+
+    render(<ReportsPage />)
+
+    const exportButtons = screen.getAllByRole("button", { name: /Export to CSV/i })
+    const personalExportBtn = exportButtons[0]
+
+    fireEvent.click(personalExportBtn)
+
+    await waitFor(() => {
+      expect(supabase.from).toHaveBeenCalledWith("customer_credits")
+      expect(selectMock).toHaveBeenCalledWith("*, customer:reseller_customers(name)")
+    })
+
+    expect(capturedBlob).not.toBeNull()
+    if (capturedBlob) {
+      const text = await (capturedBlob as Blob).text()
+      expect(text).toContain("ID,Date,Person,Entry Type,Funding Source,Account,Item/Description")
+      expect(text).toContain('"HDFC Bank"')
+      expect(text).toContain('"Cooking Oil 15L"')
+      expect(text).toContain('"cred-legacy"')
+    }
+  })
 })

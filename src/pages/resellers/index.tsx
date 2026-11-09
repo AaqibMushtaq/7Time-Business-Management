@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { 
@@ -25,25 +25,26 @@ import {
   Users, 
   Phone, 
   MapPin, 
-  Eye, 
   X, 
   AlertCircle,
   Package,
   Coins,
-  Building2,
-  UserCheck
+  BookOpen
 } from "lucide-react"
 import RecordResellerPaymentModal from "@/components/resellers/RecordResellerPaymentModal"
 import CreateCustomerCreditModal from "@/components/resellers/CreateCustomerCreditModal"
 import { ConfirmDialog, DataTable } from "@/components/shared"
 import type { DataTableColumn } from "@/components/shared/DataTable"
+import PersonalLedgerView from "@/components/personalLedger/PersonalLedgerView"
 
 type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_CREDIT_BALANCE" | "HAS_PRODUCT_CREDIT" | "HAS_CASH_LOAN"
+type MainLedgerView = "LEDGER" | "PEOPLE"
 
 export default function ResellersPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { currentWorkspace, user } = useAuth()
+  const [mainView, setMainView] = useState<MainLedgerView>("LEDGER")
   const [searchQuery, setSearchQuery] = useState("")
   const [filterType, setFilterType] = useState<CustomerFilterType>("ALL")
   
@@ -70,9 +71,8 @@ export default function ResellersPage() {
 
   // Delete modal state
   const [customerToDelete, setCustomerToDelete] = useState<{ id: string; name: string } | null>(null)
-  const [deleteError, setDeleteError] = useState<string | null>(null)
 
-  const { data: resellers = [], isLoading, error: resellersError } = useQuery({
+  const { data: resellers = [], isLoading } = useQuery({
     queryKey: ["resellers", "PERSONAL", currentWorkspace?.id],
     queryFn: () => getResellersWithBalances("PERSONAL", currentWorkspace?.id),
   })
@@ -107,10 +107,9 @@ export default function ResellersPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
       setCustomerToDelete(null)
-      setDeleteError(null)
     },
     onError: (err: any) => {
-      setDeleteError(err.message || "Failed to delete person")
+      alert(err.message || "Failed to delete person")
     }
   })
 
@@ -122,7 +121,7 @@ export default function ResellersPage() {
     setIsCustomerModalOpen(true)
   }
 
-  const openEditCustomer = (customer: ResellerCustomer, e?: React.MouseEvent) => {
+  const openEditCustomer = useCallback((customer: ResellerCustomer, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setEditingCustomer(customer)
     setCustomerFormData({
@@ -134,7 +133,7 @@ export default function ResellersPage() {
     })
     setCustomerFormError(null)
     setIsCustomerModalOpen(true)
-  }
+  }, [])
 
   const closeCustomerModal = () => {
     setIsCustomerModalOpen(false)
@@ -183,18 +182,18 @@ export default function ResellersPage() {
     }
   }
 
-  const openRecordPayment = (customer?: ResellerCustomer | null, e?: React.MouseEvent) => {
+  const openRecordPayment = useCallback((customer?: ResellerCustomer | null, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setPaymentTargetReseller(customer || null)
     setIsPaymentModalOpen(true)
-  }
+  }, [])
 
-  const openCreateCredit = (type: CustomerCreditType, customer?: ResellerCustomer | null, e?: React.MouseEvent) => {
+  const openCreateCredit = useCallback((type: CustomerCreditType, customer?: ResellerCustomer | null, e?: React.MouseEvent) => {
     e?.stopPropagation()
     setCreditModalInitialType(type)
     setCreditTargetCustomer(customer || null)
     setIsCreditModalOpen(true)
-  }
+  }, [])
 
   // Filtered local customers based on search query and filterType
   const filteredResellers = useMemo(() => {
@@ -232,10 +231,6 @@ export default function ResellersPage() {
     return resellers.reduce((sum, r) => sum + Number(r.cash_loan_outstanding || 0), 0)
   }, [resellers])
 
-  const totalOtherCreditDue = useMemo(() => {
-    return resellers.reduce((sum, r) => sum + Number(r.other_credit_outstanding || 0), 0)
-  }, [resellers])
-
   const totalReceivables = useMemo(() => {
     return resellers.reduce((sum, r) => {
       const owed = Number(r.amount_they_owe_me !== undefined ? r.amount_they_owe_me : (Number(r.total_owed) || 0))
@@ -250,19 +245,7 @@ export default function ResellersPage() {
     }, 0)
   }, [resellers])
 
-  const total7TimeFundsDue = useMemo(() => {
-    return resellers.reduce((sum, r) => sum + Number(r.funds_7time_outstanding || 0), 0)
-  }, [resellers])
-
-  const totalPersonalFundsDue = useMemo(() => {
-    return resellers.reduce((sum, r) => sum + Number(r.funds_personal_outstanding || 0), 0)
-  }, [resellers])
-
-  const totalUnallocatedFundsDue = useMemo(() => {
-    return resellers.reduce((sum, r) => sum + Number(r.funds_unallocated_outstanding || 0), 0)
-  }, [resellers])
-
-  // Directory table column definitions
+  // Directory table column definitions (Exclusively Personal - NO 7TIME Funds columns)
   const columns = useMemo((): DataTableColumn<ResellerCustomer>[] => [
     {
       id: "person",
@@ -320,8 +303,8 @@ export default function ResellersPage() {
       },
     },
     {
-      id: "qard",
-      header: "Qard Hasan",
+      id: "loan",
+      header: "Qard Hasan (قرض)",
       accessorFn: (row) => Number(row.cash_loan_outstanding || 0),
       align: "right",
       cell: ({ value }) => {
@@ -334,143 +317,419 @@ export default function ResellersPage() {
       },
     },
     {
-      id: "receivable",
-      header: "Receivable",
-      accessorFn: (row) => {
-        const prod = Number(row.product_credit_outstanding || 0)
-        const cash = Number(row.cash_loan_outstanding || 0)
-        const other = Number(row.other_credit_outstanding || 0)
-        return Number(row.amount_they_owe_me !== undefined ? row.amount_they_owe_me : (Number(row.total_owed) || prod + cash + other))
-      },
+      id: "net_balance",
+      header: "Balance Status",
+      accessorFn: (row) => Number(row.outstanding || 0),
       align: "right",
-      cell: ({ value }) => {
-        const v = value as number
-        return v > 0 ? (
-          <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-[#FDECEC] text-[#B42318] border border-red-200">
-            {formatMoney(v)}
-          </span>
-        ) : (
-          <span className="text-xs text-[#66758A] font-medium">-</span>
+      cell: ({ row }) => {
+        const receivable = Number(row.amount_they_owe_me !== undefined ? row.amount_they_owe_me : (row.total_owed || 0))
+        const payable = Number(row.amount_i_owe_them !== undefined ? row.amount_i_owe_them : (row.outstanding && row.outstanding < 0 ? Math.abs(row.outstanding) : 0))
+
+        if (receivable > 0) {
+          return (
+            <div className="text-right">
+              <span className="font-bold text-sm font-mono text-[#B42318]">
+                {formatMoney(receivable)}
+              </span>
+              <span className="block text-[10px] text-[#B42318] font-bold">They Owe Me</span>
+            </div>
+          )
+        }
+        if (payable > 0) {
+          return (
+            <div className="text-right">
+              <span className="font-bold text-sm font-mono text-[#2563EB]">
+                {formatMoney(payable)}
+              </span>
+              <span className="block text-[10px] text-[#2563EB] font-bold">I Owe Them</span>
+            </div>
+          )
+        }
+        return (
+          <div className="text-right">
+            <span className="text-[#087443] text-xs font-bold bg-[#EAF7EF] px-2 py-0.5 rounded-full">
+              Settled
+            </span>
+          </div>
         )
       },
-    },
-    {
-      id: "payable",
-      header: "Payable",
-      accessorFn: (row) => {
-        return Number(row.amount_i_owe_them !== undefined ? row.amount_i_owe_them : (row.outstanding && row.outstanding < 0 ? Math.abs(row.outstanding) : 0))
-      },
-      align: "right",
-      cell: ({ value }) => {
-        const v = value as number
-        return v > 0 ? (
-          <span className="inline-flex items-center font-bold text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-[#2563EB] border border-blue-200" title="Advance balance / Payable">
-            {formatMoney(v)}
-          </span>
-        ) : (
-          <span className="text-xs text-[#66758A] font-medium">-</span>
-        )
-      },
-    },
-    {
-      id: "funding",
-      header: "Funding Source",
-      accessorFn: (row) => row.name,
-      align: "center",
-      cell: ({ row }) => (
-        <div className="flex flex-wrap items-center justify-center gap-1 max-w-[180px] mx-auto font-mono">
-          {Number(row.funds_7time_outstanding) > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#EAF7EF] text-[#087443] border border-emerald-200 px-1.5 py-0.5 rounded">
-              <Building2 className="h-2.5 w-2.5" /> 7T: {formatMoney(Number(row.funds_7time_outstanding))}
-            </span>
-          )}
-          {Number(row.funds_personal_outstanding) > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">
-              <UserCheck className="h-2.5 w-2.5" /> Pers: {formatMoney(Number(row.funds_personal_outstanding))}
-            </span>
-          )}
-          {Number(row.funds_unallocated_outstanding) > 0 && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-[#F1F4F8] text-[#52627A] border border-[#D9E0E8] px-1.5 py-0.5 rounded" title="Historical unallocated">
-              Unalloc: {formatMoney(Number(row.funds_unallocated_outstanding))}
-            </span>
-          )}
-          {Number(row.amount_they_owe_me) <= 0 && Number(row.amount_i_owe_them) <= 0 && (
-            <span className="text-[11px] text-[#52627A] font-medium font-sans">Settled</span>
-          )}
-        </div>
-      ),
     },
     {
       id: "actions",
       header: "Actions",
-      accessorFn: (row) => row.name,
+      accessorFn: (row) => row.id,
       align: "right",
       cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button
             size="sm"
-            className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white h-8 px-2 text-xs font-semibold shadow-2xs"
-            title={`Record settlement for ${row.name}`}
-            onClick={(e) => openRecordPayment(row, e)}
-          >
-            <Wallet className="h-3.5 w-3.5 mr-1" /> Settlement
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 px-2 text-[#087443] hover:bg-[#EAF7EF] border-emerald-200"
-            title="Record Expense on Behalf"
-            onClick={(e) => openCreateCredit("PRODUCT_CREDIT", row, e)}
-          >
-            <Package className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 px-2 text-[#92400E] hover:bg-[#FFF4D6] border-amber-200"
-            title="Give Qard Hasan (Interest-Free Assistance)"
-            onClick={(e) => openCreateCredit("CASH_LOAN", row, e)}
-          >
-            <Coins className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 px-2 text-[#172B4D] border-[#D9E0E8] hover:bg-[#F1F4F8]"
-            title="View person details & ledger"
-            onClick={(e) => { e.stopPropagation(); navigate(`/local-customers/${row.id}`) }}
-          >
-            <Eye className="h-3.5 w-3.5" />
-          </Button>
-          <Button
             variant="ghost"
+            onClick={(e) => openCreateCredit("PRODUCT_CREDIT", row, e)}
+            className="h-8 px-2 text-xs font-semibold text-[#087443] hover:bg-[#EAF7EF]"
+            title="Record Expense on Behalf"
+          >
+            <Package className="h-3.5 w-3.5 mr-1" />
+            + Expense
+          </Button>
+
+          <Button
             size="sm"
-            className="h-8 px-2 text-[#52627A] hover:bg-[#F1F4F8] hover:text-[#172B4D]"
-            title="Edit person details"
+            variant="ghost"
+            onClick={(e) => openCreateCredit("CASH_LOAN", row, e)}
+            className="h-8 px-2 text-xs font-semibold text-[#92400E] hover:bg-[#FFF4D6]"
+            title="Give Qard Hasan (Interest-free loan)"
+          >
+            <Coins className="h-3.5 w-3.5 mr-1" />
+            + Qard
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={(e) => openRecordPayment(row, e)}
+            className="h-8 px-2 text-xs font-semibold text-[#2563EB] hover:bg-[#EFF6FF]"
+            title="Record Settlement"
+          >
+            <Wallet className="h-3.5 w-3.5 mr-1" />
+            Settle
+          </Button>
+
+          <Button
+            size="sm"
+            variant="ghost"
             onClick={(e) => openEditCustomer(row, e)}
+            className="h-8 w-8 p-0 text-[#66758A] hover:text-[#172B4D] hover:bg-slate-100"
+            title="Edit Person Details"
           >
             <Pencil className="h-3.5 w-3.5" />
           </Button>
+
           <Button
-            variant="ghost"
             size="sm"
-            className="h-8 px-2 text-[#B42318] hover:text-[#B42318] hover:bg-[#FDECEC]"
-            title="Delete person"
+            variant="ghost"
             onClick={(e) => {
               e.stopPropagation()
               setCustomerToDelete({ id: row.id, name: row.name })
             }}
+            className="h-8 w-8 p-0 text-[#66758A] hover:text-[#B42318] hover:bg-red-50"
+            title="Delete Person"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </Button>
         </div>
       ),
     },
-  ], [navigate])
+  ], [openCreateCredit, openRecordPayment, openEditCustomer])
 
   return (
     <div className="space-y-6">
-      {/* Record Payment Modal */}
+      {/* View Switcher Bar */}
+      <div className="flex items-center justify-between border-b border-[#D9E0E8] pb-3">
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => setMainView("LEDGER")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
+              mainView === "LEDGER"
+                ? "bg-white text-[#172B4D] shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <BookOpen className="h-4 w-4 text-[#2563EB]" />
+            Personal Ledger & Qarz
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMainView("PEOPLE")}
+            className={`px-4 py-2 text-xs font-bold rounded-xl flex items-center gap-2 transition-all cursor-pointer ${
+              mainView === "PEOPLE"
+                ? "bg-white text-[#172B4D] shadow-xs"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Users className="h-4 w-4 text-[#2563EB]" />
+            People Directory ({resellers.length})
+          </button>
+        </div>
+
+        {mainView === "PEOPLE" && (
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => openCreateCredit("PRODUCT_CREDIT")}
+              size="sm"
+              className="bg-[#087443] hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs"
+            >
+              <Package className="mr-1.5 h-3.5 w-3.5" /> + Record Expense on Behalf
+            </Button>
+            <Button 
+              onClick={openAddCustomer}
+              size="sm"
+              variant="outline"
+              className="border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] font-medium text-xs"
+            >
+              <Plus className="mr-1.5 h-3.5 w-3.5" /> + Add Person
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Render Active View */}
+      {mainView === "LEDGER" ? (
+        <PersonalLedgerView />
+      ) : (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#D9E0E8]">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-2xl font-extrabold tracking-tight text-[#172B4D]">People & Contacts Directory</h2>
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800">
+                  PERSONAL CONTACTS
+                </span>
+              </div>
+              <p className="text-[#52627A] mt-1 text-sm">
+                Track personal contacts, expenses paid on their behalf, and individual settlements.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button 
+                onClick={() => openRecordPayment(null)}
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs font-semibold"
+              >
+                <Wallet className="mr-1.5 h-4 w-4" /> Record Settlement
+              </Button>
+            </div>
+          </div>
+
+          {/* Clean 3 Financial Metric Summary Cards (No 7TIME Funds!) */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Card 1: Total People */}
+            <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
+              <CardHeader className="pb-1 pt-3.5 px-4">
+                <CardTitle className="text-xs font-bold text-[#66758A] uppercase tracking-wider flex items-center justify-between">
+                  Total People
+                  <Users className="h-4 w-4 text-[#2563EB]" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3.5">
+                <div className="text-2xl font-extrabold text-[#172B4D]">{totalResellersCount}</div>
+                <p className="text-xs text-[#52627A] mt-0.5">Active personal contacts</p>
+              </CardContent>
+            </Card>
+
+            {/* Card 2: Receivable (They Owe Me) */}
+            <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
+              <CardHeader className="pb-1 pt-3.5 px-4">
+                <CardTitle className="text-xs font-bold text-[#B42318] uppercase tracking-wider flex items-center justify-between">
+                  Receivable (They Owe Me)
+                  <Wallet className="h-4 w-4 text-[#B42318]" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3.5">
+                <div className="text-2xl font-extrabold text-[#B42318]">
+                  {formatMoney(totalReceivables)}
+                </div>
+                <div className="flex items-center gap-1.5 text-[11px] text-[#52627A] mt-1 truncate">
+                  <span>Expenses: {formatMoney(totalProductCreditDue)}</span>
+                  <span>•</span>
+                  <span>Qard Hasan: {formatMoney(totalCashLoansDue)}</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 3: Payable (I Owe Them) */}
+            <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
+              <CardHeader className="pb-1 pt-3.5 px-4">
+                <CardTitle className="text-xs font-bold text-[#2563EB] uppercase tracking-wider flex items-center justify-between">
+                  Payable (I Owe Them)
+                  <Wallet className="h-4 w-4 text-[#2563EB]" />
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-3.5">
+                <div className="text-2xl font-extrabold text-[#2563EB]">
+                  {formatMoney(totalPayables)}
+                </div>
+                <p className="text-[11px] text-[#2563EB]/80 font-medium mt-1">
+                  {totalPayables > 0 ? "Advance balances & payables" : "No payables owed"}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search & Filter Bar */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl overflow-x-auto text-xs font-semibold text-[#52627A]">
+              <button
+                type="button"
+                onClick={() => setFilterType("ALL")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${filterType === "ALL" ? "bg-white text-[#172B4D] shadow-xs font-bold" : "hover:text-[#172B4D]"}`}
+              >
+                All Contacts
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterType("HAS_OUTSTANDING")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${filterType === "HAS_OUTSTANDING" ? "bg-white text-[#B42318] shadow-xs font-bold" : "hover:text-[#172B4D]"}`}
+              >
+                They Owe Me
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterType("HAS_CREDIT_BALANCE")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${filterType === "HAS_CREDIT_BALANCE" ? "bg-white text-[#2563EB] shadow-xs font-bold" : "hover:text-[#172B4D]"}`}
+              >
+                I Owe Them
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterType("HAS_PRODUCT_CREDIT")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${filterType === "HAS_PRODUCT_CREDIT" ? "bg-white text-[#087443] shadow-xs font-bold" : "hover:text-[#172B4D]"}`}
+              >
+                Has Expenses
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterType("HAS_CASH_LOAN")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${filterType === "HAS_CASH_LOAN" ? "bg-white text-[#92400E] shadow-xs font-bold" : "hover:text-[#172B4D]"}`}
+              >
+                Has Loans
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#66758A]" />
+              <Input
+                type="text"
+                placeholder="Search people..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-xs rounded-xl bg-white border-[#D9E0E8]"
+              />
+            </div>
+          </div>
+
+          {/* Contacts Data Table */}
+          <div className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs overflow-hidden">
+            <DataTable
+              columns={columns}
+              data={filteredResellers}
+              loading={isLoading}
+              onRowClick={(row) => navigate(`/local-customers/${row.id}`)}
+              searchPlaceholder="Search people..."
+              emptyMessage="No personal contacts found. Use the Add Person button above to create one."
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Add / Edit Person Dialog */}
+      {isCustomerModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-[#D9E0E8] p-6 shadow-xl animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-[#D9E0E8]">
+              <h3 className="text-lg font-bold text-[#172B4D]">
+                {editingCustomer ? "Edit Person Details" : "Add New Person"}
+              </h3>
+              <button 
+                type="button" 
+                onClick={closeCustomerModal}
+                className="text-[#66758A] hover:text-[#172B4D] p-1 rounded-lg"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {customerFormError && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{customerFormError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCustomerSubmit} className="mt-4 space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <Label htmlFor="cust-name" className="text-xs font-bold text-[#172B4D]">Full Name *</Label>
+                <Input
+                  id="cust-name"
+                  type="text"
+                  placeholder="e.g. Tariq Ahmad"
+                  value={customerFormData.name}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, name: e.target.value })}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="cust-phone" className="text-xs font-bold text-[#172B4D]">Phone Number</Label>
+                <Input
+                  id="cust-phone"
+                  type="text"
+                  placeholder="e.g. +91 9876543210"
+                  value={customerFormData.phone}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, phone: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="cust-addr" className="text-xs font-bold text-[#172B4D]">Address / Location</Label>
+                <Input
+                  id="cust-addr"
+                  type="text"
+                  placeholder="e.g. Main Market, Shop 4"
+                  value={customerFormData.address}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, address: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="cust-notes" className="text-xs font-bold text-[#172B4D]">Notes</Label>
+                <Input
+                  id="cust-notes"
+                  type="text"
+                  placeholder="Any personal ledger references or remarks"
+                  value={customerFormData.notes}
+                  onChange={(e) => setCustomerFormData({ ...customerFormData, notes: e.target.value })}
+                />
+              </div>
+
+              {!editingCustomer && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="cust-ob" className="text-xs font-bold text-[#172B4D]">Opening Balance (₹)</Label>
+                  <Input
+                    id="cust-ob"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={customerFormData.opening_balance}
+                    onChange={(e) => setCustomerFormData({ ...customerFormData, opening_balance: e.target.value })}
+                  />
+                  <p className="text-[11px] text-[#52627A]">Positive if they owe you, negative if you owe them.</p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#D9E0E8]">
+                <Button type="button" variant="outline" onClick={closeCustomerModal}>
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={createMutation.isPending || updateMutation.isPending}
+                  className="bg-[#2563EB] hover:bg-blue-700 text-white font-bold"
+                >
+                  {(createMutation.isPending || updateMutation.isPending) && (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  )}
+                  {editingCustomer ? "Update Person" : "Save Person"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Record Settlement Modal */}
       <RecordResellerPaymentModal
         isOpen={isPaymentModalOpen}
         onClose={() => {
@@ -479,9 +738,12 @@ export default function ResellersPage() {
         }}
         selectedReseller={paymentTargetReseller}
         resellers={resellers}
+        onPaymentSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
+        }}
       />
 
-      {/* Create Expense on Behalf / Qard Hasan Modal */}
+      {/* Create Customer Credit Modal */}
       <CreateCustomerCreditModal
         isOpen={isCreditModalOpen}
         onClose={() => {
@@ -491,372 +753,22 @@ export default function ResellersPage() {
         selectedCustomerId={creditTargetCustomer?.id}
         customers={resellers}
         initialType={creditModalInitialType}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
+        }}
       />
 
-      {/* Add / Edit Person Modal */}
-      {isCustomerModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl border border-[#D9E0E8] bg-white text-[#172B4D] shadow-xl p-6 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between pb-4 border-b border-[#D9E0E8]">
-              <h2 className="text-lg font-bold tracking-tight text-[#172B4D]">
-                {editingCustomer ? "Edit Person Details" : "Add New Person"}
-              </h2>
-              <button 
-                onClick={closeCustomerModal}
-                className="text-[#52627A] hover:text-[#172B4D] rounded-full p-1"
-                title="Close"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {customerFormError && (
-              <div className="mt-4 p-3 bg-[#FDECEC] border border-red-200 text-[#B42318] rounded-xl text-sm flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-[#B42318] shrink-0 mt-0.5" />
-                <p className="text-xs">{customerFormError}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleCustomerSubmit} className="space-y-4 pt-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Full Name <span className="text-red-500">*</span>
-                </Label>
-                <Input
-                  placeholder="e.g. Ishfaq Ahmad"
-                  value={customerFormData.name}
-                  onChange={(e) => setCustomerFormData({ ...customerFormData, name: e.target.value })}
-                  required
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="bg-white border-[#D9E0E8] text-[#172B4D]"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Phone Number
-                </Label>
-                <Input
-                  placeholder="+91..."
-                  value={customerFormData.phone}
-                  onChange={(e) => setCustomerFormData({ ...customerFormData, phone: e.target.value })}
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="bg-white border-[#D9E0E8] text-[#172B4D]"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Address / Location
-                </Label>
-                <textarea
-                  className="flex min-h-[70px] w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] shadow-2xs placeholder:text-[#66758A] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
-                  placeholder="Location or residential address"
-                  value={customerFormData.address}
-                  onChange={(e) => setCustomerFormData({ ...customerFormData, address: e.target.value })}
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Personal Notes (Optional)
-                </Label>
-                <textarea
-                  aria-label="personal ledger notes"
-                  className="flex min-h-[60px] w-full rounded-xl border border-[#D9E0E8] bg-white px-3 py-2 text-sm text-[#172B4D] shadow-2xs placeholder:text-[#66758A] focus:outline-hidden focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB]"
-                  placeholder="Notes about dealings, agreed terms, or relationship"
-                  value={customerFormData.notes}
-                  onChange={(e) => setCustomerFormData({ ...customerFormData, notes: e.target.value })}
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-[#172B4D] uppercase tracking-wider">
-                  Opening Balance (Rs) (Optional)
-                </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={customerFormData.opening_balance}
-                  onChange={(e) => setCustomerFormData({ ...customerFormData, opening_balance: e.target.value })}
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="bg-white border-[#D9E0E8] text-[#172B4D]"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2 border-t border-[#D9E0E8]">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={closeCustomerModal}
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="border-[#D9E0E8] text-[#172B4D]"
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold"
-                >
-                  {(createMutation.isPending || updateMutation.isPending) && (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  )}
-                  {editingCustomer ? "Save Changes" : "Save Person"}
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#D9E0E8]">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[#172B4D]">Personal Ledger</h1>
-          <p className="text-[#52627A] mt-1 text-sm">
-            Track purchases made on behalf of people, money lent or owed, expenses paid personally or by 7TIME, and settlements received or paid.
-          </p>
-        </div>
-
-        {/* Global Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button 
-            onClick={() => openCreateCredit("PRODUCT_CREDIT")}
-            className="bg-[#087443] hover:bg-emerald-700 text-white font-semibold shadow-xs"
-          >
-            <Package className="mr-1.5 h-4 w-4" /> + Record Expense on Behalf
-          </Button>
-
-          <Button 
-            onClick={() => openCreateCredit("CASH_LOAN")}
-            className="bg-[#92400E] hover:bg-amber-800 text-white font-semibold shadow-xs"
-          >
-            <Coins className="mr-1.5 h-4 w-4" /> + Give Qard Hasan
-          </Button>
-
-          <Button 
-            onClick={() => openRecordPayment(null)}
-            className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs font-semibold"
-          >
-            <Wallet className="mr-1.5 h-4 w-4" /> Record Settlement
-          </Button>
-
-          <Button 
-            onClick={openAddCustomer}
-            variant="outline"
-            className="border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] font-medium"
-          >
-            <Plus className="mr-1.5 h-4 w-4" /> + Add Person
-          </Button>
-        </div>
-      </div>
-
-      {/* Top Financial Metric Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-        {/* Card 1: Total People */}
-        <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
-          <CardHeader className="pb-1 pt-3.5 px-4">
-            <CardTitle className="text-xs font-bold text-[#66758A] uppercase tracking-wider flex items-center justify-between">
-              Total People
-              <Users className="h-4 w-4 text-[#2563EB]" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3.5">
-            <div className="text-2xl font-extrabold text-[#172B4D]">{totalResellersCount}</div>
-            <p className="text-xs text-[#52627A] mt-0.5">Active ledger accounts</p>
-          </CardContent>
-        </Card>
-
-        {/* Card 2: Receivable (They Owe Me) */}
-        <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
-          <CardHeader className="pb-1 pt-3.5 px-4">
-            <CardTitle className="text-xs font-bold text-[#B42318] uppercase tracking-wider flex items-center justify-between">
-              Receivable (They Owe Me)
-              <Wallet className="h-4 w-4 text-[#B42318]" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3.5">
-            <div className="text-2xl font-extrabold text-[#B42318]">
-              {formatMoney(totalReceivables)}
-            </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-[#52627A] mt-1 truncate">
-              <span>Expenses: {formatMoney(totalProductCreditDue)}</span>
-              <span>•</span>
-              <span>Qard Hasan: {formatMoney(totalCashLoansDue)}</span>
-              {totalOtherCreditDue > 0 && (
-                <>
-                  <span>•</span>
-                  <span>Other: {formatMoney(totalOtherCreditDue)}</span>
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Card 3: Payable (I Owe Them) */}
-        <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
-          <CardHeader className="pb-1 pt-3.5 px-4">
-            <CardTitle className="text-xs font-bold text-[#2563EB] uppercase tracking-wider flex items-center justify-between">
-              Payable (I Owe Them)
-              <Wallet className="h-4 w-4 text-[#2563EB]" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3.5">
-            <div className="text-2xl font-extrabold text-[#2563EB]">
-              {formatMoney(totalPayables)}
-            </div>
-            <p className="text-[11px] text-[#2563EB]/80 font-medium mt-1">
-              {totalPayables > 0 ? "Advance balances & payables" : "No payables owed"}
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 4: 7TIME Funds Outstanding */}
-        <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
-          <CardHeader className="pb-1 pt-3.5 px-4">
-            <CardTitle className="text-xs font-bold text-[#087443] uppercase tracking-wider flex items-center justify-between">
-              7TIME Funds
-              <Building2 className="h-4 w-4 text-[#087443]" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3.5">
-            <div className="text-2xl font-extrabold text-[#087443]">
-              {formatMoney(total7TimeFundsDue)}
-            </div>
-            <p className="text-[11px] text-[#087443]/80 font-medium mt-1">
-              7TIME business funds
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Card 5: Personal Funds Outstanding */}
-        <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
-          <CardHeader className="pb-1 pt-3.5 px-4">
-            <CardTitle className="text-xs font-bold text-[#6927B8] uppercase tracking-wider flex items-center justify-between">
-              Personal Funds
-              <UserCheck className="h-4 w-4 text-[#6927B8]" />
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-3.5">
-            <div className="text-2xl font-extrabold text-[#6927B8]">
-              {formatMoney(totalPersonalFundsDue)}
-            </div>
-            <p className="text-[11px] text-[#6927B8]/80 font-medium mt-1 truncate" title={totalUnallocatedFundsDue > 0 ? `Personal (+ ${formatMoney(totalUnallocatedFundsDue)} unallocated)` : "Personal proprietor money"}>
-              {totalUnallocatedFundsDue > 0 
-                ? `Personal (+ ${formatMoney(totalUnallocatedFundsDue)} unalloc)` 
-                : "Personal proprietor money"}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Historical Unallocated Notice Banner */}
-      {totalUnallocatedFundsDue > 0 && (
-        <div className="p-3 bg-[#FFF4D6] border border-amber-200 rounded-xl text-xs text-[#92400E] flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-[#92400E] shrink-0" />
-            <span>
-              <strong>Historical Unallocated Notice:</strong> {formatMoney(totalUnallocatedFundsDue)} of balance has no recorded funding source. 
-              Open personal account ledgers to assign them to 7TIME or Personal funds.
-            </span>
-          </div>
-          <div className="text-[11px] font-semibold text-[#92400E] bg-amber-100 px-2.5 py-1 rounded border border-amber-300/50 shrink-0">
-            Reconciliation: {formatMoney(total7TimeFundsDue)} (7TIME) + {formatMoney(totalPersonalFundsDue)} (Personal) + {formatMoney(totalUnallocatedFundsDue)} (Unallocated) = {formatMoney(totalReceivables)}
-          </div>
-        </div>
-      )}
-
-      {/* Directory Card with DataTable */}
-      <Card className="bg-white border-[#D9E0E8] rounded-2xl shadow-xs">
-        <CardHeader className="pb-3 border-b border-[#D9E0E8] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <CardTitle className="text-lg font-bold text-[#172B4D]">People Directory</CardTitle>
-            <p className="text-xs text-[#52627A]">
-              Select any person to open their personal account ledger, view settlements, or record expenses on behalf and Qard Hasan.
-            </p>
-          </div>
-
-          {/* Filters & Search */}
-          <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-            {/* Filter Dropdown */}
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value as CustomerFilterType)}
-              className="w-full sm:w-56 px-2.5 py-1.5 text-xs bg-white border border-[#D9E0E8] rounded-lg text-[#172B4D] font-medium"
-            >
-              <option value="ALL">All People</option>
-              <option value="HAS_OUTSTANDING">Receivable (They Owe Me)</option>
-              <option value="HAS_CREDIT_BALANCE">Payable (I Owe Them)</option>
-              <option value="HAS_PRODUCT_CREDIT">Has Expense on Behalf</option>
-              <option value="HAS_CASH_LOAN">Has Qard Hasan</option>
-            </select>
-
-            {/* Search Input */}
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-[#66758A]" />
-              <Input
-                type="search"
-                placeholder="Search name, phone, address..."
-                className="pl-9 bg-white border-[#D9E0E8] focus-visible:ring-[#2563EB] text-xs sm:text-sm text-[#172B4D]"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="p-0">
-          <DataTable
-            columns={columns}
-            data={filteredResellers}
-            loading={isLoading}
-            error={resellersError ? (resellersError instanceof Error ? resellersError.message : "Error loading data") : null}
-            emptyIcon={Users}
-            emptyTitle={searchQuery || filterType !== "ALL" ? "No matching people found" : "No people found"}
-            emptyMessage={
-              searchQuery
-                ? "Try a different search term or clear the filter."
-                : filterType !== "ALL"
-                ? "No people match this filter."
-                : "Click '+ Add Person' to create a personal account."
-            }
-            pagination={true}
-            pageSizeOptions={[10, 25, 50, 100]}
-            onRowClick={(row) => navigate(`/local-customers/${row.id}`)}
-            getRowId={(row) => row.id}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Accessible Destructive Confirmation Modal */}
+      {/* Delete Confirmation */}
       <ConfirmDialog
-        open={Boolean(customerToDelete)}
-        onOpenChange={(open) => {
-          if (!open) {
-            setCustomerToDelete(null)
-            setDeleteError(null)
-          }
-        }}
-        title="Delete Person"
-        description={
-          deleteError
-            ? `Error: ${deleteError}`
-            : customerToDelete
-            ? `Are you sure you want to delete ${customerToDelete.name}? All personal ledger records, customer credits, and cash loans will be permanently removed.`
-            : ""
-        }
-        confirmLabel="Delete Person"
-        variant="danger"
-        isLoading={deleteMutation.isPending}
+        open={!!customerToDelete}
+        onOpenChange={(open) => !open && setCustomerToDelete(null)}
         onConfirm={() => {
-          if (customerToDelete) {
-            deleteMutation.mutate(customerToDelete.id)
-          }
+          if (customerToDelete) deleteMutation.mutate(customerToDelete.id)
         }}
+        title="Delete Person Record"
+        description={`Are you sure you want to delete "${customerToDelete?.name}"? All associated personal records will be removed.`}
+        confirmLabel="Delete"
+        variant="danger"
       />
     </div>
   )

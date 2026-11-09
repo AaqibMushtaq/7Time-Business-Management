@@ -2169,4 +2169,217 @@ describe("Customer Credits Service", () => {
       expect(summary.unallocatedPayments).toBe(0)
     })
   })
+
+  describe("Structured Paid-From Account Persistence (Phase 1)", () => {
+    it("persists structured account column in createCustomerCredit", async () => {
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: "cred-acc-1" }, error: null })
+        })
+      })
+
+      const selectSingleMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-acc-1",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              funding_source: "PERSONAL_FUNDS",
+              account: "HDFC Bank",
+              product_name: "Hardware Tools",
+              total_amount: 5400,
+              notes: "Regular purchase"
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { insert: insertMock, select: selectSingleMock }
+        }
+        return {}
+      })
+
+      const result = await createCustomerCredit({
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        funding_source: "PERSONAL_FUNDS",
+        account: "HDFC Bank",
+        product_name: "Hardware Tools",
+        total_amount: 5400,
+        notes: "Regular purchase"
+      })
+
+      expect(insertMock).toHaveBeenCalledWith([expect.objectContaining({
+        funding_source: "PERSONAL_FUNDS",
+        account: "HDFC Bank",
+        notes: "Regular purchase",
+        total_amount: 5400
+      })])
+      expect(result.account).toBe("HDFC Bank")
+      expect(result.notes).toBe("Regular purchase")
+    })
+
+    it("persists custom account name in createCustomerCredit", async () => {
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: "cred-acc-custom" }, error: null })
+        })
+      })
+
+      const selectSingleMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-acc-custom",
+              customer_id: "cust-1",
+              entry_type: "OTHER_CREDIT",
+              funding_source: "PERSONAL_FUNDS",
+              account: "Axis Salary Account #991",
+              description: "Internet bill payment",
+              total_amount: 1999
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { insert: insertMock, select: selectSingleMock }
+        }
+        return {}
+      })
+
+      const result = await createCustomerCredit({
+        customer_id: "cust-1",
+        entry_type: "OTHER_CREDIT",
+        funding_source: "PERSONAL_FUNDS",
+        account: "Axis Salary Account #991",
+        description: "Internet bill payment",
+        total_amount: 1999
+      })
+
+      expect(insertMock).toHaveBeenCalledWith([expect.objectContaining({
+        account: "Axis Salary Account #991",
+        description: "Internet bill payment"
+      })])
+      expect(result.account).toBe("Axis Salary Account #991")
+    })
+
+    it("allows account and funding_source to vary independently", async () => {
+      const insertMock = vi.fn().mockReturnValue({
+        select: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({ data: { id: "cred-indep" }, error: null })
+        })
+      })
+
+      const selectSingleMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-indep",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              funding_source: "7TIME_FUNDS",
+              account: "Bank Account",
+              product_name: "Raw Materials",
+              total_amount: 8000
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { insert: insertMock, select: selectSingleMock }
+        }
+        return {}
+      })
+
+      const result = await createCustomerCredit({
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        funding_source: "7TIME_FUNDS",
+        account: "Bank Account",
+        product_name: "Raw Materials",
+        total_amount: 8000
+      })
+
+      expect(insertMock).toHaveBeenCalledWith([expect.objectContaining({
+        funding_source: "7TIME_FUNDS",
+        account: "Bank Account"
+      })])
+      expect(result.funding_source).toBe("7TIME_FUNDS")
+      expect(result.account).toBe("Bank Account")
+    })
+
+    it("updates account field via updateCustomerCredit", async () => {
+      const updateMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ error: null })
+      })
+
+      const selectMock = vi.fn().mockReturnValue({
+        eq: vi.fn().mockReturnValue({
+          single: vi.fn().mockResolvedValue({
+            data: {
+              id: "cred-update-acc",
+              customer_id: "cust-1",
+              entry_type: "PRODUCT_CREDIT",
+              account: "Google Pay",
+              total_amount: 2500
+            },
+            error: null
+          })
+        })
+      })
+
+      ;(supabase.from as any).mockImplementation((table: string) => {
+        if (table === "customer_credits") {
+          return { update: updateMock, select: selectMock }
+        }
+        return {}
+      })
+
+      const result = await updateCustomerCredit("cred-update-acc", {
+        account: "Google Pay"
+      })
+
+      expect(updateMock).toHaveBeenCalledWith(expect.objectContaining({
+        account: "Google Pay"
+      }))
+      expect(result.account).toBe("Google Pay")
+    })
+
+    it("handles legacy records with missing account value gracefully", () => {
+      const legacyCredit: CustomerCredit = {
+        id: "legacy-1",
+        customer_id: "cust-1",
+        entry_type: "PRODUCT_CREDIT",
+        entry_date: "2026-10-01",
+        product_id: null,
+        product_name: "Historical Item",
+        category: null,
+        quantity: 1,
+        unit: "pcs",
+        rate_per_unit: 100,
+        description: null,
+        total_amount: 100,
+        amount_paid: 0,
+        balance: 100,
+        status: "PENDING",
+        notes: "Historical unallocated credit",
+        funding_source: null
+      }
+
+      expect(legacyCredit.account).toBeUndefined()
+      const summary = calculateCustomerLedgerSummary([legacyCredit], [], [], 0)
+      expect(summary.productCreditTotal).toBe(100)
+      expect(summary.fundsUnallocatedTotal).toBe(100)
+    })
+  })
 })
