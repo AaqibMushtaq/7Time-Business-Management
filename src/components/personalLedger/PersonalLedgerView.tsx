@@ -47,6 +47,13 @@ import EditTransactionModal from "./EditTransactionModal"
 import AddQarzModal from "./AddQarzModal"
 import RecordQarzRepaymentModal from "./RecordQarzRepaymentModal"
 import QarzDetailModal from "./QarzDetailModal"
+import { PdfPreviewModal } from "@/components/pdf/PdfPreviewModal"
+import {
+  generatePersonalLedgerStatementPdf,
+  generatePersonalTransactionReceiptPdf,
+} from "@/services/pdf/templates/personalLedgerPdf"
+import { generateQarzReceiptPdf } from "@/services/pdf/templates/qarzPdf"
+import type { GeneratedPdfDocument } from "@/services/pdf/pdfTypes"
 
 type TabType = "ALL" | "INCOME" | "EXPENSE" | "TRANSFER" | "QARZ"
 type DateRangeOption = "ALL_TIME" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR" | "CUSTOM"
@@ -98,6 +105,11 @@ export default function PersonalLedgerView() {
   const [selectedQarzForDetail, setSelectedQarzForDetail] = useState<PersonalQarzEntry | null>(null)
   const [entryToDelete, setEntryToDelete] = useState<{ id: string; type: string; title: string } | null>(null)
   const [actionDropdownOpen, setActionDropdownOpen] = useState(false)
+
+  // PDF Preview & Generation State
+  const [previewDoc, setPreviewDoc] = useState<GeneratedPdfDocument | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false)
 
   // 1. Fetch Personal Transactions
   const { data: transactions = [], isLoading: isLoadingTx } = useQuery({
@@ -288,6 +300,59 @@ export default function PersonalLedgerView() {
     }
   }
 
+  const handleExportStatementPdf = async () => {
+    setIsPdfGenerating(true)
+    try {
+      const doc = await generatePersonalLedgerStatementPdf({
+        workspaceId,
+        workspaceName: currentWorkspace?.name || "Personal Workspace",
+        generatedBy: user?.email || "Personal User",
+        dateRangeLabel: dateRange === "ALL_TIME" ? "All Time" : dateRange === "THIS_MONTH" ? "This Month" : dateRange,
+        entries: unifiedEntries,
+        summary,
+      })
+      setPreviewDoc(doc)
+      setIsPreviewOpen(true)
+    } catch (err) {
+      console.error("Failed to generate Personal Ledger statement PDF:", err)
+      alert("Failed to generate statement PDF.")
+    } finally {
+      setIsPdfGenerating(false)
+    }
+  }
+
+  const handleGenerateTransactionReceiptPdf = async (tx: PersonalTransaction) => {
+    try {
+      const doc = await generatePersonalTransactionReceiptPdf({
+        workspaceId,
+        workspaceName: currentWorkspace?.name || "Personal Workspace",
+        generatedBy: user?.email || "Personal User",
+        transaction: tx,
+      })
+      setPreviewDoc(doc)
+      setIsPreviewOpen(true)
+    } catch (err) {
+      console.error("Failed to generate transaction receipt PDF:", err)
+      alert("Failed to generate receipt PDF.")
+    }
+  }
+
+  const handleGenerateQarzReceiptPdf = async (q: PersonalQarzEntry) => {
+    try {
+      const doc = await generateQarzReceiptPdf({
+        workspaceId,
+        workspaceName: currentWorkspace?.name || "Personal Workspace",
+        generatedBy: user?.email || "Personal User",
+        qarzEntry: q,
+      })
+      setPreviewDoc(doc)
+      setIsPreviewOpen(true)
+    } catch (err) {
+      console.error("Failed to generate Qarz voucher PDF:", err)
+      alert("Failed to generate Qarz voucher PDF.")
+    }
+  }
+
   const isLoading = isLoadingTx || isLoadingQarz
 
   return (
@@ -343,6 +408,22 @@ export default function PersonalLedgerView() {
               />
             </div>
           )}
+
+          {/* Export Statement PDF Button */}
+          <Button
+            variant="outline"
+            onClick={handleExportStatementPdf}
+            disabled={isPdfGenerating}
+            className="border-[#D9E0E8] bg-white hover:bg-slate-50 text-[#172B4D] font-bold shadow-xs cursor-pointer flex items-center gap-1.5 text-xs h-9"
+            title="Export Personal Ledger Statement PDF"
+          >
+            {isPdfGenerating ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-[#2563EB]" />
+            ) : (
+              <FileText className="h-3.5 w-3.5 text-[#2563EB]" />
+            )}
+            Export Statement (PDF)
+          </Button>
 
           {/* Add Entry Action Dropdown */}
           <div className="relative">
@@ -760,6 +841,32 @@ export default function PersonalLedgerView() {
                       {/* Actions */}
                       <td className="py-3 px-4 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1.5">
+                          {/* Transaction Receipt PDF button */}
+                          {row.rawTransaction && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleGenerateTransactionReceiptPdf(row.rawTransaction!)}
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-blue-700 hover:bg-blue-50"
+                              title="Receipt (PDF)"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          )}
+
+                          {/* Qarz Voucher PDF button */}
+                          {row.rawQarz && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleGenerateQarzReceiptPdf(row.rawQarz!)}
+                              className="h-7 w-7 p-0 text-slate-400 hover:text-purple-700 hover:bg-purple-50"
+                              title="Voucher (PDF)"
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          )}
+
                           {/* Qarz detail button */}
                           {row.rawQarz && (
                             <Button
@@ -920,6 +1027,7 @@ export default function PersonalLedgerView() {
             setSelectedQarzForRepayment(entry)
             setIsRepayModalOpen(true)
           }}
+          onGeneratePdf={handleGenerateQarzReceiptPdf}
         />
       )}
 
@@ -932,6 +1040,16 @@ export default function PersonalLedgerView() {
         description={`Are you sure you want to delete "${entryToDelete?.title}"? This action cannot be undone.`}
         confirmLabel="Delete"
         variant="danger"
+      />
+
+      {/* PDF Document Preview & Native Sharing Modal */}
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => {
+          setIsPreviewOpen(false)
+          setPreviewDoc(null)
+        }}
+        document={previewDoc}
       />
     </div>
   )

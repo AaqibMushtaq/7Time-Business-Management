@@ -3,10 +3,14 @@ import { supabase } from "@/lib/supabase"
 import { parseArithmeticExpression } from "@/lib/arithmeticParser"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Download, Database, ShoppingCart, Users, Truck, Package, Loader2, Lock } from "lucide-react"
+import { Download, Database, ShoppingCart, Users, Truck, Package, Loader2, Lock, FileText } from "lucide-react"
 import { useModuleAccess } from "@/hooks/useModuleAccess"
 import { useAuth } from "@/components/auth/useAuth"
 import type { ModuleKey } from "@/types/auth"
+import { PdfPreviewModal } from "@/components/pdf/PdfPreviewModal"
+import { generateBusinessReportPdf } from "@/services/pdf/templates/reportsPdf"
+import { formatPdfCurrency, formatPdfDate } from "@/services/pdf/pdfUtils"
+import type { GeneratedPdfDocument } from "@/services/pdf/pdfTypes"
 
 const REPORT_MODULE_MAP: Record<string, ModuleKey[]> = {
   PERSONAL_LEDGER: ["personal_ledger"],
@@ -40,11 +44,186 @@ export default function ReportsPage() {
   const { user, isAdmin, hasModule } = useModuleAccess()
   const { currentWorkspace } = useAuth()
   const [loading, setLoading] = useState<string | null>(null)
+  const [pdfLoading, setPdfLoading] = useState<string | null>(null)
+  const [previewDoc, setPreviewDoc] = useState<GeneratedPdfDocument | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
 
   const canAccessReport = (reportId: string): boolean => {
     if (!user || isAdmin) return true
     const required = REPORT_MODULE_MAP[reportId]
     return required ? required.some((m) => hasModule(m)) : false
+  }
+
+  const handleExportPdf = async (type: string, title: string) => {
+    if (!canAccessReport(type)) {
+      alert("You are not authorized to export this report.")
+      return
+    }
+    setPdfLoading(type)
+    try {
+      let head: string[][] = []
+      let body: (string | number)[][] = []
+
+      if (type === "PURCHASES") {
+        let query = supabase.from("purchases").select("*, dealer:dealers(name), product:products(name)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Date", "Dealer", "Product", "Qty", "Cost (Rs)", "Total (Rs)", "Paid (Rs)", "Balance (Rs)", "Status"]]
+        body = data.map((r: any) => {
+          const cost = r.buying_rate ?? r.unit_cost ?? 0
+          const status = r.status || (Number(r.amount_paid || 0) >= Number(r.total_amount || 0) ? "PAID" : Number(r.amount_paid || 0) > 0 ? "PARTIAL" : "UNPAID")
+          return [
+            formatPdfDate(r.purchase_date),
+            r.dealer?.name || "-",
+            r.product?.name || r.product_id || "-",
+            String(r.quantity_bought || 0),
+            formatPdfCurrency(cost),
+            formatPdfCurrency(r.total_amount),
+            formatPdfCurrency(r.amount_paid),
+            formatPdfCurrency(r.balance),
+            status,
+          ]
+        })
+      } else if (type === "WHOLESALE_SALES") {
+        let query = supabase.from("wholesale_sales").select("*, customer:reseller_customers(name), product:products(name)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Date", "Customer", "Product", "Qty", "Price (Rs)", "Total (Rs)", "Received (Rs)", "Balance (Rs)", "Status"]]
+        body = data.map((r: any) => [
+          formatPdfDate(r.sale_date),
+          r.customer?.name || "-",
+          r.product?.name || r.product_id || "-",
+          String(r.quantity || 0),
+          formatPdfCurrency(r.wholesale_price),
+          formatPdfCurrency(r.total_sale),
+          formatPdfCurrency(r.amount_received),
+          formatPdfCurrency(r.balance),
+          r.payment_status || "PENDING",
+        ])
+      } else if (type === "INVENTORY") {
+        let query = supabase.from("products").select("*, dealer:dealers(name)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Product", "Category", "Dealer", "Stock", "Unit", "Cost (Rs)", "Wholesale (Rs)", "Total Value (Rs)"]]
+        body = data.map((r: any) => [
+          r.name,
+          r.category || "-",
+          r.dealer?.name || "-",
+          String(r.stock_quantity || 0),
+          r.unit || "pcs",
+          formatPdfCurrency(r.buying_cost),
+          formatPdfCurrency(r.wholesale_price),
+          formatPdfCurrency((r.stock_quantity || 0) * (r.buying_cost || 0)),
+        ])
+      } else if (type === "DEALER_PAYMENTS") {
+        let query = supabase.from("dealer_payments").select("*, dealer:dealers(name)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Date", "Dealer", "Amount (Rs)", "Method", "Reference", "Notes"]]
+        body = data.map((r: any) => [
+          formatPdfDate(r.payment_date),
+          r.dealer?.name || r.dealer_id || "-",
+          formatPdfCurrency(r.amount),
+          r.payment_method || "-",
+          r.reference || "-",
+          r.notes || "-",
+        ])
+      } else if (type === "RESELLER_PAYMENTS") {
+        let query = supabase.from("reseller_payments").select("*, customer:reseller_customers(name)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Date", "Customer", "Amount (Rs)", "Method", "Reference", "Notes"]]
+        body = data.map((r: any) => [
+          formatPdfDate(r.payment_date),
+          r.customer?.name || r.customer_id || "-",
+          formatPdfCurrency(r.amount),
+          r.payment_method || "-",
+          r.reference || "-",
+          r.notes || "-",
+        ])
+      } else if (type === "PERSONAL_LEDGER") {
+        let query = supabase.from("customer_credits").select("*, customer:reseller_customers(name)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Date", "Person", "Type", "Funding", "Account", "Item / Desc", "Total (Rs)", "Paid (Rs)", "Balance (Rs)", "Merchant"]]
+        body = data.map((r: any) => [
+          formatPdfDate(r.entry_date),
+          r.customer?.name || "-",
+          r.entry_type === "PRODUCT_CREDIT" ? "Expense on Behalf" : r.entry_type === "CASH_LOAN" ? "Qard Hasan" : "Other",
+          r.funding_source === "7TIME_FUNDS" ? "7TIME Funds" : "Personal Funds",
+          r.account || "-",
+          r.product_name || r.description || "-",
+          formatPdfCurrency(r.total_amount),
+          formatPdfCurrency(r.amount_paid),
+          formatPdfCurrency(r.balance),
+          [r.shopkeeper_name, r.purchase_location].filter(Boolean).join(" • ") || "-",
+        ])
+      } else if (type === "GENERAL_DELIVERY") {
+        let query = supabase.from("general_daily_records").select("*, entries:general_delivery_entries(*)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Date", "Total Deliveries (Rs)", "Entries", "Fuel (Rs)", "Net Total (Rs)", "Remarks"]]
+        body = data.map((r: any) => {
+          let allDel = r.entries?.reduce((acc: number, e: any) => acc + (Number(e.amount) || 0), 0) || 0
+          if (allDel === 0 && r.delivery_expression) {
+            const parsed = parseArithmeticExpression(r.delivery_expression)
+            if (parsed.isValid && parsed.value !== null) {
+              allDel = parsed.value
+            }
+          }
+          const count = r.entries?.length || (allDel > 0 ? 1 : 0)
+          const net = allDel - (r.fuel_expenses || 0)
+          return [
+            formatPdfDate(r.record_date),
+            formatPdfCurrency(allDel),
+            String(count),
+            formatPdfCurrency(r.fuel_expenses || 0),
+            formatPdfCurrency(net),
+            r.remarks || "-",
+          ]
+        })
+      } else if (type === "naeem_UNCLE") {
+        let query = supabase.from("naeem_daily_records").select("*, route:naeem_routes!naeem_daily_records_route_id_fkey(name)").limit(999999)
+        if (currentWorkspace?.id) query = query.eq("workspace_id", currentWorkspace.id)
+        const { data: res } = await query
+        const data = res || []
+        head = [["Date", "Route", "Fare (Rs)", "Cash Received (Rs)", "Balance (Rs)", "Status", "Notes"]]
+        body = data.map((r: any) => [
+          formatPdfDate(r.delivery_date),
+          r.route?.name || "-",
+          formatPdfCurrency(r.final_fare),
+          formatPdfCurrency(r.cash_received),
+          formatPdfCurrency(r.balance),
+          r.status || "-",
+          r.notes || "-",
+        ])
+      }
+
+      const doc = await generateBusinessReportPdf({
+        workspaceId: currentWorkspace?.id || "default-ws",
+        workspaceName: currentWorkspace?.name || "7TIME Enterprise",
+        generatedBy: user?.email || "7TIME System",
+        reportType: type,
+        reportTitle: title,
+        head,
+        body,
+      })
+
+      setPreviewDoc(doc)
+      setIsPreviewOpen(true)
+    } catch (err) {
+      console.error(err)
+      alert("Failed to export PDF report.")
+    } finally {
+      setPdfLoading(null)
+    }
   }
 
   const handleExport = async (type: string) => {
@@ -204,25 +383,51 @@ export default function ReportsPage() {
             </CardHeader>
             <CardContent>
               <CardDescription className="mb-6 h-10 text-xs text-[#52627A] leading-relaxed">{report.desc}</CardDescription>
-              <Button 
-                variant="outline" 
-                className="w-full border-[#D9E0E8] bg-white hover:bg-[#F8F7F2] hover:text-[#2563EB] font-semibold text-[#172B4D] rounded-xl transition-colors cursor-pointer shadow-xs"
-                onClick={() => handleExport(report.id)}
-                disabled={loading === report.id}
-              >
-                {loading === report.id ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin text-[#2563EB]" />
-                ) : (
-                  <Download className="h-4 w-4 mr-2 text-[#2563EB]" />
-                )}
-                Export to CSV
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-[#D9E0E8] bg-white hover:bg-[#F8F7F2] hover:text-[#2563EB] font-semibold text-[#172B4D] rounded-xl transition-colors cursor-pointer shadow-xs text-xs"
+                  onClick={() => handleExport(report.id)}
+                  disabled={loading === report.id || pdfLoading === report.id}
+                >
+                  {loading === report.id ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin text-[#2563EB]" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5 mr-1.5 text-[#52627A]" />
+                  )}
+                  Export to CSV
+                </Button>
+                <Button 
+                  variant="default" 
+                  size="sm"
+                  className="bg-[#2563EB] hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors cursor-pointer shadow-xs text-xs"
+                  onClick={() => handleExportPdf(report.id, report.title)}
+                  disabled={loading === report.id || pdfLoading === report.id}
+                >
+                  {pdfLoading === report.id ? (
+                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                  ) : (
+                    <FileText className="h-3.5 w-3.5 mr-1.5" />
+                  )}
+                  Export to PDF
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
           </div>
         )
       })()}
+
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => {
+          setIsPreviewOpen(false)
+          setPreviewDoc(null)
+        }}
+        document={previewDoc}
+      />
     </div>
   )
 }

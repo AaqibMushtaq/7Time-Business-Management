@@ -82,6 +82,7 @@ export default function ResellersPage() {
     mutationFn: createPersonalCustomer,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["resellers", "PERSONAL"] })
+      queryClient.invalidateQueries({ queryKey: ["resellers"] })
       closeCustomerModal()
     },
     onError: (err: any) => {

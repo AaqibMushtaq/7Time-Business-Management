@@ -9,7 +9,8 @@ import {
   Plus, 
   Clock, 
   CheckCircle2,
-  X
+  X,
+  FileText
 } from "lucide-react"
 import type { PersonalQarzEntry } from "@/services/personalLedger"
 
@@ -18,13 +19,15 @@ interface QarzDetailModalProps {
   onClose: () => void
   qarzEntry: PersonalQarzEntry | null
   onRecordRepayment: (entry: PersonalQarzEntry) => void
+  onGeneratePdf?: (entry: PersonalQarzEntry) => void
 }
 
 export default function QarzDetailModal({
   isOpen,
   onClose,
   qarzEntry,
-  onRecordRepayment
+  onRecordRepayment,
+  onGeneratePdf
 }: QarzDetailModalProps) {
   if (!isOpen || !qarzEntry) return null
 
@@ -78,6 +81,18 @@ export default function QarzDetailModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {onGeneratePdf && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onGeneratePdf(qarzEntry)}
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 text-xs font-semibold"
+                title="Download or share PDF Voucher"
+              >
+                <FileText className="mr-1 h-3.5 w-3.5" />
+                Voucher PDF
+              </Button>
+            )}
             {!isSettled && (
               <Button
                 size="sm"

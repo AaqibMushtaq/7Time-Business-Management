@@ -83,12 +83,14 @@ vi.mock("@/lib/supabase", () => ({
   }
 }))
 
+const mockAuthState = {
+  user: { id: "user-test", email: "test@7time.com" },
+  currentWorkspace: { id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15", name: "7TIME Primary Enterprise" },
+  signOut: vi.fn(),
+}
+
 vi.mock("@/components/auth/useAuth", () => ({
-  useAuth: () => ({
-    user: { id: "user-test", email: "test@7time.com" },
-    currentWorkspace: { id: "ws-test", name: "Personal Workspace" },
-    signOut: vi.fn(),
-  }),
+  useAuth: () => mockAuthState,
 }))
 
 describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
@@ -228,6 +230,17 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     mockCreatePersonalTransaction.mockImplementation((input: any) => Promise.resolve({
       ...input,
       id: "new-tx-" + Date.now()
+    }))
+
+    mockCreateReseller.mockImplementation((input: any) => Promise.resolve({
+      ...input,
+      id: "new-cust-" + Date.now(),
+      created_at: "2026-11-10"
+    }))
+
+    mockUpdateReseller.mockImplementation((id: string, input: any) => Promise.resolve({
+      id,
+      ...input
     }))
 
     mockCreatePersonalQarzEntry.mockImplementation((input: any) => Promise.resolve({
@@ -771,6 +784,106 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
           initial_payment_amount: 2000
         }),
         expect.anything()
+      )
+    })
+  })
+
+  it("opens Add New Person modal and successfully creates a PERSONAL contact inside a BUSINESS workspace", async () => {
+    renderApp()
+
+    // Switch to People Directory
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    expect(await screen.findByText("People & Contacts Directory")).toBeDefined()
+
+    // Click "+ Add Person"
+    const addPersonBtn = await screen.findByRole("button", { name: /\+ Add Person/i })
+    fireEvent.click(addPersonBtn)
+
+    // Modal opens with "Add New Person" heading
+    expect(await screen.findByText("Add New Person")).toBeDefined()
+
+    // Fill form
+    fireEvent.change(screen.getByLabelText(/Full Name \*/i), { target: { value: "Dr. Farooq" } })
+    fireEvent.change(screen.getByLabelText(/Phone Number/i), { target: { value: "+91 9419123456" } })
+    fireEvent.change(screen.getByLabelText(/Address \/ Location/i), { target: { value: "Srinagar" } })
+    fireEvent.change(screen.getByLabelText(/Notes/i), { target: { value: "Personal contact in enterprise" } })
+    fireEvent.change(screen.getByLabelText(/Opening Balance/i), { target: { value: "1500" } })
+
+    // Submit form
+    const submitBtn = screen.getByRole("button", { name: /Save Person/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateReseller).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Dr. Farooq",
+          phone: "+91 9419123456",
+          address: "Srinagar",
+          notes: "Personal contact in enterprise",
+          opening_balance: 1500,
+          contact_type: "PERSONAL",
+          workspace_id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15"
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("displays error banner if contact creation in business workspace fails", async () => {
+    mockCreateReseller.mockRejectedValueOnce(
+      new Error("Workspace type mismatch: customer contact_type is PERSONAL but workspace is BUSINESS.")
+    )
+
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const addPersonBtn = await screen.findByRole("button", { name: /\+ Add Person/i })
+    fireEvent.click(addPersonBtn)
+
+    expect(await screen.findByText("Add New Person")).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText(/Full Name \*/i), { target: { value: "Error Person" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Person/i })
+    fireEvent.click(submitBtn)
+
+    expect(await screen.findByText(/Workspace type mismatch: customer contact_type is PERSONAL but workspace is BUSINESS/i)).toBeDefined()
+  })
+
+  it("edits an existing personal contact in business workspace preserving PERSONAL classification", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    expect(await screen.findByText("Ishfaq ATM")).toBeDefined()
+
+    // Find edit button for Ishfaq ATM
+    const editBtns = screen.getAllByTitle("Edit Person Details")
+    expect(editBtns.length).toBeGreaterThan(0)
+    fireEvent.click(editBtns[0])
+
+    expect(await screen.findByText("Edit Person Details")).toBeDefined()
+
+    // Edit phone
+    const phoneInput = screen.getByLabelText(/Phone Number/i)
+    fireEvent.change(phoneInput, { target: { value: "+91 9999999999" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Update Person/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockUpdateReseller).toHaveBeenCalledWith(
+        "cust-1",
+        expect.objectContaining({
+          name: "Ishfaq ATM",
+          phone: "+91 9999999999",
+          contact_type: "PERSONAL"
+        })
       )
     })
   })

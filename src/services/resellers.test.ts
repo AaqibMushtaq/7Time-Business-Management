@@ -3,6 +3,8 @@ import {
   getResellers, 
   getResellersWithBalances, 
   createReseller, 
+  createPersonalCustomer,
+  createWholesaleCustomer,
   updateReseller, 
   deleteReseller 
 } from "./resellers"
@@ -212,5 +214,141 @@ describe("Resellers Service", () => {
     expect(supabase.from).toHaveBeenCalledWith("reseller_customers")
     expect(queryBuilder.delete).toHaveBeenCalled()
     expect(queryBuilder.eq).toHaveBeenCalledWith("id", "r1")
+  })
+
+  describe("Personal Ledger Contact Creation & Workspace Scoping", () => {
+    it("creates a PERSONAL contact in a PERSONAL workspace", async () => {
+      const input = {
+        name: "Bashir Ahmad",
+        phone: "+91 9419000001",
+        address: "Srinagar",
+        workspace_id: "ws-personal-1"
+      }
+      const saved = { id: "cust-p1", ...input, contact_type: "PERSONAL", created_at: "2026-11-10" }
+
+      const queryBuilder: any = {
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: saved, error: null })
+      }
+      ;(supabase.from as any).mockReturnValue(queryBuilder)
+
+      const result = await createPersonalCustomer(input)
+
+      expect(supabase.from).toHaveBeenCalledWith("reseller_customers")
+      expect(queryBuilder.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          name: "Bashir Ahmad",
+          contact_type: "PERSONAL",
+          workspace_id: "ws-personal-1"
+        })
+      ])
+      expect(result.contact_type).toBe("PERSONAL")
+      expect(result.workspace_id).toBe("ws-personal-1")
+    })
+
+    it("creates a PERSONAL contact in a BUSINESS workspace through Personal Ledger", async () => {
+      const input = {
+        name: "Ghulam Hassan",
+        phone: "+91 9419000002",
+        address: "Pampore",
+        workspace_id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15" // 7TIME Primary Enterprise (BUSINESS)
+      }
+      const saved = { id: "cust-p2", ...input, contact_type: "PERSONAL", created_at: "2026-11-10" }
+
+      const queryBuilder: any = {
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: saved, error: null })
+      }
+      ;(supabase.from as any).mockReturnValue(queryBuilder)
+
+      const result = await createPersonalCustomer(input)
+
+      expect(supabase.from).toHaveBeenCalledWith("reseller_customers")
+      expect(queryBuilder.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          name: "Ghulam Hassan",
+          contact_type: "PERSONAL",
+          workspace_id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15"
+        })
+      ])
+      expect(result.contact_type).toBe("PERSONAL")
+      expect(result.workspace_id).toBe("fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15")
+    })
+
+    it("creates a BUSINESS contact in a BUSINESS workspace through Wholesale workflow", async () => {
+      const input = {
+        name: "Kashmir Provisions Wholesale",
+        phone: "+91 9419000003",
+        address: "Batamaloo Market",
+        workspace_id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15"
+      }
+      const saved = { id: "cust-b1", ...input, contact_type: "BUSINESS", created_at: "2026-11-10" }
+
+      const queryBuilder: any = {
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: saved, error: null })
+      }
+      ;(supabase.from as any).mockReturnValue(queryBuilder)
+
+      const result = await createWholesaleCustomer(input)
+
+      expect(supabase.from).toHaveBeenCalledWith("reseller_customers")
+      expect(queryBuilder.insert).toHaveBeenCalledWith([
+        expect.objectContaining({
+          name: "Kashmir Provisions Wholesale",
+          contact_type: "BUSINESS",
+          workspace_id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15"
+        })
+      ])
+      expect(result.contact_type).toBe("BUSINESS")
+      expect(result.workspace_id).toBe("fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15")
+    })
+
+    it("handles database rejection when business contact is targeted at a personal workspace", async () => {
+      const queryBuilder: any = {
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: "Workspace type mismatch: customer contact_type is BUSINESS but workspace is PERSONAL." }
+        })
+      }
+      ;(supabase.from as any).mockReturnValue(queryBuilder)
+
+      await expect(createWholesaleCustomer({
+        name: "Disallowed Wholesale in Personal",
+        phone: null,
+        address: null,
+        workspace_id: "ws-personal-only"
+      })).rejects.toThrow("Workspace type mismatch: customer contact_type is BUSINESS but workspace is PERSONAL.")
+    })
+
+    it("handles database rejection when contact creation is attempted in unauthorized workspace", async () => {
+      const queryBuilder: any = {
+        insert: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({
+          data: null,
+          error: { message: "Unauthorized workspace: caller is not an active member of workspace ws-foreign." }
+        })
+      }
+      ;(supabase.from as any).mockReturnValue(queryBuilder)
+
+      await expect(createPersonalCustomer({
+        name: "Unauthorized Contact",
+        phone: null,
+        address: null,
+        workspace_id: "ws-foreign"
+      })).rejects.toThrow("Unauthorized workspace: caller is not an active member of workspace ws-foreign.")
+    })
+
+    it("prohibits changing contact classification during updates", async () => {
+      await expect(updateReseller("cust-1", {
+        contact_type: "BUSINESS" as any
+      }, "PERSONAL")).rejects.toThrow("Modifying contact_type from 'PERSONAL' to 'BUSINESS' is prohibited.")
+    })
   })
 })
