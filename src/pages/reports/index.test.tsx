@@ -168,4 +168,45 @@ describe("ReportsPage Component", () => {
       expect(text).toContain('"cred-legacy"')
     }
   })
+
+  it("exports personal ledger PDF and opens preview modal when Export to PDF is clicked", async () => {
+    const mockCredits = [
+      {
+        id: "cred-pdf-1",
+        entry_date: "2026-11-09",
+        entry_type: "PRODUCT_CREDIT",
+        funding_source: "PERSONAL_FUNDS",
+        account: "HDFC Bank",
+        product_name: "Cooking Oil 15L",
+        quantity: 1,
+        unit: "tin",
+        rate_per_unit: 2200,
+        total_amount: 2200,
+        amount_paid: 0,
+        balance: 2200,
+        status: "PENDING",
+        notes: "Brand Sunflower",
+        customer: { name: "Aaqib" },
+      },
+    ]
+
+    const selectMock = vi.fn().mockReturnValue({
+      limit: vi.fn().mockResolvedValue({ data: mockCredits, error: null }),
+    })
+    ;(supabase.from as any).mockReturnValue({ select: selectMock })
+
+    render(<ReportsPage />)
+
+    const pdfButtons = screen.getAllByRole("button", { name: /Export to PDF/i })
+    expect(pdfButtons.length).toBeGreaterThan(0)
+    const personalPdfBtn = pdfButtons[0]
+
+    fireEvent.click(personalPdfBtn)
+
+    await waitFor(() => {
+      expect(supabase.from).toHaveBeenCalledWith("customer_credits")
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+      expect(screen.getAllByText("Personal Ledger Entries Report").length).toBe(2)
+    })
+  })
 })

@@ -83,12 +83,14 @@ vi.mock("@/lib/supabase", () => ({
   }
 }))
 
+const mockAuthState = {
+  user: { id: "user-test", email: "test@7time.com" },
+  currentWorkspace: { id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15", name: "7TIME Primary Enterprise" },
+  signOut: vi.fn(),
+}
+
 vi.mock("@/components/auth/useAuth", () => ({
-  useAuth: () => ({
-    user: { id: "user-test", email: "test@7time.com" },
-    currentWorkspace: { id: "ws-test", name: "Personal Workspace" },
-    signOut: vi.fn(),
-  }),
+  useAuth: () => mockAuthState,
 }))
 
 describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
@@ -228,6 +230,17 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     mockCreatePersonalTransaction.mockImplementation((input: any) => Promise.resolve({
       ...input,
       id: "new-tx-" + Date.now()
+    }))
+
+    mockCreateReseller.mockImplementation((input: any) => Promise.resolve({
+      ...input,
+      id: "new-cust-" + Date.now(),
+      created_at: "2026-11-10"
+    }))
+
+    mockUpdateReseller.mockImplementation((id: string, input: any) => Promise.resolve({
+      id,
+      ...input
     }))
 
     mockCreatePersonalQarzEntry.mockImplementation((input: any) => Promise.resolve({
@@ -527,7 +540,8 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    // Fill Item / Expense fields
+    // Fill Shopkeeper and Item / Expense fields
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "ABC Traders" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Equipment Reimbursement" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "6500" } })
 
@@ -547,6 +561,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Office Equipment Reimbursement",
+          shopkeeper_name: "ABC Traders",
           total_amount: 6500,
           funding_source: "PERSONAL_FUNDS",
           account: "Bank Account",
@@ -568,6 +583,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Kashmir Oil Store" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Vehicle Fuel Reimbursement" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "2400" } })
 
@@ -587,6 +603,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Vehicle Fuel Reimbursement",
+          shopkeeper_name: "Kashmir Oil Store",
           total_amount: 2400,
           account: "HDFC Salary Account",
           notes: null
@@ -605,6 +622,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
     fireEvent.click(recordExpenseBtn)
 
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "City Stationers" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Supplies" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "1200" } })
 
@@ -612,8 +630,8 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     const upiBtn = screen.getByRole("button", { name: /UPI/i })
     fireEvent.click(upiBtn)
 
-    // Explicitly toggle Funding Source to 7TIME Business Funds
-    const businessFundsBtn = screen.getByRole("button", { name: /7TIME Business Funds/i })
+    // Explicitly toggle Funding Source to Business Funds (displays as Business Funds, persists as 7TIME_FUNDS)
+    const businessFundsBtn = screen.getByRole("button", { name: /^Business Funds$/i })
     fireEvent.click(businessFundsBtn)
 
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
@@ -624,6 +642,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Office Supplies",
+          shopkeeper_name: "City Stationers",
           total_amount: 1200,
           account: "UPI",
           funding_source: "7TIME_FUNDS",
@@ -645,6 +664,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "City Hardware" } })
     fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Hardware Tools" } })
     fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "3500" } })
 
@@ -660,11 +680,210 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Hardware Tools",
+          shopkeeper_name: "City Hardware",
           total_amount: 3500,
           account: "Cash",
           notes: "Purchased at City Hardware store with bill #889"
         }),
         expect.anything()
+      )
+    })
+  })
+
+  it("validates that Shopkeeper / Paid To is required for Expense on Behalf", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // Omit shopkeeper name but fill item name and amount
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Cooking Oil 5L" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "850" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    expect(await screen.findByText(/Shopkeeper \/ Paid To is required for Expense on Behalf/i)).toBeDefined()
+    expect(mockCreateCustomerCredit).not.toHaveBeenCalled()
+  })
+
+  it("records Expense on Behalf with both Shopkeeper and optional Purchase Location", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // Fill Shopkeeper and Location
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Hotel Afaq" } })
+    fireEvent.change(screen.getByLabelText(/Shop \/ Purchase Location/i), { target: { value: "Lal Chowk, Srinagar" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Catering Dinner" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "4800" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          shopkeeper_name: "Hotel Afaq",
+          purchase_location: "Lal Chowk, Srinagar",
+          product_name: "Catering Dinner",
+          total_amount: 4800,
+          account: "Cash",
+          funding_source: "PERSONAL_FUNDS"
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("records Expense on Behalf with partial settlement upfront and validates limits", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Bismillah General Store" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Monthly Provisions" } })
+    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "5000" } })
+
+    // Check upfront partial settlement
+    const upfrontCheckbox = screen.getByLabelText(/Person paid partial settlement upfront\?/i)
+    fireEvent.click(upfrontCheckbox)
+
+    // Verify amount paid field appears
+    const upfrontAmountInput = screen.getByLabelText(/Amount Paid \(Rs\) \*/i)
+    fireEvent.change(upfrontAmountInput, { target: { value: "2000" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Monthly Provisions",
+          shopkeeper_name: "Bismillah General Store",
+          total_amount: 5000,
+          initial_payment_amount: 2000
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("opens Add New Person modal and successfully creates a PERSONAL contact inside a BUSINESS workspace", async () => {
+    renderApp()
+
+    // Switch to People Directory
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    expect(await screen.findByText("People & Contacts Directory")).toBeDefined()
+
+    // Click "+ Add Person"
+    const addPersonBtn = await screen.findByRole("button", { name: /\+ Add Person/i })
+    fireEvent.click(addPersonBtn)
+
+    // Modal opens with "Add New Person" heading
+    expect(await screen.findByText("Add New Person")).toBeDefined()
+
+    // Fill form
+    fireEvent.change(screen.getByLabelText(/Full Name \*/i), { target: { value: "Dr. Farooq" } })
+    fireEvent.change(screen.getByLabelText(/Phone Number/i), { target: { value: "+91 9419123456" } })
+    fireEvent.change(screen.getByLabelText(/Address \/ Location/i), { target: { value: "Srinagar" } })
+    fireEvent.change(screen.getByLabelText(/Notes/i), { target: { value: "Personal contact in enterprise" } })
+    fireEvent.change(screen.getByLabelText(/Opening Balance/i), { target: { value: "1500" } })
+
+    // Submit form
+    const submitBtn = screen.getByRole("button", { name: /Save Person/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateReseller).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Dr. Farooq",
+          phone: "+91 9419123456",
+          address: "Srinagar",
+          notes: "Personal contact in enterprise",
+          opening_balance: 1500,
+          contact_type: "PERSONAL",
+          workspace_id: "fa5cc765-eeff-4a71-ab0e-9f44b4ec5d15"
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("displays error banner if contact creation in business workspace fails", async () => {
+    mockCreateReseller.mockRejectedValueOnce(
+      new Error("Workspace type mismatch: customer contact_type is PERSONAL but workspace is BUSINESS.")
+    )
+
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const addPersonBtn = await screen.findByRole("button", { name: /\+ Add Person/i })
+    fireEvent.click(addPersonBtn)
+
+    expect(await screen.findByText("Add New Person")).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText(/Full Name \*/i), { target: { value: "Error Person" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Person/i })
+    fireEvent.click(submitBtn)
+
+    expect(await screen.findByText(/Workspace type mismatch: customer contact_type is PERSONAL but workspace is BUSINESS/i)).toBeDefined()
+  })
+
+  it("edits an existing personal contact in business workspace preserving PERSONAL classification", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    expect(await screen.findByText("Ishfaq ATM")).toBeDefined()
+
+    // Find edit button for Ishfaq ATM
+    const editBtns = screen.getAllByTitle("Edit Person Details")
+    expect(editBtns.length).toBeGreaterThan(0)
+    fireEvent.click(editBtns[0])
+
+    expect(await screen.findByText("Edit Person Details")).toBeDefined()
+
+    // Edit phone
+    const phoneInput = screen.getByLabelText(/Phone Number/i)
+    fireEvent.change(phoneInput, { target: { value: "+91 9999999999" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Update Person/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockUpdateReseller).toHaveBeenCalledWith(
+        "cust-1",
+        expect.objectContaining({
+          name: "Ishfaq ATM",
+          phone: "+91 9999999999",
+          contact_type: "PERSONAL"
+        })
       )
     })
   })

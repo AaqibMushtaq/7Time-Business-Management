@@ -31,6 +31,8 @@ export interface CustomerCredit {
   entry_date: string
   funding_source?: CustomerCreditFundingSource | null
   account?: string | null
+  shopkeeper_name?: string | null
+  purchase_location?: string | null
   product_id: string | null
   product_name: string | null
   category: string | null
@@ -61,6 +63,8 @@ export interface CreateCustomerCreditInput {
   entry_date?: string
   funding_source?: CustomerCreditFundingSource | null
   account?: string | null
+  shopkeeper_name?: string | null
+  purchase_location?: string | null
   // Product Credit fields
   product_id?: string | null
   product_name?: string | null
@@ -84,6 +88,8 @@ export interface UpdateCustomerCreditInput {
   entry_type?: CustomerCreditType
   funding_source?: CustomerCreditFundingSource | null
   account?: string | null
+  shopkeeper_name?: string | null
+  purchase_location?: string | null
   product_id?: string | null
   product_name?: string | null
   category?: string | null
@@ -295,6 +301,8 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
     description: entry_type === "OTHER_CREDIT" ? description?.trim() || null : (description?.trim() || null),
     funding_source: input.funding_source || null,
     account: input.account?.trim() || null,
+    shopkeeper_name: input.shopkeeper_name?.trim() || null,
+    purchase_location: input.purchase_location?.trim() || null,
     total_amount: Number(total_amount),
     amount_paid: 0,
     balance: Number(total_amount),
@@ -399,6 +407,8 @@ export async function updateCustomerCredit(id: string, input: UpdateCustomerCred
   }
   if (input.funding_source !== undefined) updatePayload.funding_source = input.funding_source || null
   if (input.account !== undefined) updatePayload.account = input.account?.trim() || null
+  if (input.shopkeeper_name !== undefined) updatePayload.shopkeeper_name = input.shopkeeper_name?.trim() || null
+  if (input.purchase_location !== undefined) updatePayload.purchase_location = input.purchase_location?.trim() || null
   if (input.notes !== undefined) updatePayload.notes = input.notes?.trim() || null
 
   const { error } = await supabase
@@ -1083,7 +1093,7 @@ export function getCreditTypeBadgeClasses(type: CustomerCreditType): { bg: strin
  * Funding Source display label helper
  */
 export function getFundingSourceLabel(source?: CustomerCreditFundingSource | null): string {
-  if (source === "7TIME_FUNDS") return "7TIME Funds"
+  if (source === "7TIME_FUNDS") return "Business Funds"
   if (source === "PERSONAL_FUNDS") return "Personal Funds"
   return "Unallocated"
 }

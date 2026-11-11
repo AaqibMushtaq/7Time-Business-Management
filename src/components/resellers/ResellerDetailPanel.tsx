@@ -48,7 +48,8 @@ import {
   CheckCircle2,
   Info,
   Building2,
-  UserCheck
+  UserCheck,
+  Store
 } from "lucide-react"
 import {
   Table,
@@ -64,6 +65,13 @@ import RecordResellerPaymentModal from "./RecordResellerPaymentModal"
 import EditCustomerProfileModal from "./EditCustomerProfileModal"
 import AllocatePaymentModal from "./AllocatePaymentModal"
 import EditResellerPaymentModal from "./EditResellerPaymentModal"
+import { useAuth } from "@/components/auth/useAuth"
+import { PdfPreviewModal } from "@/components/pdf/PdfPreviewModal"
+import {
+  generateCustomerCreditReceiptPdf,
+  generateCustomerCreditStatementPdf,
+} from "@/services/pdf/templates/customerCreditsPdf"
+import type { GeneratedPdfDocument } from "@/services/pdf/pdfTypes"
 
 interface ResellerDetailPanelProps {
   id: string
@@ -77,8 +85,14 @@ export default function ResellerDetailPanel({
   onClose
 }: ResellerDetailPanelProps) {
   const queryClient = useQueryClient()
+  const { currentWorkspace, user } = useAuth()
   const [activeTab, setActiveTab] = useState<TabType>("all_credits")
   const [expandedCreditId, setExpandedCreditId] = useState<string | null>(null)
+
+  // PDF Preview State
+  const [previewDoc, setPreviewDoc] = useState<GeneratedPdfDocument | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isPdfGenerating, setIsPdfGenerating] = useState(false)
 
   // Search & Status filters for ledger table
   const [creditSearchQuery, setCreditSearchQuery] = useState("")
@@ -112,6 +126,8 @@ export default function ResellerDetailPanel({
     entry_type: CustomerCreditType
     funding_source: CustomerCreditFundingSource | ""
     account: string
+    shopkeeper_name: string
+    purchase_location: string
     product_name: string
     category: string
     quantity: string
@@ -125,6 +141,8 @@ export default function ResellerDetailPanel({
     entry_type: "PRODUCT_CREDIT",
     funding_source: "7TIME_FUNDS",
     account: "",
+    shopkeeper_name: "",
+    purchase_location: "",
     product_name: "",
     category: "",
     quantity: "1",
@@ -281,6 +299,48 @@ export default function ResellerDetailPanel({
     }
   }
 
+  const handleExportCustomerStatementPdf = async () => {
+    if (!reseller) return
+    setIsPdfGenerating(true)
+    try {
+      const doc = await generateCustomerCreditStatementPdf({
+        workspaceId: currentWorkspace?.id || "ws",
+        workspaceName: currentWorkspace?.name || "7TIME Enterprise",
+        generatedBy: user?.email || "Personal User",
+        customer: reseller,
+        credits: customerCredits,
+        totalCredits: ledgerSummary.totalCharges,
+        totalPaid: ledgerSummary.totalPaymentsRecorded,
+        totalBalance: ledgerSummary.netOutstanding,
+      })
+      setPreviewDoc(doc)
+      setIsPreviewOpen(true)
+    } catch (err) {
+      console.error("Failed to generate customer statement PDF:", err)
+      alert("Failed to generate statement PDF.")
+    } finally {
+      setIsPdfGenerating(false)
+    }
+  }
+
+  const handleExportCreditReceiptPdf = async (credit: CustomerCredit) => {
+    if (!reseller) return
+    try {
+      const doc = await generateCustomerCreditReceiptPdf({
+        workspaceId: currentWorkspace?.id || "ws",
+        workspaceName: currentWorkspace?.name || "7TIME Enterprise",
+        generatedBy: user?.email || "Personal User",
+        credit,
+        customer: reseller,
+      })
+      setPreviewDoc(doc)
+      setIsPreviewOpen(true)
+    } catch (err) {
+      console.error("Failed to generate credit receipt PDF:", err)
+      alert("Failed to generate credit receipt PDF.")
+    }
+  }
+
   // Inline row edit start
   const startInlineEdit = (credit: CustomerCredit) => {
     setEditingCreditId(credit.id)
@@ -290,6 +350,8 @@ export default function ResellerDetailPanel({
       entry_type: credit.entry_type,
       funding_source: credit.funding_source || "",
       account: credit.account || "",
+      shopkeeper_name: credit.shopkeeper_name || "",
+      purchase_location: credit.purchase_location || "",
       product_name: credit.product_name || "",
       category: credit.category || "",
       quantity: credit.quantity ? credit.quantity.toString() : "",
@@ -319,6 +381,11 @@ export default function ResellerDetailPanel({
       return
     }
 
+    if (editFormData.entry_type === "PRODUCT_CREDIT" && !editFormData.shopkeeper_name.trim()) {
+      setEditInlineError("Shopkeeper / Paid To is required for Expense on Behalf.")
+      return
+    }
+
     if (editFormData.entry_type === "OTHER_CREDIT" && !editFormData.description.trim()) {
       setEditInlineError("Description is required for Other Credit.")
       return
@@ -329,6 +396,8 @@ export default function ResellerDetailPanel({
       entry_type: editFormData.entry_type,
       funding_source: editFormData.funding_source || null,
       account: editFormData.account.trim() || null,
+      shopkeeper_name: editFormData.shopkeeper_name.trim() || null,
+      purchase_location: editFormData.purchase_location.trim() || null,
       product_name: editFormData.entry_type === "PRODUCT_CREDIT" ? editFormData.product_name.trim() : null,
       category: editFormData.category.trim() || null,
       quantity: editFormData.quantity ? parseFloat(editFormData.quantity) : null,
@@ -631,6 +700,23 @@ export default function ResellerDetailPanel({
 
           {/* Header Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Statement PDF Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportCustomerStatementPdf}
+              disabled={isPdfGenerating}
+              className="border-[#D9E0E8] bg-white hover:bg-slate-50 text-[#172B4D] font-bold shadow-xs cursor-pointer flex items-center gap-1.5 text-xs h-8"
+              title="Download / Share Customer Account Statement PDF"
+            >
+              {isPdfGenerating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#2563EB]" />
+              ) : (
+                <FileText className="h-3.5 w-3.5 text-[#2563EB]" />
+              )}
+              Statement (PDF)
+            </Button>
+
             {/* Quick Contact Buttons */}
             <div className="flex gap-1 bg-[#F8F7F2] rounded-xl p-1 border border-[#D9E0E8]">
               <Button
@@ -1136,6 +1222,20 @@ export default function ResellerDetailPanel({
                               <div className="space-y-1.5">
                                 {editFormData.entry_type === "PRODUCT_CREDIT" && (
                                   <>
+                                    <div className="flex gap-1.5">
+                                      <Input
+                                        placeholder="Shopkeeper / Paid To *"
+                                        value={editFormData.shopkeeper_name}
+                                        onChange={(e) => setEditFormData({ ...editFormData, shopkeeper_name: e.target.value })}
+                                        className="h-7 text-xs font-semibold border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1"
+                                      />
+                                      <Input
+                                        placeholder="Purchase Location"
+                                        value={editFormData.purchase_location}
+                                        onChange={(e) => setEditFormData({ ...editFormData, purchase_location: e.target.value })}
+                                        className="h-7 text-xs border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1"
+                                      />
+                                    </div>
                                     <Input
                                       placeholder="Item / Expense Name *"
                                       value={editFormData.product_name}
@@ -1321,6 +1421,15 @@ export default function ResellerDetailPanel({
                                   {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
                                   {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
                                 </div>
+                                {credit.entry_type === "PRODUCT_CREDIT" && credit.shopkeeper_name && (
+                                  <div className="text-[11px] text-[#087443] flex items-center gap-1 font-medium">
+                                    <Store className="h-3 w-3 text-[#087443] shrink-0" />
+                                    <span className="font-semibold">{credit.shopkeeper_name}</span>
+                                    {credit.purchase_location && (
+                                      <span className="text-[#52627A]"> • {credit.purchase_location}</span>
+                                    )}
+                                  </div>
+                                )}
                                 {credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
                                   <div className="text-[11px] text-[#52627A]">
                                     Qty: {credit.quantity} {credit.unit || "pcs"} {credit.rate_per_unit ? `@ Rs ${credit.rate_per_unit}` : ""}
@@ -1362,6 +1471,17 @@ export default function ResellerDetailPanel({
                             {/* Actions Column */}
                             <TableCell className="text-right whitespace-nowrap">
                               <div className="flex items-center justify-end gap-1">
+                                {/* Receipt (PDF) Button */}
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={() => handleExportCreditReceiptPdf(credit)}
+                                  className="h-7 w-7 text-[#52627A] hover:text-[#087443] hover:bg-[#EAF7EF] rounded-md cursor-pointer"
+                                  title="Receipt (PDF)"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                </Button>
+
                                 {/* Inline Edit Button */}
                                 <Button
                                   size="icon"
@@ -1643,6 +1763,16 @@ export default function ResellerDetailPanel({
           </div>
         )}
       </div>
+
+      {/* PDF Document Preview & Native Sharing Modal */}
+      <PdfPreviewModal
+        isOpen={isPreviewOpen}
+        onClose={() => {
+          setIsPreviewOpen(false)
+          setPreviewDoc(null)
+        }}
+        document={previewDoc}
+      />
     </div>
   )
 }
