@@ -366,5 +366,43 @@ describe('Android Brave PDF File Sharing & Action Separation Regression Suite', 
     expect(traceText).toContain('5. navigator-share-called');
     expect(traceText).toContain('6. navigator-share-resolved');
   });
+
+  it('Requirement 10: Controlled diagnostic button shares the exact same PDF File through native Web Share without generating a second PDF', async () => {
+    const navigatorShareSpy = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
+    Object.defineProperty(navigator, 'share', { value: navigatorShareSpy, configurable: true });
+    Object.defineProperty(navigator, 'canShare', {
+      value: vi.fn().mockReturnValue(true),
+      configurable: true,
+    });
+
+    sharePdfFileSpy.mockRestore();
+
+    render(
+      <PdfPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={mockDoc}
+        userProfile={mockUser}
+        recipientName={customerRecord.name}
+        recipientPhone={customerRecord.phone}
+        recipientType="customer"
+      />
+    );
+
+    const diagnosticBtn = screen.getByTestId('diagnostic-share-test-button');
+    expect(diagnosticBtn).toBeDefined();
+
+    await act(async () => {
+      fireEvent.click(diagnosticBtn);
+    });
+
+    expect(navigatorShareSpy).toHaveBeenCalledTimes(1);
+    const passedPayload = navigatorShareSpy.mock.calls[0][0];
+    expect(passedPayload.files[0]).toBe(mockDoc.file);
+    expect(passedPayload.title).toBe(mockDoc.file.name);
+    expect(openWhatsAppSpy).not.toHaveBeenCalled();
+    expect(windowOpenSpy).not.toHaveBeenCalled();
+  });
 });
 

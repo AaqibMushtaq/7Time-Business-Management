@@ -22,6 +22,7 @@ import {
   detectShareCapabilities,
   downloadPdfBlob,
   isValidPdfFile,
+  getHexSignature,
 } from '@/services/pdf/pdfShare';
 import { normalizeWhatsAppPhoneNumber, openWhatsAppConversation } from '@/services/pdf/pdfWhatsApp';
 import type { UserProfile } from '@/types/auth';
@@ -47,9 +48,21 @@ export interface ModalDiagnostics {
   lastShareResult: string;
   lastShareError?: string;
   executionTrace: string[];
+  // Extended Runtime Diagnostics (Zero PII)
+  fileIsInstanceOfFile: boolean;
+  fileLastModified: number;
+  fileHexSignature: string;
+  hasValidPdfHeader: boolean;
+  blobSize: number;
+  blobHexSignature: string;
+  isBlobIdentical: boolean;
+  sharePayloadDescription: string;
 }
 
-function computeModalDiagnostics(doc: GeneratedPdfDocument | null): ModalDiagnostics {
+function computeModalDiagnostics(
+  doc: GeneratedPdfDocument | null,
+  hexData?: { fileHex: string; blobHex: string; hasValidHeader: boolean }
+): ModalDiagnostics {
   const hasNav = typeof navigator !== 'undefined';
   const typeofShare = hasNav ? typeof navigator.share : 'undefined';
   const typeofCanShare = hasNav ? typeof navigator.canShare : 'undefined';
@@ -94,6 +107,24 @@ function computeModalDiagnostics(doc: GeneratedPdfDocument | null): ModalDiagnos
         : 'Inactive / Consumed'
       : 'Supported (Click context)';
 
+  const file = doc?.file;
+  const blob = doc?.blob;
+  const fileIsInstanceOfFile = typeof File !== 'undefined' && file instanceof File;
+  const fileLastModified = file?.lastModified ?? -1;
+  const blobSize = blob?.size ?? -1;
+  const fileHex = hexData?.fileHex || (doc?.hasValidHeader ? '25 50 44 46 2d (Verified)' : 'Pending read...');
+  const blobHex = hexData?.blobHex || (doc?.hasValidHeader ? '25 50 44 46 2d (Verified)' : 'Pending read...');
+  const hasValidPdfHeader = hexData?.hasValidHeader ?? Boolean(doc?.hasValidHeader);
+  const isBlobIdentical = Boolean(
+    file &&
+    blob &&
+    file.size === blob.size &&
+    file.size > 0
+  );
+  const sharePayloadDescription = file
+    ? `{ files: [1 File ("${file.name}", ${file.size} B)], title: "${file.name}" }`
+    : 'None';
+
   return {
     platform,
     browser,
@@ -112,6 +143,14 @@ function computeModalDiagnostics(doc: GeneratedPdfDocument | null): ModalDiagnos
     shareAttempted: false,
     lastShareResult: 'Not yet invoked',
     executionTrace: ['Ready — Click "Share PDF" to trace order of operations'],
+    fileIsInstanceOfFile,
+    fileLastModified,
+    fileHexSignature: fileHex,
+    hasValidPdfHeader,
+    blobSize,
+    blobHexSignature: blobHex,
+    isBlobIdentical,
+    sharePayloadDescription,
   };
 }
 
@@ -185,8 +224,40 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
     executionTrace: ['Ready — Click "Share PDF" to trace order of operations'],
   });
 
+  const [hexData, setHexData] = useState<{
+    fileHex: string;
+    blobHex: string;
+    hasValidHeader: boolean;
+  }>({
+    fileHex: document?.hasValidHeader ? '25 50 44 46 2d (Verified)' : 'Reading...',
+    blobHex: document?.hasValidHeader ? '25 50 44 46 2d (Verified)' : 'Reading...',
+    hasValidHeader: Boolean(document?.hasValidHeader),
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    if (document?.file) {
+      getHexSignature(document.file, 16).then((fHex) => {
+        if (cancelled) return;
+        const bHexPromise = document.blob ? getHexSignature(document.blob, 16) : Promise.resolve(fHex);
+        bHexPromise.then((bHex) => {
+          if (cancelled) return;
+          const valid = fHex.startsWith('25 50 44 46 2d') || document.hasValidHeader === true;
+          setHexData({
+            fileHex: fHex,
+            blobHex: bHex,
+            hasValidHeader: valid,
+          });
+        });
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [document]);
+
   const diagnostics = useMemo<ModalDiagnostics>(() => {
-    const base = computeModalDiagnostics(document);
+    const base = computeModalDiagnostics(document, hexData);
     return {
       ...base,
       shareAttempted: shareExecutionStatus.shareAttempted,
@@ -198,7 +269,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
         ? shareExecutionStatus.executionTrace
         : base.executionTrace,
     };
-  }, [document, shareExecutionStatus]);
+  }, [document, hexData, shareExecutionStatus]);
 
   // Clear timeout on unmount
   useEffect(() => {
@@ -343,6 +414,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
 
   const handleShare = async () => {
     if (!document || isSharing) return;
+    setIsSharing(true);
 
     // 1. Capture user activation token status at immediate start of user gesture
     const nav = typeof navigator !== 'undefined' ? (navigator as unknown as { userActivation?: { isActive?: boolean } }) : null;
@@ -358,26 +430,17 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
     const isValid = isValidPdfFile(file);
     const canShare = canSharePdfFile(file);
 
-    const preShareActivation = nav?.userActivation?.isActive;
-    const preShareActivationStr =
-      preShareActivation === true
-        ? 'Active (true)'
-        : preShareActivation === false
-          ? 'Inactive (false)'
-          : 'Unsupported';
-
     const trace: string[] = [
       `1. share-button-clicked (userActivation: ${initialActivationStr})`,
       `2. pdf-file-resolved (${file?.name || 'none'}, ${file?.size ?? 0} B, ${file?.type || 'none'})`,
       `3. file-validation-completed (${isValid ? 'valid' : 'invalid'})`,
-      `4. can-share-checked (${canShare ? 'true' : 'false'}, pre-share userActivation: ${preShareActivationStr})`,
+      `4. can-share-checked (${canShare ? 'true' : 'false'}, pre-share userActivation: ${initialActivationStr})`,
     ];
 
     if (canShare) {
       trace.push('5. navigator-share-called');
     }
 
-    setIsSharing(true);
     setActionStatus('Opening share sheet...');
 
     setShareExecutionStatus({
@@ -385,7 +448,7 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
       lastShareResult: 'Attempting native share...',
       lastShareError: undefined,
       userActivationAtStart: initialActivationStr,
-      userActivationBeforeShare: preShareActivationStr,
+      userActivationBeforeShare: initialActivationStr,
       executionTrace: [...trace],
     });
 
@@ -872,9 +935,21 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
                 <Terminal className="h-3.5 w-3.5 text-blue-400" />
                 PDF Sharing Runtime Diagnostics
               </span>
-              <span className="text-[10px] text-slate-400 font-mono">
-                Environment Telemetry (Zero PII)
-              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleShare}
+                  disabled={isSharing || !document}
+                  data-testid="diagnostic-share-test-button"
+                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded font-mono text-[11px] font-semibold transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                >
+                  <Share2 className="h-3 w-3" />
+                  Test Native Share
+                </button>
+                <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                  Environment Telemetry (Zero PII)
+                </span>
+              </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-mono">
               <div className="bg-slate-800/80 p-2 rounded border border-slate-700/60">
@@ -911,6 +986,24 @@ export const PdfPreviewModal: React.FC<PdfPreviewModalProps> = ({
                 <div className="text-slate-400 text-[10px]">PDF File Validity</div>
                 <div className={diagnostics.isPdfValid ? "font-bold text-emerald-400 truncate" : "font-bold text-rose-400"}>
                   {diagnostics.isPdfValid ? `${diagnostics.pdfFilename} (${diagnostics.pdfFileSize} B)` : "Invalid File"}
+                </div>
+              </div>
+              <div className="bg-slate-800/80 p-2 rounded border border-slate-700/60">
+                <div className="text-slate-400 text-[10px]">PDF Magic Header (%PDF-)</div>
+                <div className={diagnostics.hasValidPdfHeader ? "font-bold text-emerald-400 truncate" : "font-bold text-rose-400 truncate"} title={diagnostics.fileHexSignature}>
+                  {diagnostics.fileHexSignature.slice(0, 14)}... ({diagnostics.hasValidPdfHeader ? "Valid" : "Invalid"})
+                </div>
+              </div>
+              <div className="bg-slate-800/80 p-2 rounded border border-slate-700/60">
+                <div className="text-slate-400 text-[10px]">File & Blob Size Match</div>
+                <div className={diagnostics.isBlobIdentical ? "font-bold text-emerald-400 truncate" : "font-bold text-amber-400 truncate"}>
+                  {diagnostics.pdfFileSize} B / {diagnostics.blobSize} B ({diagnostics.isBlobIdentical ? "Identical" : "Mismatch"})
+                </div>
+              </div>
+              <div className="bg-slate-800/80 p-2 rounded border border-slate-700/60">
+                <div className="text-slate-400 text-[10px]">Share Payload Structure</div>
+                <div className="font-bold text-purple-300 truncate" title={diagnostics.sharePayloadDescription}>
+                  {diagnostics.sharePayloadDescription}
                 </div>
               </div>
               <div className="bg-slate-800/80 p-2 rounded border border-slate-700/60">

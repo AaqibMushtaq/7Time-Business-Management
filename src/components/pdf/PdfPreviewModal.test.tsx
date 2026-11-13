@@ -173,7 +173,7 @@ describe('PdfPreviewModal Component', () => {
       />
     );
 
-    const shareBtn = screen.getByRole('button', { name: /Share/i });
+    const shareBtn = screen.getByRole('button', { name: /Share PDF/i });
     fireEvent.click(shareBtn);
 
     await waitFor(() => {

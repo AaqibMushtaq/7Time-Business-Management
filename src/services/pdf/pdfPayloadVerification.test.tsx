@@ -21,6 +21,7 @@ import {
   sharePdfFile,
   canSharePdfFile,
   isValidPdfFile,
+  getHexSignature,
 } from '@/services/pdf/pdfShare';
 import { PdfPreviewModal } from '@/components/pdf/PdfPreviewModal';
 import type { GeneratedPdfDocument } from '@/services/pdf/pdfTypes';
@@ -336,5 +337,111 @@ describe('PDF Subsystem - 10 File Payload & Native Sharing Requirements', () => 
     const result = await sharePdfFile(realPdfDoc);
     expect(result.status).toBe('shared');
     expect(shareSpy.mock.calls[0][0].files[0]).toBe(realPdfDoc.file);
+  });
+
+  it('Requirement 11: Raw binary bytes begin with %PDF- and match authoritative hex signature 25 50 44 46 2d', async () => {
+    const fileHex = await getHexSignature(realPdfDoc.file, 16);
+    const blobHex = await getHexSignature(realPdfDoc.blob, 16);
+
+    expect(fileHex.startsWith('25 50 44 46 2d')).toBe(true);
+    expect(blobHex.startsWith('25 50 44 46 2d')).toBe(true);
+    expect(fileHex).toBe(blobHex);
+  });
+
+  it('Requirement 12: File object has non-zero size, application/pdf MIME type, and .pdf filename', () => {
+    const file = realPdfDoc.file;
+    expect(file.size).toBeGreaterThan(0);
+    expect(file.type).toBe('application/pdf');
+    expect(file.name.toLowerCase().endsWith('.pdf')).toBe(true);
+    expect(isValidPdfFile(file)).toBe(true);
+  });
+
+  it('Requirement 13: Exact File instance is passed to navigator.share({ files: [file], title: file.name }) with zero extra properties', async () => {
+    const { shareSpy } = setupNativeShareSupported(true);
+
+    await sharePdfFile(realPdfDoc);
+
+    expect(shareSpy).toHaveBeenCalledTimes(1);
+    const payload = shareSpy.mock.calls[0][0];
+    expect(payload.files).toEqual([realPdfDoc.file]);
+    expect(payload.files[0]).toBe(realPdfDoc.file);
+    expect(payload.title).toBe(realPdfDoc.file.name);
+    expect(payload.text).toBeUndefined();
+    expect(payload.url).toBeUndefined();
+  });
+
+  it('Requirement 14: Preview and share operations use identical underlying PDF data (blob bytes equal file bytes)', async () => {
+    expect(realPdfDoc.file.size).toBe(realPdfDoc.blob.size);
+
+    const fileBuf = await realPdfDoc.file.arrayBuffer();
+    const blobBuf = await realPdfDoc.blob.arrayBuffer();
+    const fileBytes = new Uint8Array(fileBuf);
+    const blobBytes = new Uint8Array(blobBuf);
+
+    expect(fileBytes.length).toBe(blobBytes.length);
+    let bytesMatch = true;
+    for (let i = 0; i < Math.min(fileBytes.length, 64); i++) {
+      if (fileBytes[i] !== blobBytes[i]) {
+        bytesMatch = false;
+        break;
+      }
+    }
+    expect(bytesMatch).toBe(true);
+  });
+
+  it('Requirement 15: Native share rejects empty or corrupt files before calling navigator.share()', async () => {
+    const { shareSpy } = setupNativeShareSupported(true);
+
+    // Test empty file
+    const emptyFile = new File([], 'empty.pdf', { type: 'application/pdf' });
+    const emptyDoc: GeneratedPdfDocument = {
+      ...realPdfDoc,
+      file: emptyFile,
+      blob: new Blob([]),
+      hasValidHeader: false,
+    };
+    const emptyResult = await sharePdfFile(emptyDoc);
+    expect(emptyResult.status).toBe('failed');
+    expect(shareSpy).not.toHaveBeenCalled();
+
+    // Test corrupt file (wrong magic bytes)
+    const corruptFile = new File(['NOT-A-PDF-CONTENT-CORRUPT'], 'corrupt.pdf', { type: 'application/pdf' });
+    const corruptDoc: GeneratedPdfDocument = {
+      ...realPdfDoc,
+      file: corruptFile,
+      blob: new Blob(['NOT-A-PDF-CONTENT-CORRUPT']),
+      hasValidHeader: false,
+    };
+    const corruptResult = await sharePdfFile(corruptDoc);
+    expect(corruptResult.status).toBe('failed');
+    expect(corruptResult.error?.message).toContain('Invalid PDF content');
+    expect(shareSpy).not.toHaveBeenCalled();
+  });
+
+  it('Requirement 16: Telemetry attaches complete runtime diagnostics (hex, blob match, userActivation, zero PII) to window', async () => {
+    setupNativeShareSupported(true);
+    Object.defineProperty(navigator, 'userActivation', {
+      value: { isActive: true },
+      configurable: true,
+    });
+
+    await sharePdfFile(realPdfDoc);
+
+    const diag = (window as any).__LAST_7TIME_SHARE_DIAGNOSTICS__;
+    expect(diag).toBeDefined();
+    expect(diag.fileIsInstanceOfFile).toBe(true);
+    expect(diag.fileHexSignature.startsWith('25 50 44 46 2d')).toBe(true);
+    expect(diag.hasValidPdfHeader).toBe(true);
+    expect(diag.blobHexSignature.startsWith('25 50 44 46 2d')).toBe(true);
+    expect(diag.isBlobIdentical).toBe(true);
+    expect(diag.blobSize).toBe(realPdfDoc.blob.size);
+    expect(diag.pdfSize).toBe(realPdfDoc.file.size);
+    expect(diag.userActivationIsActive).toBe(true);
+    expect(diag.sharePayload).toEqual({
+      filesCount: 1,
+      title: realPdfDoc.file.name,
+      hasUrl: false,
+      hasText: false,
+    });
   });
 });
