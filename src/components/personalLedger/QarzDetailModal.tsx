@@ -10,7 +10,8 @@ import {
   Clock, 
   CheckCircle2,
   X,
-  FileText
+  FileText,
+  Phone
 } from "lucide-react"
 import type { PersonalQarzEntry } from "@/services/personalLedger"
 
@@ -18,6 +19,7 @@ interface QarzDetailModalProps {
   isOpen: boolean
   onClose: () => void
   qarzEntry: PersonalQarzEntry | null
+  personPhone?: string | null
   onRecordRepayment: (entry: PersonalQarzEntry) => void
   onGeneratePdf?: (entry: PersonalQarzEntry) => void
 }
@@ -26,6 +28,7 @@ export default function QarzDetailModal({
   isOpen,
   onClose,
   qarzEntry,
+  personPhone,
   onRecordRepayment,
   onGeneratePdf
 }: QarzDetailModalProps) {
@@ -49,6 +52,12 @@ export default function QarzDetailModal({
               <h3 className="text-xl font-bold text-[#172B4D]">
                 {qarzEntry.person_name}
               </h3>
+              {personPhone && (
+                <div className="flex items-center gap-1.5 text-xs text-[#52627A] mt-0.5 font-medium">
+                  <Phone className="h-3 w-3 text-emerald-600" />
+                  <span>{personPhone}</span>
+                </div>
+              )}
               <div className="flex items-center gap-2 mt-0.5">
                 <span
                   className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full ${

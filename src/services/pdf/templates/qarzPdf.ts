@@ -37,6 +37,8 @@ export interface QarzStatementParams {
   dateRangeLabel?: string;
   qarzEntries: PersonalQarzEntry[];
   summary?: PersonalLedgerSummary['qarz'];
+  recipientName?: string;
+  recipientPhone?: string | null;
 }
 
 export interface QarzReceiptParams {
@@ -44,6 +46,8 @@ export interface QarzReceiptParams {
   workspaceName: string;
   generatedBy?: string;
   qarzEntry: PersonalQarzEntry;
+  recipientName?: string;
+  recipientPhone?: string | null;
 }
 
 const ISLAMIC_QARZ_DISCLOSURE =
@@ -197,6 +201,8 @@ export async function generateQarzStatementPdf(
     workspaceName: params.workspaceName,
     orientation: 'portrait',
     pageFormat: 'a4',
+    recipientName: params.recipientName,
+    recipientPhone: params.recipientPhone ?? null,
   };
 
   return buildGeneratedPdfDocument(
@@ -376,6 +382,8 @@ export async function generateQarzReceiptPdf(
     recordId: q.id,
     orientation: 'portrait',
     pageFormat: 'a4',
+    recipientName: params.recipientName || q.person_name,
+    recipientPhone: params.recipientPhone ?? null,
   };
 
   return buildGeneratedPdfDocument(

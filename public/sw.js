@@ -1,5 +1,5 @@
 // 7TIME Production Static Asset Cache Service Worker
-const CACHE_NAME = '7time-static-v2'
+const CACHE_NAME = '7time-static-v3'
 
 self.addEventListener('install', () => {
   self.skipWaiting()

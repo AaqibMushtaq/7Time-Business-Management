@@ -38,22 +38,22 @@ describe('End-to-End Profile Phone Persistence & WhatsApp PDF Sharing', () => {
   };
 
   beforeEach(() => {
-    // PDF document containing customer financial records and customer phone
+    // PDF document representing personal ledger statement for profile sharing
     mockDocWithCustomer = {
-      blob: new Blob(['customer-pdf-content'], { type: 'application/pdf' }),
-      file: new File(['customer-pdf-content'], '7TIME_Customer_Credit_Voucher.pdf', {
+      blob: new Blob(['%PDF-1.4 personal-pdf-content'], { type: 'application/pdf' }),
+      file: new File(['%PDF-1.4 personal-pdf-content'], '7TIME_Personal_Ledger_Statement.pdf', {
         type: 'application/pdf',
       }),
-      objectUrl: 'blob:http://localhost/mock-customer-voucher-url',
-      filename: '7TIME_Customer_Credit_Voucher.pdf',
-      title: 'Customer Credit Voucher - Haji Ghulam Rasool',
+      objectUrl: 'blob:http://localhost/mock-personal-statement-url',
+      filename: '7TIME_Personal_Ledger_Statement.pdf',
+      title: 'Personal Ledger Statement - Aaqib Mushtaq',
       metadata: {
-        documentType: 'customer_credit_receipt',
-        documentCategory: 'ACKNOWLEDGEMENT',
+        documentType: 'personal_ledger_statement',
+        documentCategory: 'STATEMENT',
         generatedAt: '2026-11-11T12:00:00Z',
         workspaceId: 'ws-business-primary',
         workspaceName: '7TIME Primary Enterprise',
-        recordId: 'cred-98721',
+        recordId: 'stmt-98721',
         orientation: 'portrait',
         pageFormat: 'a4',
       },
@@ -92,17 +92,14 @@ describe('End-to-End Profile Phone Persistence & WhatsApp PDF Sharing', () => {
       'noopener,noreferrer'
     );
 
-    // 2. Local PDF download is initiated
-    expect(downloadSpy).toHaveBeenCalledWith(
-      mockDocWithCustomer.objectUrl,
-      mockDocWithCustomer.filename
-    );
+    // 2. Forced local PDF download is NOT initiated
+    expect(downloadSpy).not.toHaveBeenCalled();
 
-    // 3. User feedback message displays masked profile phone and manual attachment guidance
+    // 3. User feedback message displays masked profile phone and attachment guidance
     expect(screen.getByText('WhatsApp Conversation Opened')).toBeDefined();
     expect(screen.getByText(/\+91 ••••• ••210/)).toBeDefined();
     expect(
-      screen.getByText(/attach it using the paperclip \(\+\) icon in WhatsApp/i)
+      screen.getByText(/To send this PDF, please attach the document in WhatsApp/i)
     ).toBeDefined();
 
     expect(onActionComplete).toHaveBeenCalledWith('whatsapp');
@@ -161,7 +158,7 @@ describe('End-to-End Profile Phone Persistence & WhatsApp PDF Sharing', () => {
   it('Step 5: Ambiguous 10-digit number without country code prompts for country code rather than guessing India (+91)', () => {
     const profileWithNationalPhone: UserProfile = {
       ...authenticatedUser,
-      phone: '9876543210', // 10 digits without +
+      phone: '1234567890', // 10 digits non-Indian without country code
     };
 
     render(
@@ -195,6 +192,10 @@ describe('End-to-End Profile Phone Persistence & WhatsApp PDF Sharing', () => {
       value: navigatorShareSpy,
       configurable: true,
     });
+    Object.defineProperty(navigator, 'canShare', {
+      value: vi.fn().mockReturnValue(true),
+      configurable: true,
+    });
 
     render(
       <PdfPreviewModal
@@ -205,12 +206,12 @@ describe('End-to-End Profile Phone Persistence & WhatsApp PDF Sharing', () => {
       />
     );
 
-    // 1. Click WhatsApp to open conversation and download
+    // 1. Click WhatsApp to open conversation
     const whatsAppBtn = screen.getByRole('button', { name: /WhatsApp/i });
     fireEvent.click(whatsAppBtn);
 
     // 2. Verify alternative OS Share button is presented in banner
-    const osShareBtn = screen.getByRole('button', { name: /Share File \(OS Sheet\)/i });
+    const osShareBtn = screen.getByRole('button', { name: /Share File Directly/i });
     expect(osShareBtn).toBeDefined();
 
     // 3. User clicks OS share button
@@ -219,8 +220,7 @@ describe('End-to-End Profile Phone Persistence & WhatsApp PDF Sharing', () => {
     });
 
     expect(navigatorShareSpy).toHaveBeenCalledWith({
-      title: mockDocWithCustomer.title,
-      text: mockDocWithCustomer.title,
+      title: mockDocWithCustomer.file.name,
       files: [mockDocWithCustomer.file],
     });
   });
@@ -238,9 +238,131 @@ describe('End-to-End Profile Phone Persistence & WhatsApp PDF Sharing', () => {
     const whatsAppBtn = screen.getByRole('button', { name: /WhatsApp/i });
     fireEvent.click(whatsAppBtn);
 
-    // Only standard client-side browser navigation and download are triggered
+    // Only standard client-side browser navigation is triggered; ZERO automatic downloads
     expect(windowOpenSpy).toHaveBeenCalledTimes(1);
-    expect(downloadSpy).toHaveBeenCalledTimes(1);
+    expect(downloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('Step 8: Direct Share PDF button invokes native file share without forced download', async () => {
+    const navigatorShareSpy = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'share', {
+      value: navigatorShareSpy,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, 'canShare', {
+      value: vi.fn().mockReturnValue(true),
+      configurable: true,
+    });
+    vi.spyOn(pdfShare, 'detectShareCapabilities').mockReturnValue({
+      canUseWebShare: true,
+      canShareFiles: true,
+      isSecureContext: true,
+    });
+
+    render(
+      <PdfPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={mockDocWithCustomer}
+        userProfile={authenticatedUser}
+      />
+    );
+
+    const shareBtn = screen.getByRole('button', { name: /Share PDF/i });
+    await act(async () => {
+      fireEvent.click(shareBtn);
+    });
+
+    // Native share invoked directly with file
+    expect(navigatorShareSpy).toHaveBeenCalledWith({
+      title: mockDocWithCustomer.file.name,
+      files: [mockDocWithCustomer.file],
+    });
+    // NO download occurred
+    expect(downloadSpy).not.toHaveBeenCalled();
+  });
+
+  it('Step 9: Direct Share PDF handles AbortError without downloading and keeps modal open', async () => {
+    const abortError = new Error('User dismissed sheet');
+    abortError.name = 'AbortError';
+    const navigatorShareSpy = vi.fn().mockRejectedValue(abortError);
+    Object.defineProperty(navigator, 'share', {
+      value: navigatorShareSpy,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, 'canShare', {
+      value: vi.fn().mockReturnValue(true),
+      configurable: true,
+    });
+    vi.spyOn(pdfShare, 'detectShareCapabilities').mockReturnValue({
+      canUseWebShare: true,
+      canShareFiles: true,
+      isSecureContext: true,
+    });
+
+    render(
+      <PdfPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={mockDocWithCustomer}
+        userProfile={authenticatedUser}
+      />
+    );
+
+    const shareBtn = screen.getByRole('button', { name: /Share PDF/i });
+    await act(async () => {
+      fireEvent.click(shareBtn);
+    });
+
+    expect(navigatorShareSpy).toHaveBeenCalled();
+    expect(downloadSpy).not.toHaveBeenCalled();
+    // Modal is still open and rendering title
+    expect(screen.getByText(mockDocWithCustomer.title)).toBeDefined();
+  });
+
+  it('Step 10: Unsupported browser shows clear fallback notice with manual actions and zero forced download', async () => {
+    Object.defineProperty(navigator, 'share', {
+      value: undefined,
+      configurable: true,
+    });
+    Object.defineProperty(navigator, 'canShare', {
+      value: undefined,
+      configurable: true,
+    });
+    vi.spyOn(pdfShare, 'detectShareCapabilities').mockReturnValue({
+      canUseWebShare: false,
+      canShareFiles: false,
+      isSecureContext: true,
+    });
+
+    render(
+      <PdfPreviewModal
+        isOpen={true}
+        onClose={vi.fn()}
+        document={mockDocWithCustomer}
+        userProfile={authenticatedUser}
+      />
+    );
+
+    const shareBtn = screen.getByRole('button', { name: /Share PDF/i });
+    await act(async () => {
+      fireEvent.click(shareBtn);
+    });
+
+    // Zero download triggered
+    expect(downloadSpy).not.toHaveBeenCalled();
+
+    // Fallback notice displayed with manual options
+    expect(screen.getByText('Direct File Sharing Unavailable')).toBeDefined();
+    const downloadActionBtn = screen.getByRole('button', { name: 'Download PDF' });
+    expect(downloadActionBtn).toBeDefined();
+
+    // User can manually trigger download from the fallback
+    fireEvent.click(downloadActionBtn);
+    expect(downloadSpy).toHaveBeenCalledWith(
+      mockDocWithCustomer.objectUrl,
+      mockDocWithCustomer.filename
+    );
   });
 });
 

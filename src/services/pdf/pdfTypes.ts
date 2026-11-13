@@ -32,6 +32,8 @@ export interface PdfDocumentMetadata {
   orientation: PdfOrientation;
   pageFormat: PdfPageFormat;
   pageCount?: number;
+  recipientName?: string;
+  recipientPhone?: string | null;
   customMetadata?: Record<string, unknown>;
 }
 
@@ -53,6 +55,8 @@ export interface GeneratedPdfDocument {
    * Calling multiple times is guaranteed safe.
    */
   cleanup: () => void;
+  /** True if the document header has already been verified as a valid PDF */
+  hasValidHeader?: boolean;
 }
 
 export interface ShareCapabilities {
@@ -64,11 +68,11 @@ export interface ShareCapabilities {
   isSecureContext: boolean;
 }
 
-export type ShareResultStatus = 'shared' | 'downloaded' | 'cancelled';
+export type ShareResultStatus = 'shared' | 'downloaded' | 'cancelled' | 'unsupported' | 'failed';
 
 export interface ShareResult {
   status: ShareResultStatus;
-  method: 'web-share' | 'download';
+  method: 'web-share' | 'download' | 'unsupported';
   error?: Error;
 }
 

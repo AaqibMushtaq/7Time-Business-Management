@@ -54,6 +54,7 @@ import {
 } from "@/services/pdf/templates/personalLedgerPdf"
 import { generateQarzReceiptPdf } from "@/services/pdf/templates/qarzPdf"
 import type { GeneratedPdfDocument } from "@/services/pdf/pdfTypes"
+import { getResellersWithBalances, type ResellerCustomer } from "@/services/resellers"
 
 type TabType = "ALL" | "INCOME" | "EXPENSE" | "TRANSFER" | "QARZ"
 type DateRangeOption = "ALL_TIME" | "THIS_MONTH" | "LAST_MONTH" | "THIS_YEAR" | "CUSTOM"
@@ -110,6 +111,8 @@ export default function PersonalLedgerView() {
   const [previewDoc, setPreviewDoc] = useState<GeneratedPdfDocument | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isPdfGenerating, setIsPdfGenerating] = useState(false)
+  const [previewRecipientName, setPreviewRecipientName] = useState<string | null>(null)
+  const [previewRecipientPhone, setPreviewRecipientPhone] = useState<string | null>(null)
 
   // 1. Fetch Personal Transactions
   const { data: transactions = [], isLoading: isLoadingTx } = useQuery({
@@ -121,6 +124,12 @@ export default function PersonalLedgerView() {
   const { data: qarzEntries = [], isLoading: isLoadingQarz } = useQuery({
     queryKey: ["personal_qarz_entries", workspaceId],
     queryFn: () => getPersonalQarzEntries(workspaceId)
+  })
+
+  // 3. Fetch Local People / Creditors Directory for recipient phone resolution
+  const { data: localCustomers = [] } = useQuery({
+    queryKey: ["resellers", "PERSONAL", workspaceId],
+    queryFn: () => getResellersWithBalances("PERSONAL", workspaceId)
   })
 
   // Mutations
@@ -302,6 +311,8 @@ export default function PersonalLedgerView() {
 
   const handleExportStatementPdf = async () => {
     setIsPdfGenerating(true)
+    setPreviewRecipientName(null)
+    setPreviewRecipientPhone(null)
     try {
       const doc = await generatePersonalLedgerStatementPdf({
         workspaceId,
@@ -322,6 +333,8 @@ export default function PersonalLedgerView() {
   }
 
   const handleGenerateTransactionReceiptPdf = async (tx: PersonalTransaction) => {
+    setPreviewRecipientName(null)
+    setPreviewRecipientPhone(null)
     try {
       const doc = await generatePersonalTransactionReceiptPdf({
         workspaceId,
@@ -339,11 +352,20 @@ export default function PersonalLedgerView() {
 
   const handleGenerateQarzReceiptPdf = async (q: PersonalQarzEntry) => {
     try {
+      const matchedPerson = (localCustomers as ResellerCustomer[]).find(
+        (c: ResellerCustomer) => c.name.trim().toLowerCase() === q.person_name.trim().toLowerCase()
+      )
+      const resolvedPhone = matchedPerson?.phone || null
+      setPreviewRecipientName(q.person_name)
+      setPreviewRecipientPhone(resolvedPhone)
+
       const doc = await generateQarzReceiptPdf({
         workspaceId,
         workspaceName: currentWorkspace?.name || "Personal Workspace",
         generatedBy: user?.email || "Personal User",
         qarzEntry: q,
+        recipientName: q.person_name,
+        recipientPhone: resolvedPhone,
       })
       setPreviewDoc(doc)
       setIsPreviewOpen(true)
@@ -1023,6 +1045,11 @@ export default function PersonalLedgerView() {
             setSelectedQarzForDetail(null)
           }}
           qarzEntry={selectedQarzForDetail}
+          personPhone={
+            (localCustomers as ResellerCustomer[]).find(
+              (c: ResellerCustomer) => c.name.trim().toLowerCase() === selectedQarzForDetail.person_name.trim().toLowerCase()
+            )?.phone || null
+          }
           onRecordRepayment={(entry) => {
             setSelectedQarzForRepayment(entry)
             setIsRepayModalOpen(true)
@@ -1048,8 +1075,17 @@ export default function PersonalLedgerView() {
         onClose={() => {
           setIsPreviewOpen(false)
           setPreviewDoc(null)
+          setPreviewRecipientName(null)
+          setPreviewRecipientPhone(null)
         }}
         document={previewDoc}
+        recipientName={previewRecipientName}
+        recipientPhone={previewRecipientPhone}
+        isCreditorDocument={Boolean(
+          previewRecipientName ||
+          previewDoc?.metadata?.documentType === 'qarz_receipt' ||
+          previewDoc?.metadata?.documentType === 'qarz_statement'
+        )}
       />
     </div>
   )

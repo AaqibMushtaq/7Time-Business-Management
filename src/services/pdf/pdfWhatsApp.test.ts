@@ -65,21 +65,72 @@ describe('pdfWhatsApp Module', () => {
       expect(res.whatsappUrl).toBe('https://wa.me/919876543210');
     });
 
-    it('DOES NOT blindly prepend India code (+91) to national 10-digit numbers missing country code', () => {
-      const res = normalizeWhatsAppPhoneNumber('9876543210');
+    it('normalizes valid 10-digit Indian national mobile numbers to +91 without double-prefixing', () => {
+      // ummar bai's number (starts with 7)
+      const res1 = normalizeWhatsAppPhoneNumber('7006138763');
+      expect(res1.isValid).toBe(true);
+      expect(res1.normalizedNumber).toBe('917006138763');
+      expect(res1.whatsappUrl).toBe('https://wa.me/917006138763');
+      expect(res1.maskedNumber).toBe('+91 ••••• ••763');
+
+      // 10 digits starting with 9
+      const res2 = normalizeWhatsAppPhoneNumber('9876543210');
+      expect(res2.isValid).toBe(true);
+      expect(res2.normalizedNumber).toBe('919876543210');
+      expect(res2.whatsappUrl).toBe('https://wa.me/919876543210');
+
+      // 11 digits with national trunk 0 (e.g. 07006138763)
+      const res3 = normalizeWhatsAppPhoneNumber('07006138763');
+      expect(res3.isValid).toBe(true);
+      expect(res3.normalizedNumber).toBe('917006138763');
+      expect(res3.whatsappUrl).toBe('https://wa.me/917006138763');
+
+      // Already has +91 -> does not double-prefix
+      const res4 = normalizeWhatsAppPhoneNumber('+91 7006138763');
+      expect(res4.isValid).toBe(true);
+      expect(res4.normalizedNumber).toBe('917006138763');
+
+      // Already has 91 (12 digits) -> does not double-prefix
+      const res5 = normalizeWhatsAppPhoneNumber('917006138763');
+      expect(res5.isValid).toBe(true);
+      expect(res5.normalizedNumber).toBe('917006138763');
+    });
+
+    it('DOES NOT blindly prepend India code to non-Indian national 10-digit numbers missing country code', () => {
+      const res = normalizeWhatsAppPhoneNumber('1234567890');
       expect(res.isValid).toBe(false);
       expect(res.errorCode).toBe('MISSING_COUNTRY_CODE');
       expect(res.normalizedNumber).toBe('');
       expect(res.errorMessage).toContain('missing an international country code');
-      // Must not guess or produce a wa.me URL
       expect(res.whatsappUrl).toBeUndefined();
     });
 
-    it('rejects numbers starting with trunk 0 as missing country code', () => {
-      const res = normalizeWhatsAppPhoneNumber('09876543210');
+    it('rejects invalid numbers starting with trunk 0 as missing country code', () => {
+      const res = normalizeWhatsAppPhoneNumber('01234567890');
       expect(res.isValid).toBe(false);
       expect(res.errorCode).toBe('MISSING_COUNTRY_CODE');
       expect(res.errorMessage).toContain('national trunk prefix');
+    });
+
+    it('supports customer and creditor entityType options with custom contextual error messages', () => {
+      // Customer missing phone
+      const custMissing = normalizeWhatsAppPhoneNumber(null, {
+        entityType: 'customer',
+        entityName: 'ummar bai',
+      });
+      expect(custMissing.isValid).toBe(false);
+      expect(custMissing.errorMessage).toContain('No phone number found for ummar bai');
+      expect(custMissing.errorMessage).toContain('People Directory');
+      expect(custMissing.errorMessage).not.toContain('profile');
+
+      // Customer invalid format
+      const custInvalid = normalizeWhatsAppPhoneNumber('7006-ABC-12', {
+        entityType: 'customer',
+        entityName: 'ummar bai',
+      });
+      expect(custInvalid.isValid).toBe(false);
+      expect(custInvalid.errorMessage).toContain('The phone number for ummar bai contains invalid characters');
+      expect(custInvalid.errorMessage).not.toContain('profile');
     });
 
     it('handles missing, null, undefined, or empty phone numbers gracefully', () => {
@@ -109,8 +160,10 @@ describe('pdfWhatsApp Module', () => {
     });
 
     it('does not leak or expose sensitive phone numbers in error messages', () => {
-      const sensitiveNumber = '9876543210';
+      const sensitiveNumber = '1234567890';
       const res = normalizeWhatsAppPhoneNumber(sensitiveNumber);
+      expect(res.isValid).toBe(false);
+      expect(res.errorMessage).toBeDefined();
       expect(res.errorMessage).not.toContain(sensitiveNumber);
     });
   });

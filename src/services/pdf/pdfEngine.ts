@@ -266,8 +266,11 @@ export function buildGeneratedPdfDocument(
   const blobOutput = doc.output('blob');
   const blob = blobOutput instanceof Blob ? blobOutput : new Blob([blobOutput], { type: 'application/pdf' });
 
+  // Ensure authoritative filename ends with .pdf extension
+  const safeFilename = filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
+
   // Produce Web Share Level 2 File
-  const file = new File([blob], filename, {
+  const file = new File([blob], safeFilename, {
     type: 'application/pdf',
     lastModified: Date.now(),
   });
@@ -282,7 +285,7 @@ export function buildGeneratedPdfDocument(
     pageCount: metadata.pageCount || totalPages,
   };
 
-  // Safe idempotent cleanup closure
+  // Safe idempotent cleanup closure (revokes Object URL; File remains valid in memory)
   let isRevoked = false;
   const cleanup = () => {
     if (isRevoked) return;
@@ -294,10 +297,11 @@ export function buildGeneratedPdfDocument(
     blob,
     file,
     objectUrl,
-    filename,
+    filename: safeFilename,
     title,
     metadata: enrichedMetadata,
     cleanup,
+    hasValidHeader: true,
   };
 }
 

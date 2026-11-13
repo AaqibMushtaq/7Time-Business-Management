@@ -1772,6 +1772,9 @@ export default function ResellerDetailPanel({
           setPreviewDoc(null)
         }}
         document={previewDoc}
+        recipientName={reseller?.name}
+        recipientPhone={reseller?.phone}
+        recipientType="customer"
       />
     </div>
   )

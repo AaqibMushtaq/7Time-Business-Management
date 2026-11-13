@@ -245,6 +245,8 @@ export async function generateCustomerCreditReceiptPdf(
     recordId: credit.id,
     orientation: 'portrait',
     pageFormat: 'a4',
+    recipientName: customerName,
+    recipientPhone: customer?.phone ?? null,
   };
 
   return buildGeneratedPdfDocument(
@@ -372,6 +374,8 @@ export async function generateCustomerCreditStatementPdf(
     recordId: cust.id,
     orientation: 'portrait',
     pageFormat: 'a4',
+    recipientName: cust.name,
+    recipientPhone: cust.phone ?? null,
   };
 
   return buildGeneratedPdfDocument(
