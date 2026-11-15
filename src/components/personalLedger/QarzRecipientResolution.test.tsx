@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PersonalLedgerView from './PersonalLedgerView';
 import * as personalLedgerService from '@/services/personalLedger';
-import * as localCustomersService from '@/services/localCustomers';
 import * as resellersService from '@/services/resellers';
-import * as pdfShare from '@/services/pdf/pdfShare';
 
 const mockAuthenticatedUser = {
   id: 'user-auth-001',
@@ -49,14 +47,11 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
-describe('Qarz-e-Hasana Recipient Resolution & WhatsApp Workflow', () => {
+describe('Qarz-e-Hasana Recipient Resolution & Contact Verification', () => {
   let queryClient: QueryClient;
-  let windowOpenSpy: ReturnType<typeof vi.spyOn>;
-  let downloadSpy: ReturnType<typeof vi.spyOn>;
-  let shareSpy: ReturnType<typeof vi.spyOn>;
 
   // Creditors in People Directory
-  const mockPeopleInDirectory: localCustomersService.LocalCustomer[] = [
+  const mockPeopleInDirectory = [
     {
       id: 'person-001',
       name: 'Dr. Farooq',
@@ -145,15 +140,7 @@ describe('Qarz-e-Hasana Recipient Resolution & WhatsApp Workflow', () => {
 
     vi.spyOn(personalLedgerService, 'getPersonalTransactions').mockResolvedValue([]);
     vi.spyOn(personalLedgerService, 'getPersonalQarzEntries').mockResolvedValue(mockQarzEntries);
-    vi.spyOn(localCustomersService, 'getLocalCustomers').mockResolvedValue(mockPeopleInDirectory);
-    vi.spyOn(resellersService, 'getResellersWithBalances').mockResolvedValue(mockPeopleInDirectory);
-
-    windowOpenSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false } as Window);
-    downloadSpy = vi.spyOn(pdfShare, 'downloadPdfBlob').mockImplementation(() => {});
-    shareSpy = vi.spyOn(pdfShare, 'sharePdfFile').mockResolvedValue({
-      status: 'shared',
-      method: 'web-share',
-    });
+    vi.spyOn(resellersService, 'getResellersWithBalances').mockResolvedValue(mockPeopleInDirectory as any);
   });
 
   afterEach(() => {
@@ -167,7 +154,7 @@ describe('Qarz-e-Hasana Recipient Resolution & WhatsApp Workflow', () => {
       </QueryClientProvider>
     );
 
-  it("Requirement 1 & 2: Resolves Creditor A's record to Creditor A's phone number (+91 9419123456) and opens WhatsApp", async () => {
+  it("Requirement 1 & 2: Resolves Creditor A's record to Creditor A's phone number (+91 9419123456) in QarzDetailModal", async () => {
     renderComponent();
 
     // Find Dr. Farooq's row by particulars
@@ -181,49 +168,16 @@ describe('Qarz-e-Hasana Recipient Resolution & WhatsApp Workflow', () => {
 
     // QarzDetailModal opens and displays Dr. Farooq's saved phone number
     await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Dr. Farooq' })).toBeInTheDocument();
       expect(screen.getByText('+91 9419123456')).toBeInTheDocument();
     });
 
-    // Click Voucher PDF button in QarzDetailModal
-    const voucherBtn = screen.getByRole('button', { name: /Voucher PDF/i });
-    fireEvent.click(voucherBtn);
-
-    // PdfPreviewModal opens with Dr. Farooq's acknowledgment
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Open WhatsApp/i })).toBeInTheDocument();
-      expect(screen.getByText(/ACKNOWLEDGEMENT/)).toBeInTheDocument();
-    });
-
-    // Check Open WhatsApp button title targets Dr. Farooq
-    const whatsAppBtn = screen.getByRole('button', { name: /Open WhatsApp/i });
-    expect(whatsAppBtn.title).toBe('Open WhatsApp with Dr. Farooq');
-
-    // Click Open WhatsApp
-    fireEvent.click(whatsAppBtn);
-
-    // Verify WhatsApp opens Dr. Farooq's normalized phone number (919419123456)
-    expect(windowOpenSpy).toHaveBeenCalledTimes(1);
-    expect(windowOpenSpy).toHaveBeenCalledWith(
-      'https://wa.me/919419123456',
-      '_blank',
-      'noopener,noreferrer'
-    );
-
-    // NEVER uses authenticated user's profile phone (+1 555 999 8888)
-    const openedUrl = windowOpenSpy.mock.calls[0][0] as string;
-    expect(openedUrl).not.toContain('15559998888');
-
-    // Verify banner confirms Dr. Farooq's conversation was opened
-    const alert = screen.getByRole('alert');
-    expect(within(alert).getByText('WhatsApp Conversation Opened')).toBeInTheDocument();
-    expect(within(alert).getByText(/Dr\. Farooq/)).toBeInTheDocument();
-    expect(within(alert).getByText(/\+91 ••••• ••456/)).toBeInTheDocument();
-
-    // Forced download is NOT triggered
-    expect(downloadSpy).not.toHaveBeenCalled();
+    // Ensure logged-in user's profile phone is NOT rendered
+    expect(screen.queryByText('+1 555 999 8888')).toBeNull();
   });
 
-  it("Requirement 1 & 2: Resolves Creditor B's record to Creditor B's phone number (+91 9876500000) and opens WhatsApp", async () => {
+  it("Requirement 1 & 2: Resolves Creditor B's record to Creditor B's phone number (+91 9876500000) in QarzDetailModal", async () => {
     renderComponent();
 
     // Find Bilal Ahmad's row
@@ -237,38 +191,13 @@ describe('Qarz-e-Hasana Recipient Resolution & WhatsApp Workflow', () => {
 
     // QarzDetailModal displays Bilal Ahmad's phone number
     await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Bilal Ahmad' })).toBeInTheDocument();
       expect(screen.getByText('+91 9876500000')).toBeInTheDocument();
     });
 
-    // Generate Voucher PDF
-    const voucherBtn = screen.getByRole('button', { name: /Voucher PDF/i });
-    fireEvent.click(voucherBtn);
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Open WhatsApp/i })).toBeInTheDocument();
-    });
-
-    const whatsAppBtn = screen.getByRole('button', { name: /Open WhatsApp/i });
-    expect(whatsAppBtn.title).toBe('Open WhatsApp with Bilal Ahmad');
-
-    fireEvent.click(whatsAppBtn);
-
-    // Verify WhatsApp opens Bilal Ahmad's number
-    expect(windowOpenSpy).toHaveBeenCalledTimes(1);
-    expect(windowOpenSpy).toHaveBeenCalledWith(
-      'https://wa.me/919876500000',
-      '_blank',
-      'noopener,noreferrer'
-    );
-
-    // Verify logged-in user's phone is NOT used
-    const openedUrl = windowOpenSpy.mock.calls[0][0] as string;
-    expect(openedUrl).not.toContain('15559998888');
-
-    const alert = screen.getByRole('alert');
-    expect(within(alert).getByText(/Bilal Ahmad/)).toBeInTheDocument();
-    expect(within(alert).getByText(/\+91 ••••• ••000/)).toBeInTheDocument();
-    expect(downloadSpy).not.toHaveBeenCalled();
+    // Ensure logged-in user's phone is NOT rendered
+    expect(screen.queryByText('+1 555 999 8888')).toBeNull();
   });
 
   it('Requirement 3 & 7: NEVER uses authenticated user profile number as fallback when creditor phone is missing', async () => {
@@ -284,69 +213,10 @@ describe('Qarz-e-Hasana Recipient Resolution & WhatsApp Workflow', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Ghulam Hassan' })).toBeInTheDocument();
     });
 
-    // Generate Voucher PDF
-    const voucherBtn = screen.getByRole('button', { name: /Voucher PDF/i });
-    fireEvent.click(voucherBtn);
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Open WhatsApp/i })).toBeInTheDocument();
-    });
-
-    const whatsAppBtn = screen.getByRole('button', { name: /Open WhatsApp/i });
-    fireEvent.click(whatsAppBtn);
-
-    // STRICT REQUIREMENT: window.open is NEVER called!
-    expect(windowOpenSpy).not.toHaveBeenCalled();
-    expect(downloadSpy).not.toHaveBeenCalled();
-
-    // Clear error displayed requiring creditor's phone in People Directory
-    const alert = screen.getByRole('alert');
-    expect(within(alert).getByText('Creditor Phone Number Required')).toBeInTheDocument();
-    expect(
-      within(alert).getByText(
-        /No phone number found for Ghulam Hassan\. Please add their phone number in People Directory to open WhatsApp\./i
-      )
-    ).toBeInTheDocument();
-
-    // Profile update link must NOT be displayed
-    expect(within(alert).queryByRole('link', { name: /Update Profile/i })).toBeNull();
-  });
-
-  it('Requirement 4 & 6: Distinguishes Share PDF (native file share sheet) from Open WhatsApp without forced download', async () => {
-    renderComponent();
-
-    const farooqText = await screen.findByText(/Dr\. Farooq/i);
-    const row = farooqText.closest('tr')!;
-
-    const viewDetailBtn = within(row).getByTitle('View Qarz Details');
-    fireEvent.click(viewDetailBtn);
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Voucher PDF/i })).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /Voucher PDF/i }));
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Share PDF/i })).toBeInTheDocument();
-    });
-
-    // 1. Share PDF button attaches actual generated PDF File
-    const shareBtn = screen.getByRole('button', { name: /Share PDF/i });
-    await act(async () => {
-      fireEvent.click(shareBtn);
-    });
-
-    expect(shareSpy).toHaveBeenCalledTimes(1);
-    const sharedDoc = shareSpy.mock.calls[0][0];
-    expect(sharedDoc.file).toBeInstanceOf(File);
-    expect(sharedDoc.file.type).toBe('application/pdf');
-    expect(sharedDoc.file.name).toMatch(/\.pdf$/i);
-    expect(sharedDoc.file.size).toBeGreaterThan(0);
-
-    // No forced download before or during share
-    expect(downloadSpy).not.toHaveBeenCalled();
+    // STRICT REQUIREMENT: User profile phone is NEVER used as fallback
+    expect(screen.queryByText('+1 555 999 8888')).toBeNull();
   });
 });

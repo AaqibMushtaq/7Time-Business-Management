@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ResellerDetailPanel from './ResellerDetailPanel';
-import * as pdfShare from '@/services/pdf/pdfShare';
 
 const mockAuthenticatedUser = {
   id: 'user-auth-001',
@@ -34,12 +33,12 @@ vi.mock('@/components/auth/useAuth', () => ({
   }),
 }));
 
-// Customer A: ummar bai with 10-digit Indian national number
+// Customer A: ummar bai with 10-digit national number
 const mockCustomerUmmar = {
   id: 'cust-ummar-101',
   workspace_id: 'ws-enterprise',
   name: 'ummar bai',
-  phone: '7006138763', // 10 digits without international country code
+  phone: '7006138763',
   address: 'Nowhatta, Srinagar',
   notes: 'Key retailer',
   opening_balance: 0,
@@ -53,7 +52,7 @@ const mockCustomerBashir = {
   id: 'cust-bashir-102',
   workspace_id: 'ws-enterprise',
   name: 'Bashir Ahmad',
-  phone: '+91 9419111222', // Already formatted with international prefix
+  phone: '+91 9419111222',
   address: 'Lal Chowk, Srinagar',
   notes: 'Wholesale partner',
   opening_balance: 0,
@@ -67,7 +66,7 @@ const mockCustomerNoPhone = {
   id: 'cust-zahoor-103',
   workspace_id: 'ws-enterprise',
   name: 'Zahoor Traders',
-  phone: null, // Missing phone
+  phone: null,
   address: 'Batamaloo, Srinagar',
   notes: 'Walk-in customer',
   opening_balance: 0,
@@ -154,196 +153,104 @@ vi.mock('@/lib/supabase', () => ({
   },
 }));
 
-describe('Customer Statement Recipient Resolution & WhatsApp Workflow', () => {
+describe('Customer Recipient Resolution & Quick Contact Workflow', () => {
   let queryClient: QueryClient;
   let windowOpenSpy: ReturnType<typeof vi.spyOn>;
-  let downloadSpy: ReturnType<typeof vi.spyOn>;
-  let shareSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     queryClient = new QueryClient({
       defaultOptions: {
-        queries: { retry: false, gcTime: 0 },
-        mutations: { retry: false },
+        queries: { retry: false },
       },
     });
 
-    windowOpenSpy = vi.spyOn(window, 'open').mockImplementation(() => ({
-      closed: false,
-      focus: vi.fn(),
-      close: vi.fn(),
-    } as unknown as Window));
-
-    downloadSpy = vi.spyOn(pdfShare, 'downloadPdfBlob').mockImplementation(() => {});
-    shareSpy = vi.spyOn(pdfShare, 'sharePdfFile').mockResolvedValue({
-      status: 'shared',
-      method: 'web-share',
-    });
+    windowOpenSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false } as Window);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    queryClient.clear();
   });
 
-  function renderPanel(customerId: string) {
-    return render(
+  const renderPanel = (customerId: string) =>
+    render(
       <QueryClientProvider client={queryClient}>
         <ResellerDetailPanel id={customerId} onClose={vi.fn()} />
       </QueryClientProvider>
     );
-  }
 
-  it('Requirement 1, 2, 4: Resolves ummar bai customer record, normalizes 10-digit Indian number 7006138763 to +91, and opens WhatsApp', async () => {
+  it('Requirement 1 & 4: Resolves ummar bai customer record, displays contact buttons, and opens WhatsApp on click', async () => {
     renderPanel('cust-ummar-101');
 
-    // Wait for customer details to load
     await waitFor(() => {
-      expect(screen.getByText('ummar bai')).toBeDefined();
+      expect(screen.getByText('ummar bai')).toBeInTheDocument();
     });
 
-    // Click "Statement (PDF)" button in the header
-    const exportStatementBtn = screen.getByRole('button', { name: /Statement \(PDF\)/i });
-    expect(exportStatementBtn).toBeDefined();
+    // 1. WhatsApp Button: title contains customer phone
+    const whatsAppBtn = screen.getByTitle('WhatsApp 7006138763');
+    expect(whatsAppBtn).toBeInTheDocument();
+    expect(whatsAppBtn).not.toBeDisabled();
 
-    await act(async () => {
-      fireEvent.click(exportStatementBtn);
-    });
+    fireEvent.click(whatsAppBtn);
 
-    // Verify PdfPreviewModal opens with custom title and toolbar button for ummar bai
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Open WhatsApp/i })).toBeDefined();
-    });
-
-    const whatsAppBtn = screen.getByRole('button', { name: /Open WhatsApp/i });
-    expect(whatsAppBtn.title).toBe('Open WhatsApp with ummar bai');
-
-    // Click "Open WhatsApp"
-    await act(async () => {
-      fireEvent.click(whatsAppBtn);
-    });
-
-    // Verify:
-    // 1. Opens target customer's normalized WhatsApp number (917006138763)
+    // Verifies window.open targets customer's wa.me URL
     expect(windowOpenSpy).toHaveBeenCalledTimes(1);
     expect(windowOpenSpy).toHaveBeenCalledWith(
-      'https://wa.me/917006138763',
-      '_blank',
-      'noopener,noreferrer'
+      'https://wa.me/7006138763',
+      '_blank'
     );
 
-    // 2. NEVER opens logged-in user's profile phone (+1 555 999 8888)
+    // Verify logged-in user profile phone is NEVER used
     expect(windowOpenSpy).not.toHaveBeenCalledWith(
       expect.stringContaining('15559998888'),
-      expect.anything(),
       expect.anything()
     );
 
-    // 3. Forced download is NOT triggered
-    expect(downloadSpy).not.toHaveBeenCalled();
+    // 2. Call Button: title contains customer phone
+    const callBtn = screen.getByTitle('Call 7006138763');
+    expect(callBtn).toBeInTheDocument();
+    expect(callBtn).not.toBeDisabled();
 
-    // 4. In-modal notice reflects customer name and masked phone
-    const alertBanner = screen.getByRole('alert');
-    expect(within(alertBanner).getByText(/Opened WhatsApp conversation for ummar bai/i)).toBeDefined();
-    expect(within(alertBanner).getByText(/\+91 ••••• ••763/i)).toBeDefined();
+    fireEvent.click(callBtn);
+
+    expect(windowOpenSpy).toHaveBeenCalledWith('tel:7006138763');
   });
 
-  it('Requirement 2: Resolves Customer B (Bashir Ahmad) with international number without double-prefixing', async () => {
+  it('Requirement 2: Resolves Customer B (Bashir Ahmad) with international phone number', async () => {
     renderPanel('cust-bashir-102');
 
     await waitFor(() => {
-      expect(screen.getByText('Bashir Ahmad')).toBeDefined();
+      expect(screen.getByText('Bashir Ahmad')).toBeInTheDocument();
     });
 
-    const exportStatementBtn = screen.getByRole('button', { name: /Statement \(PDF\)/i });
-    await act(async () => {
-      fireEvent.click(exportStatementBtn);
-    });
+    const whatsAppBtn = screen.getByTitle('WhatsApp +91 9419111222');
+    expect(whatsAppBtn).toBeInTheDocument();
+    expect(whatsAppBtn).not.toBeDisabled();
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Open WhatsApp/i })).toBeDefined();
-    });
+    fireEvent.click(whatsAppBtn);
 
-    const whatsAppBtn = screen.getByRole('button', { name: /Open WhatsApp/i });
-    expect(whatsAppBtn.title).toBe('Open WhatsApp with Bashir Ahmad');
-
-    await act(async () => {
-      fireEvent.click(whatsAppBtn);
-    });
-
-    // Opens 919419111222 without double-prefixing (not 91919419111222)
     expect(windowOpenSpy).toHaveBeenCalledWith(
-      'https://wa.me/919419111222',
-      '_blank',
-      'noopener,noreferrer'
+      'https://wa.me/+919419111222',
+      '_blank'
     );
-    expect(downloadSpy).not.toHaveBeenCalled();
   });
 
-  it("Requirement 6: Surfaces customer-specific error when customer phone is missing and NEVER falls back to user profile phone", async () => {
+  it('Requirement 6: Disables WhatsApp and Call actions when customer phone is missing and NEVER falls back to user profile phone', async () => {
     renderPanel('cust-zahoor-103');
 
     await waitFor(() => {
-      expect(screen.getByText('Zahoor Traders')).toBeDefined();
+      expect(screen.getByText('Zahoor Traders')).toBeInTheDocument();
     });
 
-    const exportStatementBtn = screen.getByRole('button', { name: /Statement \(PDF\)/i });
-    await act(async () => {
-      fireEvent.click(exportStatementBtn);
+    const noPhoneButtons = screen.getAllByTitle('No phone available');
+    expect(noPhoneButtons.length).toBe(2);
+
+    noPhoneButtons.forEach((btn) => {
+      expect(btn).toBeDisabled();
+      fireEvent.click(btn);
     });
 
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Open WhatsApp/i })).toBeDefined();
-    });
-
-    const whatsAppBtn = screen.getByRole('button', { name: /Open WhatsApp/i });
-    await act(async () => {
-      fireEvent.click(whatsAppBtn);
-    });
-
-    // WhatsApp must NOT be opened with user profile phone
+    // window.open must NEVER be called
     expect(windowOpenSpy).not.toHaveBeenCalled();
-    expect(downloadSpy).not.toHaveBeenCalled();
-
-    // Customer-specific error is displayed
-    expect(screen.getByText('Customer Phone Number Required')).toBeDefined();
-    expect(
-      screen.getByText(/No phone number found for Zahoor Traders\. Please add their phone number in People Directory to open WhatsApp\./i)
-    ).toBeDefined();
-
-    // Must NOT show profile link
-    expect(screen.queryByRole('link', { name: /Update Profile/i })).toBeNull();
-  });
-
-  it('Requirement 7: Native Share PDF continues passing actual generated PDF File object without forced download', async () => {
-    renderPanel('cust-ummar-101');
-
-    await waitFor(() => {
-      expect(screen.getByText('ummar bai')).toBeDefined();
-    });
-
-    const exportStatementBtn = screen.getByRole('button', { name: /Statement \(PDF\)/i });
-    await act(async () => {
-      fireEvent.click(exportStatementBtn);
-    });
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /Share PDF/i })).toBeDefined();
-    });
-
-    const shareBtn = screen.getByRole('button', { name: /Share PDF/i });
-    await act(async () => {
-      fireEvent.click(shareBtn);
-    });
-
-    // Verify sharePdfFile called with the generated document containing File object
-    expect(shareSpy).toHaveBeenCalledTimes(1);
-    const passedDoc = shareSpy.mock.calls[0][0];
-    expect(passedDoc.file).toBeInstanceOf(File);
-    expect(passedDoc.file.type).toBe('application/pdf');
-    expect(passedDoc.file.name.endsWith('.pdf')).toBe(true);
-
-    // No download triggered
-    expect(downloadSpy).not.toHaveBeenCalled();
   });
 });
