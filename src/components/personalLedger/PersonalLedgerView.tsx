@@ -432,7 +432,7 @@ export default function PersonalLedgerView() {
                   className="w-full px-3.5 py-2 text-left text-xs font-bold text-indigo-800 hover:bg-indigo-50 flex items-center gap-2 cursor-pointer"
                 >
                   <HandCoins className="h-4 w-4 text-indigo-600" />
-                  + Receive Qarz (I Borrowed)
+                  + Take Qarz (Money We Received)
                 </button>
               </div>
             )}
@@ -729,7 +729,7 @@ export default function PersonalLedgerView() {
                         )}
                         {row.type === "QARZ_RECEIVED" && (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
-                            <HandCoins className="h-3 w-3 text-indigo-700" /> Qarz Received
+                            <HandCoins className="h-3 w-3 text-indigo-700" /> Qarz Taken
                           </span>
                         )}
                         {row.type === "REPAYMENT_RECEIVED" && (

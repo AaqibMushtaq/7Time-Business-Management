@@ -21,20 +21,20 @@ export default function ResellerDetailPage() {
   }
 
   return (
-    <div className="space-y-0">
+    <div className="w-full min-w-0 space-y-0">
       {/* Breadcrumb Navigation */}
       <nav
         aria-label="Breadcrumb"
-        className="flex items-center gap-1.5 text-sm text-[#52627A] py-3 border-b border-[#D9E0E8] mb-4"
+        className="flex items-center gap-1.5 text-xs sm:text-sm text-[#52627A] py-2 border-b border-[#D9E0E8] mb-2 sm:mb-3"
       >
-        <Users className="h-4 w-4 text-[#2563EB] shrink-0" />
+        <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#2563EB] shrink-0" />
         <Link
           to="/local-customers"
           className="font-medium text-[#2563EB] hover:text-[#1D4ED8] hover:underline transition-colors"
         >
           Personal Ledger
         </Link>
-        <ChevronRight className="h-4 w-4 text-[#D9E0E8] shrink-0" />
+        <ChevronRight className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-[#D9E0E8] shrink-0" />
         <span className="font-semibold text-[#172B4D] truncate max-w-xs">
           Account Details
         </span>

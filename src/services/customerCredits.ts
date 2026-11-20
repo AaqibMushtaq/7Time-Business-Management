@@ -5,6 +5,16 @@ export type CustomerCreditType = "PRODUCT_CREDIT" | "CASH_LOAN" | "OTHER_CREDIT"
 export type CustomerCreditStatus = "PENDING" | "PARTIAL" | "PAID"
 export type CustomerCreditFundingSource = "7TIME_FUNDS" | "PERSONAL_FUNDS"
 
+export interface CustomerCreditItem {
+  id?: string
+  name: string
+  category?: string | null
+  quantity: number
+  unit: string
+  rate_per_unit: number
+  amount: number
+}
+
 export interface CustomerPaymentAllocation {
   id: string
   payment_id: string
@@ -45,6 +55,7 @@ export interface CustomerCredit {
   balance: number
   status: CustomerCreditStatus
   notes: string | null
+  items?: CustomerCreditItem[] | null
   created_at?: string
   updated_at?: string
   customer?: ResellerCustomer | null
@@ -75,6 +86,7 @@ export interface CreateCustomerCreditInput {
   // Other Credit / Notes
   description?: string | null
   total_amount: number
+  items?: CustomerCreditItem[] | null
   // Optional upfront payment on creation
   initial_payment_amount?: number
   initial_payment_method?: string
@@ -98,6 +110,7 @@ export interface UpdateCustomerCreditInput {
   rate_per_unit?: number | null
   description?: string | null
   total_amount?: number
+  items?: CustomerCreditItem[] | null
   notes?: string | null
 }
 
@@ -161,6 +174,93 @@ export interface CustomerLedgerSummary {
 }
 
 /**
+ * Authoritative financial calculation for line item amount: Quantity × Rate
+ * Rounded to 2 decimal places using cents precision to prevent floating-point drift.
+ */
+export function calculateLineAmount(quantity: number | string, rate: number | string): number {
+  const q = typeof quantity === "number" ? quantity : parseFloat(quantity)
+  const r = typeof rate === "number" ? rate : parseFloat(rate)
+  if (isNaN(q) || isNaN(r) || q <= 0 || r < 0) return 0
+  return Math.round(q * r * 100) / 100
+}
+
+/**
+ * Authoritative financial calculation for grand total: Sum of line amounts
+ * Uses integer cents accumulation to prevent IEEE 754 floating point inaccuracies.
+ */
+export function calculateGrandTotal(items: Array<{ quantity?: number | string; rate_per_unit?: number | string; rate?: number | string; amount?: number | string }>): number {
+  const totalCents = items.reduce((acc, item) => {
+    let lineAmt = 0
+    const hasExplicitAmount = item.amount !== undefined && item.amount !== null && item.amount !== ""
+    if (hasExplicitAmount) {
+      const parsedAmt = typeof item.amount === "number" ? item.amount : parseFloat(String(item.amount))
+      if (!isNaN(parsedAmt) && parsedAmt >= 0) {
+        lineAmt = parsedAmt
+      }
+    }
+
+    // If no explicit amount, compute from quantity and rate
+    if (lineAmt === 0 && (item.quantity !== undefined || item.rate !== undefined || item.rate_per_unit !== undefined)) {
+      const q = item.quantity !== undefined ? item.quantity : 1
+      const rateVal = item.rate_per_unit !== undefined ? item.rate_per_unit : (item.rate !== undefined ? item.rate : 0)
+      lineAmt = calculateLineAmount(q, rateVal)
+    }
+
+    return acc + Math.round(lineAmt * 100)
+  }, 0)
+  return totalCents / 100
+}
+
+/**
+ * Parse line items from CustomerCredit, supporting both:
+ * - New multi-item records stored as JSON in description
+ * - Historical/existing single-item records constructed from top-level fields
+ */
+export function parseCustomerCreditItems(credit: Partial<CustomerCredit>): CustomerCreditItem[] {
+  if (credit.description) {
+    try {
+      const parsed = JSON.parse(credit.description)
+      if (Array.isArray(parsed) && parsed.length > 0 && typeof parsed[0] === "object" && parsed[0]?.name) {
+        return parsed.map((item: any, idx: number) => {
+          const q = Number(item.quantity) || 1
+          const r = Number(item.rate_per_unit !== undefined ? item.rate_per_unit : (item.rate || 0))
+          const amt = Number(item.amount) || calculateLineAmount(q, r)
+          return {
+            id: item.id || `item-${idx + 1}`,
+            name: String(item.name || "").trim(),
+            category: item.category ? String(item.category).trim() : null,
+            quantity: q,
+            unit: item.unit ? String(item.unit).trim() : "pcs",
+            rate_per_unit: r,
+            amount: amt
+          }
+        })
+      }
+    } catch {
+      // description is not JSON, ignore
+    }
+  }
+
+  // Fallback to top-level single-item representation for PRODUCT_CREDIT
+  if (credit.entry_type === "PRODUCT_CREDIT" && credit.product_name) {
+    const qty = credit.quantity ?? 1
+    const tot = credit.total_amount ?? 0
+    const rate = credit.rate_per_unit ?? (qty > 0 ? Math.round((tot / qty) * 100) / 100 : tot)
+    return [{
+      id: "item-1",
+      name: credit.product_name,
+      category: credit.category || null,
+      quantity: qty,
+      unit: credit.unit || "pcs",
+      rate_per_unit: rate,
+      amount: tot
+    }]
+  }
+
+  return []
+}
+
+/**
  * Fetch credits for a specific customer or all customers.
  * Joins linked product and payment allocations with payment metadata.
  */
@@ -203,7 +303,10 @@ export async function getCustomerCredits(customerId?: string, workspace_id?: str
   const { data, error } = await query
 
   if (error) throw new Error(error.message)
-  return (data || []) as CustomerCredit[]
+  return ((data || []) as CustomerCredit[]).map((c) => ({
+    ...c,
+    items: parseCustomerCreditItems(c)
+  }))
 }
 
 /**
@@ -243,7 +346,9 @@ export async function getCustomerCreditById(id: string): Promise<CustomerCredit 
     throw new Error(error.message)
   }
 
-  return data as CustomerCredit
+  const credit = data as CustomerCredit
+  credit.items = parseCustomerCreditItems(credit)
+  return credit
 }
 
 /**
@@ -264,6 +369,7 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
     rate_per_unit,
     description,
     total_amount,
+    items,
     initial_payment_amount = 0,
     initial_payment_method = "CASH",
     initial_payment_reference,
@@ -271,17 +377,36 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
   } = input
 
   if (!customer_id) throw new Error("Customer profile is required.")
-  if (!total_amount || total_amount <= 0) throw new Error("Total amount must be greater than zero.")
+
+  let resolvedTotal = total_amount
+  let resolvedProductName = product_name
+  let resolvedCategory = category
+  let resolvedQuantity = quantity
+  let resolvedUnit = unit
+  let resolvedRatePerUnit = rate_per_unit
+  let resolvedDescription = description
+
+  if (entry_type === "PRODUCT_CREDIT" && items && items.length > 0) {
+    resolvedTotal = calculateGrandTotal(items)
+    resolvedProductName = items.length === 1 ? items[0].name.trim() : items.map(i => i.name.trim()).join(", ")
+    resolvedDescription = JSON.stringify(items)
+    resolvedQuantity = items.length === 1 ? (items[0].quantity ?? 1) : items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)
+    resolvedUnit = items.length === 1 ? (items[0].unit || "pcs") : (items.every(i => i.unit === items[0].unit) ? items[0].unit : "items")
+    resolvedRatePerUnit = items.length === 1 ? items[0].rate_per_unit : null
+    resolvedCategory = items.length === 1 ? (items[0].category || null) : (items.every(i => i.category === items[0].category) ? items[0].category || null : null)
+  }
+
+  if (!resolvedTotal || resolvedTotal <= 0) throw new Error("Total amount must be greater than zero.")
 
   // Validation according to entry type
   if (entry_type === "PRODUCT_CREDIT") {
-    if (!product_name || !product_name.trim()) {
+    if (!resolvedProductName || !resolvedProductName.trim()) {
       throw new Error("Product name is required for Product Credit.")
     }
   } else if (entry_type === "CASH_LOAN") {
     // Explicitly verify NO product name requirement
   } else if (entry_type === "OTHER_CREDIT") {
-    if (!description || !description.trim()) {
+    if (!resolvedDescription || !resolvedDescription.trim()) {
       throw new Error("Description is required for Other Credit.")
     }
   } else {
@@ -293,19 +418,19 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
     entry_type,
     entry_date,
     product_id: product_id || null,
-    product_name: entry_type === "PRODUCT_CREDIT" ? product_name?.trim() || null : null,
-    category: category?.trim() || null,
-    quantity: quantity ?? (entry_type === "PRODUCT_CREDIT" ? 1 : null),
-    unit: unit?.trim() || (entry_type === "PRODUCT_CREDIT" ? "pcs" : null),
-    rate_per_unit: rate_per_unit ?? (entry_type === "PRODUCT_CREDIT" && quantity ? total_amount / quantity : null),
-    description: entry_type === "OTHER_CREDIT" ? description?.trim() || null : (description?.trim() || null),
+    product_name: entry_type === "PRODUCT_CREDIT" ? resolvedProductName?.trim() || null : null,
+    category: resolvedCategory?.trim() || null,
+    quantity: resolvedQuantity ?? (entry_type === "PRODUCT_CREDIT" ? 1 : null),
+    unit: resolvedUnit?.trim() || (entry_type === "PRODUCT_CREDIT" ? "pcs" : null),
+    rate_per_unit: resolvedRatePerUnit ?? (entry_type === "PRODUCT_CREDIT" && resolvedQuantity ? resolvedTotal / resolvedQuantity : null),
+    description: entry_type === "OTHER_CREDIT" ? resolvedDescription?.trim() || null : (resolvedDescription?.trim() || null),
     funding_source: input.funding_source || null,
     account: input.account?.trim() || null,
     shopkeeper_name: input.shopkeeper_name?.trim() || null,
     purchase_location: input.purchase_location?.trim() || null,
-    total_amount: Number(total_amount),
+    total_amount: Number(resolvedTotal),
     amount_paid: 0,
-    balance: Number(total_amount),
+    balance: Number(resolvedTotal),
     status: "PENDING",
     notes: notes?.trim() || null,
     ...(input.workspace_id ? { workspace_id: input.workspace_id } : {})
@@ -321,7 +446,7 @@ export async function createCustomerCredit(input: CreateCustomerCreditInput): Pr
 
   // Handle optional initial upfront payment
   if (initial_payment_amount > 0) {
-    const paymentAmount = Math.min(Number(initial_payment_amount), Number(total_amount))
+    const paymentAmount = Math.min(Number(initial_payment_amount), Number(resolvedTotal))
     
     // 1. Record payment in reseller_payments
     const initPayPayload: any = {
@@ -387,6 +512,27 @@ export async function updateCustomerCredit(id: string, input: UpdateCustomerCred
       if (input.description !== undefined && (!input.description || !input.description.trim())) {
         throw new Error("Description is required for Other Credit.")
       }
+    }
+  }
+
+  if (input.items !== undefined) {
+    if (input.items && input.items.length > 0) {
+      updatePayload.description = JSON.stringify(input.items)
+      updatePayload.total_amount = calculateGrandTotal(input.items)
+      if (input.product_name === undefined) {
+        updatePayload.product_name = input.items.length === 1 ? input.items[0].name.trim() : input.items.map(i => i.name.trim()).join(", ")
+      }
+      if (input.quantity === undefined) {
+        updatePayload.quantity = input.items.length === 1 ? (input.items[0].quantity ?? 1) : input.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0)
+      }
+      if (input.unit === undefined) {
+        updatePayload.unit = input.items.length === 1 ? (input.items[0].unit || "pcs") : (input.items.every(i => i.unit === input.items[0].unit) ? input.items[0].unit : "items")
+      }
+      if (input.rate_per_unit === undefined) {
+        updatePayload.rate_per_unit = input.items.length === 1 ? input.items[0].rate_per_unit : null
+      }
+    } else {
+      updatePayload.description = null
     }
   }
 

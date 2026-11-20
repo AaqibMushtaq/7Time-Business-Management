@@ -36,9 +36,19 @@ export default function AddQarzModal({
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0])
   const [dueDate, setDueDate] = useState("")
   const [account, setAccount] = useState("Cash")
+  const [purpose, setPurpose] = useState("")
   const [notes, setNotes] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [prevIsOpen, setPrevIsOpen] = useState(false)
+
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
+    if (isOpen) {
+      setDirection(initialDirection)
+      setError(null)
+    }
+  }
 
   if (!isOpen) return null
 
@@ -57,6 +67,11 @@ export default function AddQarzModal({
       return
     }
 
+    const combinedNotes = [
+      purpose.trim() ? `Purpose: ${purpose.trim()}` : "",
+      notes.trim()
+    ].filter(Boolean).join("\n") || undefined
+
     try {
       setIsSubmitting(true)
       await onSubmit({
@@ -66,12 +81,13 @@ export default function AddQarzModal({
         transaction_date: date,
         account,
         due_date: dueDate.trim() || undefined,
-        notes: notes.trim() || undefined
+        notes: combinedNotes
       })
       onClose()
       setPersonName("")
       setAmount("")
       setDueDate("")
+      setPurpose("")
       setNotes("")
     } catch (err: any) {
       setError(err.message || "Failed to record Qarz entry.")
@@ -85,7 +101,7 @@ export default function AddQarzModal({
       <div className="w-full max-w-lg bg-white border border-[#D9E0E8] p-6 shadow-xl rounded-2xl animate-in fade-in zoom-in duration-150">
         <div className="flex items-center justify-between pb-3 border-b border-[#D9E0E8]">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
+            <div className={`p-2 rounded-xl ${direction === "GIVEN" ? "bg-purple-100 text-purple-700" : "bg-indigo-100 text-indigo-700"}`}>
               <HandCoins className="h-5 w-5" />
             </div>
             <div>
@@ -93,7 +109,9 @@ export default function AddQarzModal({
                 Record Qarz-e-Hasana (قرضِ حسنہ)
               </h3>
               <p className="text-xs text-[#52627A]">
-                Interest-free loan given to or received from an individual.
+                {direction === "GIVEN"
+                  ? "Qarz Given — Interest-free loan given to someone (Receivable asset)."
+                  : "Qarz Taken — Interest-free loan received from someone (Payable liability)."}
               </p>
             </div>
           </div>
@@ -137,28 +155,32 @@ export default function AddQarzModal({
               }`}
             >
               <ArrowDownLeft className="h-3.5 w-3.5 text-indigo-600" />
-              Qarz Received (I Borrowed)
+              Qarz Taken (Money We Received)
             </button>
           </div>
 
-          <div className="p-3 bg-purple-50/60 border border-purple-100 rounded-xl text-[11px] text-purple-900 flex items-start gap-2">
-            <Info className="h-4 w-4 shrink-0 text-purple-600 mt-0.5" />
+          <div className={`p-3 rounded-xl text-[11px] flex items-start gap-2 border ${
+            direction === "GIVEN"
+              ? "bg-purple-50/60 border-purple-100 text-purple-900"
+              : "bg-indigo-50/60 border-indigo-100 text-indigo-900"
+          }`}>
+            <Info className={`h-4 w-4 shrink-0 mt-0.5 ${direction === "GIVEN" ? "text-purple-600" : "text-indigo-600"}`} />
             <span>
               {direction === "GIVEN"
-                ? "This decreases your selected payment account balance and establishes an asset receivable. It is NOT counted as an expense."
-                : "This increases your selected payment account balance and establishes a payable liability. It is NOT counted as income."}
+                ? "This decreases your selected payment account balance and establishes an asset receivable. It is NOT counted as an operating expense."
+                : "This increases your selected payment account balance and establishes a payable liability. It is NOT counted as operating income/revenue."}
             </span>
           </div>
 
           {/* Person Name */}
           <div className="space-y-1.5">
             <Label htmlFor="qarz-person" className="text-xs font-bold text-[#172B4D]">
-              Person's Name *
+              Person&apos;s Name * <span className="text-[#52627A] font-normal">({direction === "GIVEN" ? "Recipient / Debtor" : "Lender / Creditor"})</span>
             </Label>
             <Input
               id="qarz-person"
               type="text"
-              placeholder="e.g. Tariq Ahmad, Brother Bilal"
+              placeholder={direction === "GIVEN" ? "e.g. Tariq Ahmad, Brother Bilal" : "e.g. Uncle Farooq, Hajji Sahab"}
               value={personName}
               onChange={(e) => setPersonName(e.target.value)}
               required
@@ -195,7 +217,7 @@ export default function AddQarzModal({
             {/* Date */}
             <div className="space-y-1.5">
               <Label htmlFor="qarz-date" className="text-xs font-bold text-[#172B4D]">
-                Transaction Date *
+                {direction === "GIVEN" ? "Disbursement Date *" : "Date Received *"}
               </Label>
               <Input
                 id="qarz-date"
@@ -211,7 +233,7 @@ export default function AddQarzModal({
             {/* Account */}
             <div className="space-y-1.5">
               <Label htmlFor="qarz-account" className="text-xs font-bold text-[#172B4D]">
-                {direction === "GIVEN" ? "Disbursed From Account *" : "Received Into Account *"}
+                {direction === "GIVEN" ? "Disbursed From Account *" : "Account Received Into *"}
               </Label>
               <select
                 id="qarz-account"
@@ -241,6 +263,20 @@ export default function AddQarzModal({
             </div>
           </div>
 
+          {/* Purpose / Description */}
+          <div className="space-y-1.5">
+            <Label htmlFor="qarz-purpose" className="text-xs font-bold text-[#172B4D]">
+              Purpose / Description (Optional)
+            </Label>
+            <Input
+              id="qarz-purpose"
+              type="text"
+              placeholder={direction === "GIVEN" ? "e.g. Medical emergency support, family assistance..." : "e.g. Business working capital bridging, equipment purchase..."}
+              value={purpose}
+              onChange={(e) => setPurpose(e.target.value)}
+            />
+          </div>
+
           {/* Notes */}
           <div className="space-y-1.5">
             <Label htmlFor="qarz-notes" className="text-xs font-bold text-[#172B4D]">
@@ -249,7 +285,7 @@ export default function AddQarzModal({
             <textarea
               id="qarz-notes"
               rows={2}
-              placeholder="e.g. For medical emergency, agreed repayment after next month..."
+              placeholder="e.g. Agreed repayment terms, reference details..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="w-full p-2.5 rounded-md border border-input bg-background text-xs resize-none"
@@ -263,10 +299,10 @@ export default function AddQarzModal({
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="bg-purple-700 hover:bg-purple-800 text-white font-bold"
+              className={`font-bold text-white ${direction === "GIVEN" ? "bg-purple-700 hover:bg-purple-800" : "bg-indigo-700 hover:bg-indigo-800"}`}
             >
               {isSubmitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-              {direction === "GIVEN" ? "Record Qarz Given" : "Record Qarz Received"}
+              {direction === "GIVEN" ? "Record Qarz Given" : "Record Qarz Taken"}
             </Button>
           </div>
         </form>

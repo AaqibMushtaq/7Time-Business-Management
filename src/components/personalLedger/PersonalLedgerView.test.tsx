@@ -84,6 +84,20 @@ describe('PersonalLedgerView Core Component', () => {
       },
     ]);
 
+    vi.spyOn(personalLedgerService, 'createPersonalQarzEntry').mockImplementation(async (data: any) => ({
+      ...data,
+      id: 'new-qarz-1',
+      amount_repaid: 0,
+      balance: data.original_amount,
+      status: 'OUTSTANDING',
+      repayments: [],
+    }));
+
+    vi.spyOn(personalLedgerService, 'recordPersonalQarzRepayment').mockImplementation(async (data: any) => ({
+      ...data,
+      id: 'new-repay-1',
+    }));
+
     vi.spyOn(resellersService, 'getResellersWithBalances').mockResolvedValue([
       {
         id: 'res-101',
@@ -182,6 +196,55 @@ describe('PersonalLedgerView Core Component', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Dr. Farooq' })).toBeInTheDocument();
       expect(screen.getByText('+91 9419123456')).toBeInTheDocument();
+      expect(screen.getByText('Qarz Given (Receivable)')).toBeInTheDocument();
+    });
+  });
+
+  it('opens Add Entry dropdown and records Qarz Taken with dedicated required and optional fields', async () => {
+    renderComponent();
+
+    // Open Add Entry dropdown
+    const addEntryBtn = await screen.findByRole('button', { name: /Add Entry/i });
+    fireEvent.click(addEntryBtn);
+
+    // Click "+ Take Qarz (Money We Received)"
+    const takeQarzOption = await screen.findByRole('button', { name: /\+ Take Qarz/i });
+    fireEvent.click(takeQarzOption);
+
+    // Modal opens with Qarz-e-Hasana title and Qarz Taken subtitle
+    expect(await screen.findByRole('heading', { name: /Record Qarz-e-Hasana/i })).toBeInTheDocument();
+    expect(screen.getByText(/Qarz Taken — Interest-free loan received/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Record Qarz Taken/i })).toBeInTheDocument();
+
+    // Fill in required fields
+    fireEvent.change(screen.getByLabelText(/Person's Name \*/i), {
+      target: { value: 'Uncle Bashir' },
+    });
+    fireEvent.change(screen.getByLabelText(/Loan Amount \(₹\) \*/i), {
+      target: { value: '25000' },
+    });
+    fireEvent.change(screen.getByLabelText(/Purpose \/ Description \(Optional\)/i), {
+      target: { value: 'Shop inventory bridging' },
+    });
+    fireEvent.change(screen.getByLabelText(/Notes \/ Mutual Terms \(Optional\)/i), {
+      target: { value: 'Agreed repayment in 3 months' },
+    });
+
+    // Submit the form
+    const submitBtn = screen.getByRole('button', { name: /Record Qarz Taken/i });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      expect(personalLedgerService.createPersonalQarzEntry).toHaveBeenCalledTimes(1);
+      expect(personalLedgerService.createPersonalQarzEntry).toHaveBeenCalledWith(
+        expect.objectContaining({
+          direction: 'RECEIVED',
+          person_name: 'Uncle Bashir',
+          original_amount: 25000,
+          account: 'Cash',
+          notes: 'Purpose: Shop inventory bridging\nAgreed repayment in 3 months',
+        })
+      );
     });
   });
 });
