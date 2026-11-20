@@ -18,23 +18,18 @@ import { useAuth } from "@/components/auth/useAuth"
 import { 
   Loader2, 
   Plus, 
-  Trash2, 
-  Pencil, 
   Wallet, 
   Search, 
   Users, 
-  Phone, 
-  MapPin, 
   X, 
   AlertCircle,
   Package,
-  Coins,
   BookOpen
 } from "lucide-react"
 import RecordResellerPaymentModal from "@/components/resellers/RecordResellerPaymentModal"
 import CreateCustomerCreditModal from "@/components/resellers/CreateCustomerCreditModal"
-import { ConfirmDialog, DataTable } from "@/components/shared"
-import type { DataTableColumn } from "@/components/shared/DataTable"
+import { ConfirmDialog } from "@/components/shared"
+import PersonCard from "@/components/resellers/PersonCard"
 import PersonalLedgerView from "@/components/personalLedger/PersonalLedgerView"
 
 type CustomerFilterType = "ALL" | "HAS_OUTSTANDING" | "HAS_CREDIT_BALANCE" | "HAS_PRODUCT_CREDIT" | "HAS_CASH_LOAN"
@@ -246,182 +241,6 @@ export default function ResellersPage() {
     }, 0)
   }, [resellers])
 
-  // Directory table column definitions (Exclusively Personal - NO 7TIME Funds columns)
-  const columns = useMemo((): DataTableColumn<ResellerCustomer>[] => [
-    {
-      id: "person",
-      header: "Person Details",
-      accessorFn: (row) => row.name,
-      cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-[#2563EB] font-bold uppercase text-xs shrink-0">
-            {row.name.substring(0, 2)}
-          </div>
-          <div>
-            <div className="font-bold text-[#172B4D] text-sm hover:text-[#2563EB] transition-colors">
-              {row.name}
-            </div>
-            <span className="text-[11px] text-[#66758A]">Click to open personal account ledger</span>
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "contact",
-      header: "Contact Info",
-      accessorFn: (row) => row.phone || "",
-      cell: ({ row }) => (
-        <div className="space-y-0.5 text-xs">
-          {row.phone ? (
-            <div className="flex items-center gap-1.5 text-[#172B4D] font-medium">
-              <Phone className="h-3 w-3 text-[#66758A]" />
-              <span>{row.phone}</span>
-            </div>
-          ) : (
-            <span className="text-[#66758A] italic">No phone</span>
-          )}
-          {row.address && (
-            <div className="flex items-center gap-1.5 text-[#52627A] max-w-[180px] truncate" title={row.address}>
-              <MapPin className="h-3 w-3 text-[#66758A] shrink-0" />
-              <span className="truncate">{row.address}</span>
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      id: "expense",
-      header: "Expense on Behalf",
-      accessorFn: (row) => Number(row.product_credit_outstanding || 0),
-      align: "right",
-      cell: ({ value }) => {
-        const v = value as number
-        return v > 0 ? (
-          <span className="font-bold text-sm font-mono text-[#087443]">{formatMoney(v)}</span>
-        ) : (
-          <span className="text-[#66758A] text-sm">-</span>
-        )
-      },
-    },
-    {
-      id: "loan",
-      header: "Qard Hasan (قرض)",
-      accessorFn: (row) => Number(row.cash_loan_outstanding || 0),
-      align: "right",
-      cell: ({ value }) => {
-        const v = value as number
-        return v > 0 ? (
-          <span className="font-bold text-sm font-mono text-[#92400E]">{formatMoney(v)}</span>
-        ) : (
-          <span className="text-[#66758A] text-sm">-</span>
-        )
-      },
-    },
-    {
-      id: "net_balance",
-      header: "Balance Status",
-      accessorFn: (row) => Number(row.outstanding || 0),
-      align: "right",
-      cell: ({ row }) => {
-        const receivable = Number(row.amount_they_owe_me !== undefined ? row.amount_they_owe_me : (row.total_owed || 0))
-        const payable = Number(row.amount_i_owe_them !== undefined ? row.amount_i_owe_them : (row.outstanding && row.outstanding < 0 ? Math.abs(row.outstanding) : 0))
-
-        if (receivable > 0) {
-          return (
-            <div className="text-right">
-              <span className="font-bold text-sm font-mono text-[#B42318]">
-                {formatMoney(receivable)}
-              </span>
-              <span className="block text-[10px] text-[#B42318] font-bold">They Owe Me</span>
-            </div>
-          )
-        }
-        if (payable > 0) {
-          return (
-            <div className="text-right">
-              <span className="font-bold text-sm font-mono text-[#2563EB]">
-                {formatMoney(payable)}
-              </span>
-              <span className="block text-[10px] text-[#2563EB] font-bold">I Owe Them</span>
-            </div>
-          )
-        }
-        return (
-          <div className="text-right">
-            <span className="text-[#087443] text-xs font-bold bg-[#EAF7EF] px-2 py-0.5 rounded-full">
-              Settled
-            </span>
-          </div>
-        )
-      },
-    },
-    {
-      id: "actions",
-      header: "Actions",
-      accessorFn: (row) => row.id,
-      align: "right",
-      cell: ({ row }) => (
-        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => openCreateCredit("PRODUCT_CREDIT", row, e)}
-            className="h-8 px-2 text-xs font-semibold text-[#087443] hover:bg-[#EAF7EF]"
-            title="Record Expense on Behalf"
-          >
-            <Package className="h-3.5 w-3.5 mr-1" />
-            + Expense
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => openCreateCredit("CASH_LOAN", row, e)}
-            className="h-8 px-2 text-xs font-semibold text-[#92400E] hover:bg-[#FFF4D6]"
-            title="Give Qard Hasan (Interest-free loan)"
-          >
-            <Coins className="h-3.5 w-3.5 mr-1" />
-            + Qard
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => openRecordPayment(row, e)}
-            className="h-8 px-2 text-xs font-semibold text-[#2563EB] hover:bg-[#EFF6FF]"
-            title="Record Settlement"
-          >
-            <Wallet className="h-3.5 w-3.5 mr-1" />
-            Settle
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => openEditCustomer(row, e)}
-            className="h-8 w-8 p-0 text-[#66758A] hover:text-[#172B4D] hover:bg-slate-100"
-            title="Edit Person Details"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </Button>
-
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation()
-              setCustomerToDelete({ id: row.id, name: row.name })
-            }}
-            className="h-8 w-8 p-0 text-[#66758A] hover:text-[#B42318] hover:bg-red-50"
-            title="Delete Person"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      ),
-    },
-  ], [openCreateCredit, openRecordPayment, openEditCustomer])
-
   return (
     <div className="space-y-6">
       {/* View Switcher Bar */}
@@ -611,17 +430,83 @@ export default function ResellersPage() {
             </div>
           </div>
 
-          {/* Contacts Data Table */}
-          <div className="bg-white border border-[#D9E0E8] rounded-2xl shadow-xs overflow-hidden">
-            <DataTable
-              columns={columns}
-              data={filteredResellers}
-              loading={isLoading}
-              onRowClick={(row) => navigate(`/local-customers/${row.id}`)}
-              searchPlaceholder="Search people..."
-              emptyMessage="No personal contacts found. Use the Add Person button above to create one."
-            />
-          </div>
+          {/* People & Contacts Responsive Card Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white border border-[#D9E0E8] rounded-2xl p-4 h-64 animate-pulse flex flex-col justify-between"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-slate-200 rounded-2xl shrink-0" />
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      <div className="h-4 bg-slate-200 rounded w-3/4" />
+                      <div className="h-3 bg-slate-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                  <div className="h-14 bg-slate-100 rounded-xl" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="h-12 bg-slate-100 rounded-xl" />
+                    <div className="h-12 bg-slate-100 rounded-xl" />
+                  </div>
+                  <div className="h-8 bg-slate-100 rounded-lg" />
+                </div>
+              ))}
+            </div>
+          ) : filteredResellers.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {filteredResellers.map((person) => (
+                <PersonCard
+                  key={person.id}
+                  person={person}
+                  onOpenDetails={(p) => navigate(`/local-customers/${p.id}`)}
+                  onRecordExpense={(p, e) => openCreateCredit("PRODUCT_CREDIT", p, e)}
+                  onGiveQard={(p, e) => openCreateCredit("CASH_LOAN", p, e)}
+                  onRecordSettlement={(p, e) => openRecordPayment(p, e)}
+                  onEdit={openEditCustomer}
+                  onDelete={(p, e) => {
+                    e.stopPropagation()
+                    setCustomerToDelete({ id: p.id, name: p.name })
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white border border-[#D9E0E8] rounded-2xl p-8 sm:p-12 text-center shadow-xs">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-[#66758A] mb-3">
+                <Users className="h-6 w-6" />
+              </div>
+              <h3 className="text-base font-bold text-[#172B4D]">No personal contacts found</h3>
+              <p className="text-xs text-[#52627A] max-w-sm mx-auto mt-1">
+                {searchQuery || filterType !== "ALL"
+                  ? "No contacts match your current filter or search criteria. Try resetting filters."
+                  : "Start tracking personal ledger entries by adding your first personal contact."}
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                {(searchQuery || filterType !== "ALL") && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSearchQuery("")
+                      setFilterType("ALL")
+                    }}
+                    className="text-xs border-[#D9E0E8] text-[#172B4D]"
+                  >
+                    Reset Filters
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  onClick={openAddCustomer}
+                  className="bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs"
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> + Add Person
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
