@@ -11,7 +11,11 @@ import {
   getCreditTypeBadgeClasses,
   getFundingSourceLabel,
   getFundingSourceBadgeClasses,
-  type CustomerCredit
+  calculateLineAmount,
+  calculateGrandTotal,
+  parseCustomerCreditItems,
+  type CustomerCredit,
+  type CustomerCreditItem
 } from "./customerCredits"
 import { supabase } from "@/lib/supabase"
 
@@ -2524,6 +2528,198 @@ describe("Customer Credits Service", () => {
       expect(historicalCredit.purchase_location).toBeNull()
       const summary = calculateCustomerLedgerSummary([historicalCredit], [], [], 0)
       expect(summary.productCreditTotal).toBe(500)
+    })
+  })
+
+  describe("Universal Multi-Item Expense & Service Entry", () => {
+    describe("Financial Calculations (calculateLineAmount & calculateGrandTotal)", () => {
+      it("calculates exact line amounts with integer precision", () => {
+        expect(calculateLineAmount(10, 150)).toBe(1500)
+        expect(calculateLineAmount(1, 850)).toBe(850)
+        expect(calculateLineAmount(1, 500)).toBe(500)
+      })
+
+      it("handles decimal quantities and rates without floating-point drift", () => {
+        expect(calculateLineAmount(2.5, 125.50)).toBe(313.75)
+        expect(calculateLineAmount("1.33", "95.20")).toBe(126.62)
+      })
+
+      it("returns 0 for zero or negative quantities or rates", () => {
+        expect(calculateLineAmount(0, 100)).toBe(0)
+        expect(calculateLineAmount(-5, 100)).toBe(0)
+        expect(calculateLineAmount(5, -10)).toBe(0)
+        expect(calculateLineAmount("", "")).toBe(0)
+      })
+
+      it("calculates grand total accurately summing all valid line amounts", () => {
+        const items = [
+          { quantity: 10, rate: 150 },
+          { quantity: 1, rate: 850 },
+          { quantity: 1, rate: 500 }
+        ]
+        expect(calculateGrandTotal(items)).toBe(2850)
+      })
+
+      it("calculates grand total with decimal line amounts avoiding precision errors", () => {
+        const items = [
+          { quantity: 2.5, rate: 125.50 }, // 313.75
+          { quantity: 1.33, rate: 95.20 }  // 126.62
+        ]
+        expect(calculateGrandTotal(items)).toBe(440.37)
+      })
+    })
+
+    describe("Line Items Serialization & Parsing (parseCustomerCreditItems)", () => {
+      it("parses multi-item JSON stored in description field", () => {
+        const credit: Partial<CustomerCredit> = {
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Petrol, Engine Oil, Mechanic Service",
+          total_amount: 2850,
+          description: JSON.stringify([
+            { id: "1", name: "Petrol", category: "Fuel", quantity: 10, unit: "litre", rate_per_unit: 150, amount: 1500 },
+            { id: "2", name: "Engine Oil", category: "Maintenance", quantity: 1, unit: "pcs", rate_per_unit: 850, amount: 850 },
+            { id: "3", name: "Mechanic Service", category: "Labour", quantity: 1, unit: "job", rate_per_unit: 500, amount: 500 }
+          ])
+        }
+
+        const items = parseCustomerCreditItems(credit)
+        expect(items).toHaveLength(3)
+        expect(items[0]).toEqual({
+          id: "1",
+          name: "Petrol",
+          category: "Fuel",
+          quantity: 10,
+          unit: "litre",
+          rate_per_unit: 150,
+          amount: 1500
+        })
+        expect(items[1].name).toBe("Engine Oil")
+        expect(items[2].name).toBe("Mechanic Service")
+      })
+
+      it("falls back to top-level single item for historical records without JSON description", () => {
+        const legacyCredit: Partial<CustomerCredit> = {
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Cooking Oil 5L",
+          category: "Groceries",
+          quantity: 2,
+          unit: "cans",
+          rate_per_unit: 425,
+          total_amount: 850,
+          description: null
+        }
+
+        const items = parseCustomerCreditItems(legacyCredit)
+        expect(items).toHaveLength(1)
+        expect(items[0]).toEqual({
+          id: "item-1",
+          name: "Cooking Oil 5L",
+          category: "Groceries",
+          quantity: 2,
+          unit: "cans",
+          rate_per_unit: 425,
+          amount: 850
+        })
+      })
+
+      it("returns empty array for non-product credit or records without product name", () => {
+        expect(parseCustomerCreditItems({ entry_type: "CASH_LOAN", total_amount: 1000 })).toEqual([])
+        expect(parseCustomerCreditItems({ entry_type: "OTHER_CREDIT", description: "Lump sum service" })).toEqual([])
+      })
+    })
+
+    describe("Parent Transaction Integrity & Double-Entry Prevention", () => {
+      it("creates exactly ONE parent credit record with serialized items payload", async () => {
+        const mockInsert = vi.fn().mockReturnValue({
+          select: vi.fn().mockReturnValue({
+            single: vi.fn().mockResolvedValue({
+              data: {
+                id: "credit-multi-1",
+                customer_id: "cust-1",
+                entry_type: "PRODUCT_CREDIT",
+                entry_date: "2026-11-16",
+                product_name: "Petrol, Engine Oil, Mechanic Service",
+                total_amount: 2850,
+                amount_paid: 0,
+                balance: 2850,
+                status: "PENDING",
+                description: JSON.stringify([
+                  { name: "Petrol", quantity: 10, unit: "litre", rate_per_unit: 150, amount: 1500 },
+                  { name: "Engine Oil", quantity: 1, unit: "pcs", rate_per_unit: 850, amount: 850 },
+                  { name: "Mechanic Service", quantity: 1, unit: "job", rate_per_unit: 500, amount: 500 }
+                ])
+              },
+              error: null
+            })
+          })
+        })
+
+        const mockSingle = vi.fn().mockResolvedValue({
+          data: {
+            id: "credit-multi-1",
+            customer_id: "cust-1",
+            entry_type: "PRODUCT_CREDIT",
+            entry_date: "2026-11-16",
+            product_name: "Petrol, Engine Oil, Mechanic Service",
+            total_amount: 2850,
+            amount_paid: 0,
+            balance: 2850,
+            status: "PENDING",
+            description: JSON.stringify([
+              { name: "Petrol", quantity: 10, unit: "litre", rate_per_unit: 150, amount: 1500 },
+              { name: "Engine Oil", quantity: 1, unit: "pcs", rate_per_unit: 850, amount: 850 },
+              { name: "Mechanic Service", quantity: 1, unit: "job", rate_per_unit: 500, amount: 500 }
+            ])
+          },
+          error: null
+        })
+
+        const originalFrom = supabase.from
+        supabase.from = vi.fn().mockImplementation((table: string) => {
+          if (table === "customer_credits") {
+            return {
+              insert: mockInsert,
+              select: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  single: mockSingle
+                })
+              })
+            }
+          }
+          return (originalFrom as any)(table)
+        })
+
+        const multiItems: CustomerCreditItem[] = [
+          { name: "Petrol", quantity: 10, unit: "litre", rate_per_unit: 150, amount: 1500 },
+          { name: "Engine Oil", quantity: 1, unit: "pcs", rate_per_unit: 850, amount: 850 },
+          { name: "Mechanic Service", quantity: 1, unit: "job", rate_per_unit: 500, amount: 500 }
+        ]
+
+        const result = await createCustomerCredit({
+          customer_id: "cust-1",
+          entry_type: "PRODUCT_CREDIT",
+          shopkeeper_name: "Highway Auto & Fuel Services",
+          total_amount: 2850,
+          items: multiItems
+        })
+
+        // Exactly 1 insert call into customer_credits (no duplicate customer obligations per row)
+        expect(mockInsert).toHaveBeenCalledTimes(1)
+        expect(mockInsert).toHaveBeenCalledWith([
+          expect.objectContaining({
+            customer_id: "cust-1",
+            entry_type: "PRODUCT_CREDIT",
+            product_name: "Petrol, Engine Oil, Mechanic Service",
+            total_amount: 2850,
+            shopkeeper_name: "Highway Auto & Fuel Services"
+          })
+        ])
+
+        expect(result.items).toHaveLength(3)
+        expect(result.total_amount).toBe(2850)
+
+        supabase.from = originalFrom
+      })
     })
   })
 })

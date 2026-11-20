@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react"
 import { MemoryRouter, Routes, Route, Navigate } from "react-router-dom"
 import ResellersPage from "./index"
 import ResellerDetailPage from "./ResellerDetailPage"
@@ -15,6 +15,7 @@ import {
   getPersonalQarzEntries
 } from "@/services/personalLedger"
 import { supabase } from "@/lib/supabase"
+import { formatMoney } from "@/lib/utils"
 
 const { 
   mockCreateReseller, 
@@ -500,7 +501,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     expect(screen.getByText("PERSONAL")).toBeDefined()
   })
 
-  it("opens Record Expense on Behalf modal and renders simplified Paid From selector with Cash, Bank, UPI, Wallet", async () => {
+  it("opens Record Expense on Behalf modal and confirms Paid From and Quick-Pick sections are completely removed", async () => {
     renderApp()
 
     // Switch to People Directory
@@ -517,19 +518,23 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     expect(screen.queryByText(/Company business money/i)).toBeNull()
     expect(screen.queryByText(/Proprietor personal money/i)).toBeNull()
 
-    // New "Paid From" heading and helper text are rendered
-    expect(screen.getByText("Paid From")).toBeDefined()
-    expect(screen.getByText("Select where the money was paid from.")).toBeDefined()
+    // Paid From section is COMPLETELY REMOVED
+    expect(screen.queryByText("Paid From")).toBeNull()
+    expect(screen.queryByText("Select where the money was paid from.")).toBeNull()
+    expect(screen.queryByRole("button", { name: /Bank Account/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: /UPI/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: /Digital Wallet/i })).toBeNull()
+    expect(screen.queryByText(/Paid from Account:/i)).toBeNull()
 
-    // Account categories are rendered
-    expect(screen.getByRole("button", { name: /Cash/i })).toBeDefined()
-    expect(screen.getByRole("button", { name: /Bank Account/i })).toBeDefined()
-    expect(screen.getByRole("button", { name: /UPI/i })).toBeDefined()
-    expect(screen.getByRole("button", { name: /Digital Wallet/i })).toBeDefined()
-    expect(screen.getByRole("button", { name: /^Other$/i })).toBeDefined()
+    // Inventory Quick-Pick is COMPLETELY REMOVED
+    expect(screen.queryByText(/Quick-Pick:/i)).toBeNull()
+
+    // Manual-first items section is rendered
+    expect(screen.getByText("Items / Expenses")).toBeDefined()
+    expect(screen.getByLabelText(/Item \/ Expense Description \*/i)).toBeDefined()
   })
 
-  it("records Expense on Behalf selecting Bank Account as payment source and saves successfully", async () => {
+  it("records Expense on Behalf with simple manual entry (description and direct amount)", async () => {
     renderApp()
 
     const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
@@ -540,17 +545,12 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    // Fill Shopkeeper and Item / Expense fields
-    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "ABC Traders" } })
-    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Equipment Reimbursement" } })
-    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "6500" } })
+    // Fill Item Description and direct Amount
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Office Equipment Reimbursement" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "6500" } })
 
-    // Select Bank Account category
-    const bankAccountBtn = screen.getByRole("button", { name: /Bank Account/i })
-    fireEvent.click(bankAccountBtn)
-
-    // Verify indicator displays Bank Account
-    expect(screen.getByText(/Paid from Account:/i)).toBeDefined()
+    // Verify grand total displays 6500
+    expect(screen.getAllByText(formatMoney(6500))[0]).toBeDefined()
 
     // Submit form
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
@@ -561,10 +561,10 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Office Equipment Reimbursement",
-          shopkeeper_name: "ABC Traders",
+          shopkeeper_name: null,
           total_amount: 6500,
           funding_source: "PERSONAL_FUNDS",
-          account: "Bank Account",
+          account: null,
           notes: null
         }),
         expect.anything()
@@ -572,7 +572,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     })
   })
 
-  it("records Expense on Behalf with custom account string and saves structured account", async () => {
+  it("records multi-item expense with manual amounts and calculates exact grand total", async () => {
     renderApp()
 
     const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
@@ -583,17 +583,26 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Kashmir Oil Store" } })
-    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Vehicle Fuel Reimbursement" } })
-    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "2400" } })
+    // Row 1: Petrol ₹1500
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Petrol" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "1500" } })
 
-    // Select custom account option
-    const selectElem = screen.getByDisplayValue("Cash")
-    fireEvent.change(selectElem, { target: { value: "CUSTOM" } })
+    // Add Row 2: Medicine ₹250
+    const addRowBtn = screen.getByRole("button", { name: /Add Item \/ Expense/i })
+    fireEvent.click(addRowBtn)
 
-    // Enter custom account name
-    const customInput = screen.getByPlaceholderText(/Enter account name/i)
-    fireEvent.change(customInput, { target: { value: "HDFC Salary Account" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description 2/i), { target: { value: "Medicine" } })
+    fireEvent.change(screen.getByLabelText(/Amount 2/i), { target: { value: "250" } })
+
+    // Add Row 3: Transport ₹100
+    fireEvent.click(addRowBtn)
+
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description 3/i), { target: { value: "Transport" } })
+    fireEvent.change(screen.getByLabelText(/Amount 3/i), { target: { value: "100" } })
+
+    // Verify Total Items and Grand Total display (1500 + 250 + 100 = 1850)
+    expect(screen.getByText("3 Items")).toBeDefined()
+    expect(screen.getAllByText(formatMoney(1850))[0]).toBeDefined()
 
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
     fireEvent.click(submitBtn)
@@ -602,18 +611,17 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
       expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
-          product_name: "Vehicle Fuel Reimbursement",
-          shopkeeper_name: "Kashmir Oil Store",
-          total_amount: 2400,
-          account: "HDFC Salary Account",
-          notes: null
+          product_name: "Petrol, Medicine, Transport",
+          total_amount: 1850,
+          account: null,
+          funding_source: "PERSONAL_FUNDS"
         }),
         expect.anything()
       )
     })
   })
 
-  it("allows funding_source to be selected independently of account", async () => {
+  it("allows funding_source to be selected as 7TIME Business Funds without payment account dependency", async () => {
     renderApp()
 
     const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
@@ -622,16 +630,11 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
     fireEvent.click(recordExpenseBtn)
 
-    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "City Stationers" } })
-    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Office Supplies" } })
-    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "1200" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Office Supplies" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "1200" } })
 
-    // Select UPI account
-    const upiBtn = screen.getByRole("button", { name: /UPI/i })
-    fireEvent.click(upiBtn)
-
-    // Explicitly toggle Funding Source to Business Funds (displays as Business Funds, persists as 7TIME_FUNDS)
-    const businessFundsBtn = screen.getByRole("button", { name: /^Business Funds$/i })
+    // Explicitly toggle Funding Source to 7TIME Business Funds
+    const businessFundsBtn = screen.getByRole("button", { name: /7TIME Business Funds/i })
     fireEvent.click(businessFundsBtn)
 
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
@@ -642,9 +645,9 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Office Supplies",
-          shopkeeper_name: "City Stationers",
+          shopkeeper_name: null,
           total_amount: 1200,
-          account: "UPI",
+          account: null,
           funding_source: "7TIME_FUNDS",
           notes: null
         }),
@@ -653,7 +656,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     })
   })
 
-  it("preserves user remarks in notes without account string prefix or suffix", async () => {
+  it("preserves user remarks in notes with simplified direct entry", async () => {
     renderApp()
 
     const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
@@ -664,12 +667,11 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "City Hardware" } })
-    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Hardware Tools" } })
-    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "3500" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Hardware Tools" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "3500" } })
 
     // Enter user remarks in Notes field
-    const notesInput = screen.getByPlaceholderText(/Any additional notes or transaction details/i)
+    const notesInput = screen.getByPlaceholderText(/Add any additional details or transaction notes/i)
     fireEvent.change(notesInput, { target: { value: "Purchased at City Hardware store with bill #889" } })
 
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
@@ -680,9 +682,9 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Hardware Tools",
-          shopkeeper_name: "City Hardware",
+          shopkeeper_name: null,
           total_amount: 3500,
-          account: "Cash",
+          account: null,
           notes: "Purchased at City Hardware store with bill #889"
         }),
         expect.anything()
@@ -690,7 +692,7 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
     })
   })
 
-  it("validates that Shopkeeper / Paid To is required for Expense on Behalf", async () => {
+  it("confirms Shopkeeper and Location inputs are removed from new-entry UI and records cleanly", async () => {
     renderApp()
 
     const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
@@ -701,33 +703,13 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    // Omit shopkeeper name but fill item name and amount
-    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Cooking Oil 5L" } })
-    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "850" } })
+    // Verify Shopkeeper and Location fields are not rendered
+    expect(screen.queryByLabelText(/Shopkeeper/i)).toBeNull()
+    expect(screen.queryByLabelText(/Purchase Location/i)).toBeNull()
 
-    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
-    fireEvent.click(submitBtn)
-
-    expect(await screen.findByText(/Shopkeeper \/ Paid To is required for Expense on Behalf/i)).toBeDefined()
-    expect(mockCreateCustomerCredit).not.toHaveBeenCalled()
-  })
-
-  it("records Expense on Behalf with both Shopkeeper and optional Purchase Location", async () => {
-    renderApp()
-
-    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
-    fireEvent.click(peopleDirTab)
-
-    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
-    fireEvent.click(recordExpenseBtn)
-
-    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
-
-    // Fill Shopkeeper and Location
-    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Hotel Afaq" } })
-    fireEvent.change(screen.getByLabelText(/Shop \/ Purchase Location/i), { target: { value: "Lal Chowk, Srinagar" } })
-    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Catering Dinner" } })
-    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "4800" } })
+    // Fill item description and amount
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Cooking Oil 5L" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "850" } })
 
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
     fireEvent.click(submitBtn)
@@ -736,11 +718,43 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
       expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
-          shopkeeper_name: "Hotel Afaq",
-          purchase_location: "Lal Chowk, Srinagar",
+          shopkeeper_name: null,
+          purchase_location: null,
+          product_name: "Cooking Oil 5L",
+          total_amount: 850,
+          account: null
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("records Expense on Behalf with null shopkeeper and purchase location", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Catering Dinner" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "4800" } })
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          shopkeeper_name: null,
+          purchase_location: null,
           product_name: "Catering Dinner",
           total_amount: 4800,
-          account: "Cash",
+          account: null,
           funding_source: "PERSONAL_FUNDS"
         }),
         expect.anything()
@@ -759,16 +773,15 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
 
     expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
 
-    fireEvent.change(screen.getByLabelText(/Shopkeeper \/ Paid To \*/i), { target: { value: "Bismillah General Store" } })
-    fireEvent.change(screen.getByLabelText(/Item \/ Expense Name \*/i), { target: { value: "Monthly Provisions" } })
-    fireEvent.change(screen.getByLabelText(/Total Amount Spent \(Rs\) \*/i), { target: { value: "5000" } })
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Monthly Provisions" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "5000" } })
 
     // Check upfront partial settlement
     const upfrontCheckbox = screen.getByLabelText(/Person paid partial settlement upfront\?/i)
     fireEvent.click(upfrontCheckbox)
 
     // Verify amount paid field appears
-    const upfrontAmountInput = screen.getByLabelText(/Amount Paid \(Rs\) \*/i)
+    const upfrontAmountInput = screen.getByLabelText(/Amount Paid \(₹\) \*/i)
     fireEvent.change(upfrontAmountInput, { target: { value: "2000" } })
 
     const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
@@ -779,9 +792,10 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         expect.objectContaining({
           entry_type: "PRODUCT_CREDIT",
           product_name: "Monthly Provisions",
-          shopkeeper_name: "Bismillah General Store",
+          shopkeeper_name: null,
           total_amount: 5000,
-          initial_payment_amount: 2000
+          initial_payment_amount: 2000,
+          account: null
         }),
         expect.anything()
       )
@@ -886,5 +900,290 @@ describe("Personal Ledger (Standalone Redesign + Qarz-e-Hasana)", () => {
         })
       )
     })
+  })
+
+  it("renders both funding source cards with correct titles and descriptions in Record Expense on Behalf modal", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // 1. 7TIME Business Funds Card
+    expect(screen.getByRole("button", { name: /7TIME Business Funds/i })).toBeDefined()
+    expect(screen.getByText("Money paid from 7TIME's own business funds.")).toBeDefined()
+
+    // 2. Personal Funds Card
+    expect(screen.getByRole("button", { name: /Personal Funds/i })).toBeDefined()
+    expect(screen.getByText("Money paid personally by the owner on behalf of this person.")).toBeDefined()
+
+    // Borrowed Funds must NOT be present
+    expect(screen.queryByRole("button", { name: /Borrowed Funds/i })).toBeNull()
+  })
+
+  it("records Expense on Behalf with 7TIME Business Funds and submits account as null", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Cement & Bricks" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "15000" } })
+
+    // Select 7TIME Business Funds
+    const businessFundsBtn = screen.getByRole("button", { name: /7TIME Business Funds/i })
+    fireEvent.click(businessFundsBtn)
+
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      expect(mockCreateCustomerCredit).toHaveBeenCalledTimes(1)
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          product_name: "Cement & Bricks",
+          shopkeeper_name: null,
+          total_amount: 15000,
+          account: null,
+          funding_source: "7TIME_FUNDS",
+          notes: null
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("records universal multi-item expense with multiple goods/services in ONE logical transaction", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // Verify Section Header and Subtitle
+    expect(screen.getByText("Items / Expenses")).toBeDefined()
+    expect(screen.getByText(/Describe anything purchased or paid for on behalf of this person/i)).toBeDefined()
+
+    // Row 1: Petrol (10 Litre @ 150 = 1500)
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Petrol" } })
+    const detailsToggle1 = screen.getByLabelText(/Add details for item 1/i)
+    fireEvent.click(detailsToggle1)
+
+    fireEvent.change(screen.getByLabelText(/Category 1/i), { target: { value: "Fuel" } })
+    fireEvent.change(screen.getByLabelText(/Quantity 1/i), { target: { value: "10" } })
+    fireEvent.change(screen.getByLabelText(/^Unit 1$/i), { target: { value: "litre" } })
+    fireEvent.change(screen.getByLabelText(/Rate \/ Unit 1/i), { target: { value: "150" } })
+
+    // Add Row 2: Engine Oil (1 Pcs @ 850 = 850)
+    const addRowBtn = screen.getByRole("button", { name: /Add Item \/ Expense/i })
+    fireEvent.click(addRowBtn)
+
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description 2/i), { target: { value: "Engine Oil" } })
+    const detailsToggle2 = screen.getByLabelText(/Add details for item 2/i)
+    fireEvent.click(detailsToggle2)
+
+    fireEvent.change(screen.getByLabelText(/Category 2/i), { target: { value: "Maintenance" } })
+    fireEvent.change(screen.getByLabelText(/Quantity 2/i), { target: { value: "1" } })
+    fireEvent.change(screen.getByLabelText(/^Unit 2$/i), { target: { value: "pcs" } })
+    fireEvent.change(screen.getByLabelText(/Rate \/ Unit 2/i), { target: { value: "850" } })
+
+    // Add Row 3: Mechanic Service (1 Job @ 500 = 500)
+    fireEvent.click(addRowBtn)
+
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description 3/i), { target: { value: "Mechanic Service" } })
+    const detailsToggle3 = screen.getByLabelText(/Add details for item 3/i)
+    fireEvent.click(detailsToggle3)
+
+    fireEvent.change(screen.getByLabelText(/Category 3/i), { target: { value: "Labour" } })
+    fireEvent.change(screen.getByLabelText(/Quantity 3/i), { target: { value: "1" } })
+    fireEvent.change(screen.getByLabelText(/^Unit 3$/i), { target: { value: "job" } })
+    fireEvent.change(screen.getByLabelText(/Rate \/ Unit 3/i), { target: { value: "500" } })
+
+    // Verify Total Items and Grand Total display (1500 + 850 + 500 = 2850)
+    expect(screen.getByText("3 Items")).toBeDefined()
+    expect(screen.getAllByText(formatMoney(2850))[0]).toBeDefined()
+
+    // Submit form
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    await waitFor(() => {
+      // Must create exactly ONE logical parent transaction (prevent double entries)
+      expect(mockCreateCustomerCredit).toHaveBeenCalledTimes(1)
+      expect(mockCreateCustomerCredit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entry_type: "PRODUCT_CREDIT",
+          shopkeeper_name: null,
+          product_name: "Petrol, Engine Oil, Mechanic Service",
+          total_amount: 2850,
+          account: null,
+          items: expect.arrayContaining([
+            expect.objectContaining({ name: "Petrol", quantity: 10, unit: "litre", rate_per_unit: 150, amount: 1500 }),
+            expect.objectContaining({ name: "Engine Oil", quantity: 1, unit: "pcs", rate_per_unit: 850, amount: 850 }),
+            expect.objectContaining({ name: "Mechanic Service", quantity: 1, unit: "job", rate_per_unit: 500, amount: 500 })
+          ])
+        }),
+        expect.anything()
+      )
+    })
+  })
+
+  it("handles duplicate and remove row actions with instant recalculation", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    // Row 1: Diesel ₹2000
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Diesel" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "2000" } })
+
+    expect(screen.getAllByText(formatMoney(2000))[0]).toBeDefined()
+
+    // Duplicate Row 1 -> should have 2 rows totaling 4000
+    const duplicateBtn = screen.getByLabelText(/Duplicate row 1/i)
+    fireEvent.click(duplicateBtn)
+
+    expect(screen.getByText("2 Items")).toBeDefined()
+    expect(screen.getAllByText(formatMoney(4000))[0]).toBeDefined()
+
+    // Remove Row 2 -> should revert back to 1 row totaling 2000
+    const removeBtn = screen.getByLabelText(/Remove row 2/i)
+    fireEvent.click(removeBtn)
+
+    expect(screen.getByText("1 Item")).toBeDefined()
+    expect(screen.getAllByText(formatMoney(2000))[0]).toBeDefined()
+
+    // Cannot remove the only remaining row (remove button is disabled)
+    const onlyRemoveBtn = screen.getByLabelText(/Remove row 1/i)
+    expect(onlyRemoveBtn).toHaveProperty("disabled", true)
+  })
+
+  it("validates row inputs and blocks submission on empty or invalid rows", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    // Leave Item Description empty and attempt submit
+    const submitBtn = screen.getByRole("button", { name: /Save Expense on Behalf/i })
+    fireEvent.click(submitBtn)
+
+    expect(await screen.findByText(/Row 1: Item \/ Expense Description is required/i)).toBeDefined()
+    expect(mockCreateCustomerCredit).not.toHaveBeenCalled()
+
+    // Fill Item Description but enter non-positive amount
+    fireEvent.change(screen.getByLabelText(/Item \/ Expense Description \*/i), { target: { value: "Filters" } })
+    fireEvent.change(screen.getByLabelText(/Amount \(₹\) \*/i), { target: { value: "0" } })
+
+    fireEvent.click(submitBtn)
+    expect(await screen.findByText(/Please enter a valid positive amount/i)).toBeDefined()
+    expect(mockCreateCustomerCredit).not.toHaveBeenCalled()
+  })
+
+  it("verifies responsive placeholders and accessible labels across the modal", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    const recordExpenseBtn = await screen.findByRole("button", { name: /\+ Record Expense on Behalf/i })
+    fireEvent.click(recordExpenseBtn)
+
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
+
+    // Verify main fields placeholders
+    expect(screen.getByPlaceholderText("e.g. Petrol, Medicine, Groceries, Repair")).toBeDefined()
+    expect(screen.getByPlaceholderText("Enter amount (₹)")).toBeDefined()
+    expect(screen.getByPlaceholderText("Add any additional details or transaction notes")).toBeDefined()
+
+    // Expand details and verify details placeholders
+    const detailsToggle = screen.getByLabelText(/Add details for item 1/i)
+    fireEvent.click(detailsToggle)
+
+    expect(screen.getByPlaceholderText("e.g. Food, Transport, Medical")).toBeDefined()
+    expect(screen.getByPlaceholderText("e.g. 2")).toBeDefined()
+    expect(screen.getByPlaceholderText("Enter rate (₹)")).toBeDefined()
+
+    // Enable partial settlement and verify upfront placeholders
+    const upfrontCheckbox = screen.getByLabelText(/Person paid partial settlement upfront\?/i)
+    fireEvent.click(upfrontCheckbox)
+
+    expect(screen.getByPlaceholderText("Enter amount already paid (₹)")).toBeDefined()
+    expect(screen.getByPlaceholderText("e.g. UPI Ref, Cheque No, Transaction ID")).toBeDefined()
+  })
+
+  it("renders People Directory as a responsive person card grid with all card details and actions", async () => {
+    renderApp()
+
+    const peopleDirTab = await screen.findByRole("button", { name: /People Directory/i })
+    fireEvent.click(peopleDirTab)
+
+    expect(await screen.findByText("People & Contacts Directory")).toBeDefined()
+
+    // Verify card containers exist with test IDs
+    const card1 = screen.getByTestId("person-card-cust-1")
+    const card2 = screen.getByTestId("person-card-cust-2")
+    expect(card1).toBeDefined()
+    expect(card2).toBeDefined()
+
+    // Verify card 1 details (Ishfaq ATM - owes money)
+    expect(within(card1).getByText("IA")).toBeDefined() // Initials
+    expect(within(card1).getByText("Ishfaq ATM")).toBeDefined()
+    expect(within(card1).getByText("+91 9876543210")).toBeDefined()
+    expect(within(card1).getByText("They Owe Me")).toBeDefined()
+    expect(within(card1).getByText("₹4,000.00")).toBeDefined() // Net balance
+
+    // Verify card 2 details (Tariq Wholesale - settled)
+    expect(within(card2).getByText("TW")).toBeDefined() // Initials
+    expect(within(card2).getByText("Tariq Wholesale")).toBeDefined()
+    expect(within(card2).getByText("+91 9123456789")).toBeDefined()
+    expect(within(card2).getAllByText("Settled").length).toBeGreaterThanOrEqual(1)
+
+    // Test filter: "They Owe Me"
+    const theyOweMeFilter = screen.getByRole("button", { name: /They Owe Me/i })
+    fireEvent.click(theyOweMeFilter)
+    expect(screen.getByText("Ishfaq ATM")).toBeDefined()
+    expect(screen.queryByText("Tariq Wholesale")).toBeNull()
+
+    // Test filter: "All Contacts"
+    const allContactsFilter = screen.getByRole("button", { name: /All Contacts/i })
+    fireEvent.click(allContactsFilter)
+    expect(screen.getByText("Ishfaq ATM")).toBeDefined()
+    expect(screen.getByText("Tariq Wholesale")).toBeDefined()
+
+    // Test search filter: type "Wholesale"
+    const searchInput = screen.getByPlaceholderText("Search people...")
+    fireEvent.change(searchInput, { target: { value: "Wholesale" } })
+    expect(screen.queryByText("Ishfaq ATM")).toBeNull()
+    expect(screen.getByText("Tariq Wholesale")).toBeDefined()
+
+    // Test search filter: clear search
+    fireEvent.change(searchInput, { target: { value: "" } })
+    expect(screen.getByText("Ishfaq ATM")).toBeDefined()
+    expect(screen.getByText("Tariq Wholesale")).toBeDefined()
+
+    // Test card action: + Expense button on Ishfaq ATM opens modal
+    const expenseBtns = screen.getAllByRole("button", { name: /\+ Expense/i })
+    fireEvent.click(expenseBtns[1]) // First is in top header, second is on card
+    expect(await screen.findByText("Record Expense on Behalf")).toBeDefined()
   })
 })

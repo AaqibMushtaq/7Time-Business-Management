@@ -59,12 +59,12 @@ import {
   TableRow,
   TableCell
 } from "@/components/ui/table"
-import { ResponsiveTable } from "@/components/shared"
 import CreateCustomerCreditModal from "./CreateCustomerCreditModal"
 import RecordResellerPaymentModal from "./RecordResellerPaymentModal"
 import EditCustomerProfileModal from "./EditCustomerProfileModal"
 import AllocatePaymentModal from "./AllocatePaymentModal"
 import EditResellerPaymentModal from "./EditResellerPaymentModal"
+import PersonalLedgerEntryDetailModal, { type DetailEntry } from "./PersonalLedgerEntryDetailModal"
 
 interface ResellerDetailPanelProps {
   id: string
@@ -102,6 +102,30 @@ export default function ResellerDetailPanel({
   // Confirmation dialogs
   const [creditToDelete, setCreditToDelete] = useState<CustomerCredit | null>(null)
   const [paymentToVoid, setPaymentToVoid] = useState<ResellerPayment | null>(null)
+
+  // Read-only Entry Details Modal
+  const [selectedDetailEntry, setSelectedDetailEntry] = useState<DetailEntry | null>(null)
+
+  const handleOpenCreditDetails = (creditId: string) => {
+    const credit = customerCredits.find(c => c.id === creditId)
+    if (credit) {
+      setSelectedDetailEntry({ type: "CREDIT", data: credit })
+    }
+  }
+
+  const handleOpenPaymentDetails = (paymentId: string) => {
+    const payment = payments.find(p => p.id === paymentId)
+    if (payment) {
+      setSelectedDetailEntry({ type: "SETTLEMENT", data: payment })
+    }
+  }
+
+  const handleOpenSaleDetails = (saleId: string) => {
+    const sale = sales.find(s => s.id === saleId)
+    if (sale) {
+      setSelectedDetailEntry({ type: "SALE", data: sale })
+    }
+  }
 
   // Auto-allocate state
   const [isAutoAllocating, setIsAutoAllocating] = useState<boolean>(false)
@@ -327,11 +351,6 @@ export default function ResellerDetailPanel({
       return
     }
 
-    if (editFormData.entry_type === "PRODUCT_CREDIT" && !editFormData.shopkeeper_name.trim()) {
-      setEditInlineError("Shopkeeper / Paid To is required for Expense on Behalf.")
-      return
-    }
-
     if (editFormData.entry_type === "OTHER_CREDIT" && !editFormData.description.trim()) {
       setEditInlineError("Description is required for Other Credit.")
       return
@@ -503,6 +522,16 @@ export default function ResellerDetailPanel({
         />
       )}
 
+      {/* Read-Only Entry Details Modal */}
+      {selectedDetailEntry && (
+        <PersonalLedgerEntryDetailModal
+          isOpen={!!selectedDetailEntry}
+          onClose={() => setSelectedDetailEntry(null)}
+          entry={selectedDetailEntry}
+          person={reseller}
+        />
+      )}
+
       {/* Confirmation Dialog: Delete Ledger Entry */}
       {creditToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
@@ -584,18 +613,18 @@ export default function ResellerDetailPanel({
       )}
 
       {/* Sticky Top Header */}
-      <div className="sticky top-0 z-10 bg-[#FFFFFF] border-b border-[#D9E0E8] p-5 sm:p-6 space-y-5 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="h-14 w-14 rounded-2xl flex items-center justify-center bg-[#EBF2FE] border border-[#BFDBFE] text-[#2563EB] font-bold uppercase shrink-0 text-xl shadow-xs">
+      <div className="sticky top-0 z-10 bg-[#FFFFFF] border-b border-[#D9E0E8] p-3.5 sm:p-4 space-y-2.5 sm:space-y-3 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 sm:h-12 sm:w-12 rounded-xl flex items-center justify-center bg-[#EBF2FE] border border-[#BFDBFE] text-[#2563EB] font-bold uppercase shrink-0 text-base sm:text-lg shadow-xs">
               {reseller.name.substring(0, 2)}
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-2xl font-extrabold tracking-tight text-[#172B4D] leading-none">
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-[#172B4D] leading-none">
                   {reseller.name}
                 </h2>
-                <span className="bg-[#EBF2FE] text-[#2563EB] text-xs font-bold px-2.5 py-0.5 rounded-full border border-[#BFDBFE] uppercase tracking-wider">
+                <span className="bg-[#EBF2FE] text-[#2563EB] text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full border border-[#BFDBFE] uppercase tracking-wider">
                   Person Details
                 </span>
                 {/* Edit Profile Action */}
@@ -603,25 +632,25 @@ export default function ResellerDetailPanel({
                   variant="outline"
                   size="sm"
                   onClick={() => setIsEditProfileOpen(true)}
-                  className="h-7 text-xs font-semibold text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8] border-[#D9E0E8] gap-1 cursor-pointer"
+                  className="h-6 sm:h-7 text-[11px] sm:text-xs font-semibold text-[#52627A] hover:text-[#172B4D] hover:bg-[#F1F4F8] border-[#D9E0E8] gap-1 cursor-pointer px-2"
                 >
                   <Pencil className="h-3 w-3" /> Edit Details
                 </Button>
               </div>
 
-              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-[#52627A] font-medium">
+              <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-[11px] sm:text-xs text-[#52627A] font-medium">
                 {reseller.phone && (
                   <span className="flex items-center gap-1 text-[#52627A]">
                     <Phone className="h-3 w-3 text-[#52627A]" /> {reseller.phone}
                   </span>
                 )}
                 {reseller.address && (
-                  <span className="flex items-center gap-1 text-[#52627A] max-w-[280px] sm:max-w-md truncate" title={reseller.address}>
+                  <span className="flex items-center gap-1 text-[#52627A] max-w-[200px] sm:max-w-xs truncate" title={reseller.address}>
                     <MapPin className="h-3 w-3 text-[#52627A]" /> {reseller.address}
                   </span>
                 )}
                 {reseller.notes && (
-                  <span className="flex items-center gap-1 text-[#52627A] italic bg-[#FFF4D6] px-2 py-0.5 rounded border border-[#FDE68A] max-w-sm truncate" title={reseller.notes}>
+                  <span className="flex items-center gap-1 text-[#52627A] italic bg-[#FFF4D6] px-1.5 py-0.5 rounded border border-[#FDE68A] max-w-[200px] sm:max-w-xs truncate" title={reseller.notes}>
                     <FileText className="h-3 w-3 text-[#92400E]" /> {reseller.notes}
                   </span>
                 )}
@@ -631,7 +660,7 @@ export default function ResellerDetailPanel({
                   </span>
                 )}
                 {Number(reseller.opening_balance || 0) > 0 && (
-                  <span className="flex items-center gap-1 text-[#52627A] bg-[#F1F4F8] px-2 py-0.5 rounded border border-[#D9E0E8]">
+                  <span className="flex items-center gap-1 text-[#52627A] bg-[#F1F4F8] px-1.5 py-0.5 rounded border border-[#D9E0E8]">
                     <span>Opening Bal: {formatMoney(Number(reseller.opening_balance))}</span>
                     {ledgerSummary.openingBalanceOutstanding <= 0 ? (
                       <span className="text-[#087443] font-semibold">(Settled)</span>
@@ -645,58 +674,58 @@ export default function ResellerDetailPanel({
           </div>
 
           {/* Header Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {/* Quick Contact Buttons */}
-            <div className="flex gap-1 bg-[#F8F7F2] rounded-xl p-1 border border-[#D9E0E8]">
+            <div className="flex gap-0.5 bg-[#F8F7F2] rounded-lg p-0.5 border border-[#D9E0E8]">
               <Button
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 text-[#2563EB] hover:bg-[#EBF2FE] rounded-lg cursor-pointer"
+                className="h-7.5 w-7.5 text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer"
                 title={reseller.phone ? `Call ${reseller.phone}` : "No phone available"}
                 onClick={() => reseller.phone && window.open(`tel:${reseller.phone.replace(/[^\d+]/g, '')}`)}
                 disabled={!reseller.phone}
               >
-                <Phone className="h-4 w-4" />
+                <Phone className="h-3.5 w-3.5" />
               </Button>
               <Button
                 variant="ghost" 
                 size="icon" 
-                className="h-8 w-8 text-[#087443] hover:bg-[#EAF7EF] rounded-lg cursor-pointer"
+                className="h-7.5 w-7.5 text-[#087443] hover:bg-[#EAF7EF] rounded-md cursor-pointer"
                 title={reseller.phone ? `WhatsApp ${reseller.phone}` : "No phone available"}
                 onClick={() => {
                   if (reseller.phone) window.open(`https://wa.me/${reseller.phone.replace(/[^\d+]/g, '')}`, '_blank');
                 }}
                 disabled={!reseller.phone}
               >
-                <MessageCircle className="h-4 w-4" />
+                <MessageCircle className="h-3.5 w-3.5" />
               </Button>
             </div>
 
             {/* + Expense on Behalf */}
             <Button
               onClick={() => openAddCredit("PRODUCT_CREDIT")}
-              className="bg-[#087443] hover:bg-[#065F38] text-white font-semibold text-xs sm:text-sm shadow-xs cursor-pointer"
+              className="h-8 bg-[#087443] hover:bg-[#065F38] text-white font-semibold text-xs px-2.5 sm:px-3 shadow-xs cursor-pointer"
               size="sm"
             >
-              <Package className="mr-1.5 h-4 w-4" /> + Expense on Behalf
+              <Package className="mr-1.5 h-3.5 w-3.5" /> + Expense on Behalf
             </Button>
 
             {/* + Give Qard Hasan */}
             <Button
               onClick={() => openAddCredit("CASH_LOAN")}
-              className="bg-[#92400E] hover:bg-[#78350F] text-white font-semibold text-xs sm:text-sm shadow-xs cursor-pointer"
+              className="h-8 bg-[#92400E] hover:bg-[#78350F] text-white font-semibold text-xs px-2.5 sm:px-3 shadow-xs cursor-pointer"
               size="sm"
             >
-              <Coins className="mr-1.5 h-4 w-4" /> + Give Qard Hasan
+              <Coins className="mr-1.5 h-3.5 w-3.5" /> + Give Qard Hasan
             </Button>
 
             {/* + Other Personal */}
             <Button
               onClick={() => openAddCredit("OTHER_CREDIT")}
-              className="bg-[#6B21A8] hover:bg-[#581C87] text-white font-semibold text-xs sm:text-sm shadow-xs cursor-pointer"
+              className="h-8 bg-[#6B21A8] hover:bg-[#581C87] text-white font-semibold text-xs px-2.5 sm:px-3 shadow-xs cursor-pointer"
               size="sm"
             >
-              <FileText className="mr-1.5 h-4 w-4" /> + Other Personal
+              <FileText className="mr-1.5 h-3.5 w-3.5" /> + Other Personal
             </Button>
 
             {/* Primary Action: Record Settlement */}
@@ -705,10 +734,10 @@ export default function ResellerDetailPanel({
                 setRepayTargetCreditId(null)
                 setIsRepayModalOpen(true)
               }}
-              className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs font-semibold text-xs sm:text-sm cursor-pointer"
+              className="h-8 bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-xs font-semibold text-xs px-2.5 sm:px-3 cursor-pointer"
               size="sm"
             >
-              <Wallet className="mr-1.5 h-4 w-4" /> Record Settlement
+              <Wallet className="mr-1.5 h-3.5 w-3.5" /> Record Settlement
             </Button>
 
             {/* Close Modal Button */}
@@ -716,10 +745,10 @@ export default function ResellerDetailPanel({
               variant="ghost" 
               size="icon" 
               onClick={onClose} 
-              className="hover:bg-[#F1F4F8] rounded-full text-[#52627A] hover:text-[#172B4D] h-8 w-8 ml-1 cursor-pointer"
+              className="hover:bg-[#F1F4F8] rounded-full text-[#52627A] hover:text-[#172B4D] h-7.5 w-7.5 ml-0.5 cursor-pointer"
               title="Close Panel"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
@@ -729,109 +758,109 @@ export default function ResellerDetailPanel({
           const theyOweMe = ledgerSummary.amountTheyOweMe
           const iOweThem = ledgerSummary.amountIOweThem
           return (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-2.5">
               {/* Card 1: Amount They Owe Me (Receivables) */}
-              <Card className="bg-[#FFFFFF] rounded-2xl shadow-xs border border-[#D9E0E8]">
-                <CardHeader className="pb-1 pt-3.5 px-4">
-                  <CardTitle className="text-xs font-bold text-[#B42318] uppercase tracking-wider flex items-center justify-between">
-                    Receivable (They Owe Me)
-                    <Wallet className={`h-4 w-4 ${theyOweMe > 0 ? "text-[#B42318]" : "text-[#087443]"}`} />
+              <Card className="bg-[#FFFFFF] rounded-xl shadow-xs border border-[#D9E0E8]">
+                <CardHeader className="pb-0.5 pt-2.5 px-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-bold text-[#B42318] uppercase tracking-wider flex items-center justify-between">
+                    Receivable
+                    <Wallet className={`h-3.5 w-3.5 ${theyOweMe > 0 ? "text-[#B42318]" : "text-[#087443]"}`} />
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 pb-3.5">
-                  <div className={`text-xl lg:text-2xl font-extrabold ${theyOweMe > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
+                <CardContent className="px-3 pb-2.5 pt-0">
+                  <div className={`text-base sm:text-lg lg:text-xl font-bold font-mono tracking-tight ${theyOweMe > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
                     {formatMoney(theyOweMe)}
                   </div>
-                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${theyOweMe > 0 ? "text-[#B42318]/90" : "text-[#087443]/90"}`}>
+                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider truncate ${theyOweMe > 0 ? "text-[#B42318]/90" : "text-[#087443]/90"}`}>
                     {theyOweMe > 0 
-                      ? (ledgerSummary.unallocatedPayments > 0 ? `Receivable (${formatMoney(ledgerSummary.unallocatedPayments)} unallocated settlement)` : "Total Outstanding Receivable")
-                      : "Receivable Settled"}
+                      ? (ledgerSummary.unallocatedPayments > 0 ? `Unalloc: ${formatMoney(ledgerSummary.unallocatedPayments)}` : "Total Outstanding")
+                      : "Settled"}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Card 2: Amount I Owe Them (Customer Advances / Payables) */}
-              <Card className="bg-[#FFFFFF] rounded-2xl shadow-xs border border-[#D9E0E8]">
-                <CardHeader className="pb-1 pt-3.5 px-4">
-                  <CardTitle className="text-xs font-bold text-[#2563EB] uppercase tracking-wider flex items-center justify-between">
-                    Payable (I Owe Them)
-                    <Wallet className={`h-4 w-4 ${iOweThem > 0 ? "text-[#2563EB]" : "text-[#52627A]"}`} />
+              <Card className="bg-[#FFFFFF] rounded-xl shadow-xs border border-[#D9E0E8]">
+                <CardHeader className="pb-0.5 pt-2.5 px-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-bold text-[#2563EB] uppercase tracking-wider flex items-center justify-between">
+                    Payable
+                    <Wallet className={`h-3.5 w-3.5 ${iOweThem > 0 ? "text-[#2563EB]" : "text-[#52627A]"}`} />
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 pb-3.5">
-                  <div className={`text-xl lg:text-2xl font-extrabold ${iOweThem > 0 ? "text-[#2563EB]" : "text-[#172B4D]"}`}>
+                <CardContent className="px-3 pb-2.5 pt-0">
+                  <div className={`text-base sm:text-lg lg:text-xl font-bold font-mono tracking-tight ${iOweThem > 0 ? "text-[#2563EB]" : "text-[#172B4D]"}`}>
                     {formatMoney(iOweThem)}
                   </div>
-                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider ${iOweThem > 0 ? "text-[#2563EB]/90" : "text-[#52627A]"}`}>
-                    {iOweThem > 0 ? "Advance balance / Payable" : "No Payable Balance"}
+                  <p className={`text-[10px] font-bold uppercase mt-0.5 tracking-wider truncate ${iOweThem > 0 ? "text-[#2563EB]/90" : "text-[#52627A]"}`}>
+                    {iOweThem > 0 ? "Advance balance" : "No Balance"}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Card 3: Amount Spent on Behalf */}
-              <Card className="bg-[#FFFFFF] rounded-2xl border border-[#D9E0E8] shadow-xs">
-                <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
-                  <CardTitle className="text-xs font-bold text-[#087443] uppercase tracking-wider flex items-center gap-1.5">
-                    <Package className="h-3.5 w-3.5 text-[#087443]" /> Spent on Behalf
+              <Card className="bg-[#FFFFFF] rounded-xl border border-[#D9E0E8] shadow-xs">
+                <CardHeader className="pb-0.5 pt-2.5 px-3 flex flex-row items-center justify-between">
+                  <CardTitle className="text-[10px] sm:text-xs font-bold text-[#087443] uppercase tracking-wider flex items-center gap-1">
+                    <Package className="h-3.5 w-3.5 text-[#087443]" /> Spent
                   </CardTitle>
-                  <span className="text-[10px] bg-[#EAF7EF] text-[#087443] font-bold px-1.5 py-0.5 rounded border border-[#A6F4C5]">
-                    {ledgerSummary.productCreditCount} items
+                  <span className="text-[9px] bg-[#EAF7EF] text-[#087443] font-bold px-1.5 py-0.2 rounded border border-[#A6F4C5]">
+                    {ledgerSummary.productCreditCount}
                   </span>
                 </CardHeader>
-                <CardContent className="px-4 pb-3.5">
-                  <div className="text-xl lg:text-2xl font-extrabold text-[#087443]">
+                <CardContent className="px-3 pb-2.5 pt-0">
+                  <div className="text-base sm:text-lg lg:text-xl font-bold font-mono tracking-tight text-[#087443]">
                     {formatMoney(ledgerSummary.productCreditOutstanding)}
                   </div>
-                  <p className="text-[11px] text-[#52627A] mt-0.5">
-                    Spent: {formatMoney(ledgerSummary.productCreditTotal)} • Settled: {formatMoney(ledgerSummary.productCreditPaid)}
+                  <p className="text-[10px] text-[#52627A] mt-0.5 truncate">
+                    Spent: {formatMoney(ledgerSummary.productCreditTotal)} • Paid: {formatMoney(ledgerSummary.productCreditPaid)}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Card 4: Outstanding Qard Hasan */}
-              <Card className="bg-[#FFFFFF] rounded-2xl border border-[#D9E0E8] shadow-xs">
-                <CardHeader className="pb-1 pt-3.5 px-4 flex flex-row items-center justify-between">
-                  <CardTitle className="text-xs font-bold text-[#92400E] uppercase tracking-wider flex items-center gap-1.5">
+              <Card className="bg-[#FFFFFF] rounded-xl border border-[#D9E0E8] shadow-xs">
+                <CardHeader className="pb-0.5 pt-2.5 px-3 flex flex-row items-center justify-between">
+                  <CardTitle className="text-[10px] sm:text-xs font-bold text-[#92400E] uppercase tracking-wider flex items-center gap-1">
                     <Coins className="h-3.5 w-3.5 text-[#92400E]" /> Qard Hasan
                   </CardTitle>
-                  <span className="text-[10px] bg-[#FFF4D6] text-[#92400E] font-bold px-1.5 py-0.5 rounded border border-[#FDE68A]">
-                    {ledgerSummary.cashLoanCount} entries
+                  <span className="text-[9px] bg-[#FFF4D6] text-[#92400E] font-bold px-1.5 py-0.2 rounded border border-[#FDE68A]">
+                    {ledgerSummary.cashLoanCount}
                   </span>
                 </CardHeader>
-                <CardContent className="px-4 pb-3.5">
-                  <div className="text-xl lg:text-2xl font-extrabold text-[#92400E]">
+                <CardContent className="px-3 pb-2.5 pt-0">
+                  <div className="text-base sm:text-lg lg:text-xl font-bold font-mono tracking-tight text-[#92400E]">
                     {formatMoney(ledgerSummary.cashLoanOutstanding)}
                   </div>
-                  <p className="text-[11px] text-[#52627A] mt-0.5">
-                    Provided: {formatMoney(ledgerSummary.cashLoanTotal)} • Repaid: {formatMoney(ledgerSummary.cashLoanPaid)}
+                  <p className="text-[10px] text-[#52627A] mt-0.5 truncate">
+                    Given: {formatMoney(ledgerSummary.cashLoanTotal)} • Paid: {formatMoney(ledgerSummary.cashLoanPaid)}
                   </p>
                 </CardContent>
               </Card>
 
               {/* Card 5: Funding Source Breakdown */}
-              <Card className="bg-[#FFFFFF] rounded-2xl border border-[#D9E0E8] shadow-xs">
-                <CardHeader className="pb-1 pt-3.5 px-4">
-                  <CardTitle className="text-xs font-bold text-[#52627A] uppercase tracking-wider">
+              <Card className="bg-[#FFFFFF] rounded-xl border border-[#D9E0E8] shadow-xs col-span-2 sm:col-span-1">
+                <CardHeader className="pb-0.5 pt-2.5 px-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-bold text-[#52627A] uppercase tracking-wider">
                     Funding Source
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 pb-3.5 space-y-1">
-                  <div className="flex items-center justify-between text-xs font-bold">
+                <CardContent className="px-3 pb-2.5 pt-0 space-y-0.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold">
                     <span className="text-[#087443] flex items-center gap-1">
-                      <Building2 className="h-3 w-3" /> 7TIME:
+                      <Building2 className="h-2.5 w-2.5" /> 7TIME:
                     </span>
-                    <span className="text-[#087443]">{formatMoney(ledgerSummary.funds7TimeOutstanding)}</span>
+                    <span className="text-[#087443] font-mono">{formatMoney(ledgerSummary.funds7TimeOutstanding)}</span>
                   </div>
-                  <div className="flex items-center justify-between text-xs font-bold">
+                  <div className="flex items-center justify-between text-[11px] font-bold">
                     <span className="text-[#6B21A8] flex items-center gap-1">
-                      <UserCheck className="h-3 w-3" /> Personal:
+                      <UserCheck className="h-2.5 w-2.5" /> Personal:
                     </span>
-                    <span className="text-[#6B21A8]">{formatMoney(ledgerSummary.fundsPersonalOutstanding)}</span>
+                    <span className="text-[#6B21A8] font-mono">{formatMoney(ledgerSummary.fundsPersonalOutstanding)}</span>
                   </div>
                   {ledgerSummary.fundsUnallocatedOutstanding > 0 && (
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-[#52627A] pt-0.5 border-t border-[#D9E0E8]">
+                    <div className="flex items-center justify-between text-[10px] font-semibold text-[#52627A] pt-0.5 border-t border-[#D9E0E8]">
                       <span>Unalloc:</span>
-                      <span>{formatMoney(ledgerSummary.fundsUnallocatedOutstanding)}</span>
+                      <span className="font-mono">{formatMoney(ledgerSummary.fundsUnallocatedOutstanding)}</span>
                     </div>
                   )}
                 </CardContent>
@@ -844,8 +873,8 @@ export default function ResellerDetailPanel({
         {ledgerSummary.unallocatedPayments > 0 && (() => {
           const hasPendingCredits = customerCredits.some(c => Number(c.balance || 0) > 0.005)
           return (
-            <div className="p-3.5 bg-[#EBF2FE] border border-[#BFDBFE] text-[#172B4D] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-start gap-2.5">
+            <div className="p-2.5 sm:p-3 bg-[#EBF2FE] border border-[#BFDBFE] text-[#172B4D] rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+              <div className="flex items-start gap-2">
                 <Info className="h-4 w-4 text-[#2563EB] shrink-0 mt-0.5" />
                 <div>
                   <p className="font-semibold text-[#172B4D]">
@@ -853,14 +882,14 @@ export default function ResellerDetailPanel({
                       ? "Unallocated Settlement Reconciliation Notice"
                       : "Unallocated Settlement Notice (Account Advance)"}
                   </p>
-                  <p className="text-[#52627A] mt-0.5">
+                  <p className="text-[#52627A] mt-0.5 text-[11px]">
                     {hasPendingCredits ? (
                       <>
-                        Person has <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements that have not yet been mapped to specific ledger rows. Total Net Outstanding is accurately calculated as <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.netOutstanding)}</span>.
+                        Person has <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements not mapped to specific rows. Total Net Outstanding: <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.netOutstanding)}</span>.
                       </>
                     ) : (
                       <>
-                        Person has <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements with no outstanding ledger entries available for allocation (surplus / advance payment). Total Net Outstanding is accurately calculated as <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.netOutstanding)}</span>.
+                        Person has <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.unallocatedPayments)}</span> in recorded settlements with no outstanding entries (surplus). Total Net Outstanding: <span className="font-bold text-[#172B4D]">{formatMoney(ledgerSummary.netOutstanding)}</span>.
                       </>
                     )}
                   </p>
@@ -871,10 +900,10 @@ export default function ResellerDetailPanel({
                   size="sm"
                   onClick={handleAutoAllocate}
                   disabled={isAutoAllocating}
-                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs shrink-0 shadow-xs cursor-pointer"
+                  className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs shrink-0 shadow-xs cursor-pointer h-7 px-2.5"
                 >
-                  {isAutoAllocating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Wand2 className="h-3.5 w-3.5 mr-1.5" />}
-                  Auto-Allocate to Oldest Entries
+                  {isAutoAllocating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Wand2 className="h-3.5 w-3.5 mr-1" />}
+                  Auto-Allocate
                 </Button>
               )}
             </div>
@@ -882,14 +911,14 @@ export default function ResellerDetailPanel({
         })()}
 
         {autoAllocateMessage && (
-          <div className="p-3 bg-[#EAF7EF] border border-[#A6F4C5] text-[#087443] rounded-xl text-xs flex items-center gap-2">
+          <div className="p-2.5 bg-[#EAF7EF] border border-[#A6F4C5] text-[#087443] rounded-xl text-xs flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 text-[#087443] shrink-0" />
             <p className="font-semibold">{autoAllocateMessage}</p>
           </div>
         )}
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-4 sm:gap-6 -mb-5 border-b border-[#D9E0E8] overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-2 sm:gap-4 -mb-3.5 sm:-mb-4 border-b border-[#D9E0E8] overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab("all_credits")}
             className={`pb-3 pt-1 font-semibold text-sm transition-colors relative whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
@@ -996,27 +1025,27 @@ export default function ResellerDetailPanel({
       </div>
 
       {/* Main Tab Content */}
-      <div className="p-5 sm:p-6">
+      <div className="p-3 sm:p-4 min-w-0">
         {/* TAB 1: ALL CREDITS / PRODUCT CREDITS / CASH LOANS / OTHER CREDITS */}
         {["all_credits", "product_credit", "cash_loan", "other_credit"].includes(activeTab) && (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {/* Header controls: Search, Status Filter, Add Entry */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
               <div className="flex items-center gap-2 flex-1 max-w-md">
                 <div className="relative w-full">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-[#66758A]" />
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-[#66758A]" />
                   <Input
                     placeholder="Search item, description, notes..."
                     value={creditSearchQuery}
                     onChange={(e) => setCreditSearchQuery(e.target.value)}
-                    className="pl-9 h-9 text-xs border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] placeholder:text-[#66758A]"
+                    className="pl-8 h-8 text-xs border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] placeholder:text-[#66758A]"
                   />
                   {creditSearchQuery && (
                     <button
                       onClick={() => setCreditSearchQuery("")}
-                      className="absolute right-2.5 top-2.5 text-[#66758A] hover:text-[#172B4D]"
+                      className="absolute right-2 top-2 text-[#66758A] hover:text-[#172B4D] cursor-pointer"
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   )}
                 </div>
@@ -1024,7 +1053,7 @@ export default function ResellerDetailPanel({
                 <select
                   value={creditStatusFilter}
                   onChange={(e: any) => setCreditStatusFilter(e.target.value)}
-                  className="h-9 rounded-lg border border-[#D9E0E8] bg-[#FFFFFF] px-2.5 text-xs text-[#172B4D] shadow-xs focus:border-[#2563EB] focus:outline-hidden"
+                  className="h-8 rounded-lg border border-[#D9E0E8] bg-[#FFFFFF] px-2 text-xs text-[#172B4D] shadow-2xs focus:border-[#2563EB] focus:outline-hidden"
                 >
                   <option value="ALL">All Status</option>
                   <option value="PENDING">Pending</option>
@@ -1038,7 +1067,7 @@ export default function ResellerDetailPanel({
                   onClick={() => openAddCredit(activeTab === "cash_loan" ? "CASH_LOAN" : activeTab === "other_credit" ? "OTHER_CREDIT" : "PRODUCT_CREDIT")}
                   variant="outline"
                   size="sm"
-                  className="text-xs font-semibold bg-[#FFFFFF] border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] cursor-pointer"
+                  className="h-8 text-xs font-semibold bg-[#FFFFFF] border-[#D9E0E8] text-[#172B4D] hover:bg-[#F1F4F8] cursor-pointer px-2.5"
                 >
                   <Plus className="h-3.5 w-3.5 mr-1" /> Add Entry
                 </Button>
@@ -1047,7 +1076,7 @@ export default function ResellerDetailPanel({
 
             {/* Inline Error Notice */}
             {editInlineError && (
-              <div className="p-3 bg-[#FDECEC] border border-[#FCA5A5] text-[#B42318] rounded-xl text-xs flex items-center justify-between">
+              <div className="p-2.5 bg-[#FDECEC] border border-[#FCA5A5] text-[#B42318] rounded-xl text-xs flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 text-[#B42318] shrink-0" />
                   <span>{editInlineError}</span>
@@ -1065,504 +1094,989 @@ export default function ResellerDetailPanel({
                 <p className="text-xs text-[#52627A] mt-1">Use "+ Add Entry" or "+ Expense on Behalf" to record personal transactions.</p>
               </div>
             ) : (
-              <ResponsiveTable minWidth={1050}>
-                <Table className="border-collapse">
-                  <TableHeader>
-                    <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
-                      <TableHead className="w-8"></TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[100px] py-3.5 px-4">Date</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[110px] py-3.5 px-4">Type</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[130px] py-3.5 px-4">Funding & Account</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] min-w-[200px] py-3.5 px-4">Item / Description</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right min-w-[100px] py-3.5 px-4">Amount</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right min-w-[90px] py-3.5 px-4">Settled</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right min-w-[100px] py-3.5 px-4">Balance</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#52627A] text-center min-w-[80px] py-3.5 px-4">Status</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#52627A] text-right min-w-[130px] py-3.5 px-4">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCredits.map((credit) => {
-                      const badge = getCreditTypeBadgeClasses(credit.entry_type)
-                      const isExpanded = expandedCreditId === credit.id
-                      const isEditing = editingCreditId === credit.id
-                      const allocs = credit.allocations || []
+              <>
+                {/* Desktop & Laptop Table (≥768px) */}
+                <div className="hidden md:block w-full rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-2xs">
+                  <Table className="w-full table-fixed border-collapse">
+                    <colgroup>
+                      <col style={{ width: "28px" }} />
+                      <col style={{ width: "76px" }} />
+                      <col style={{ width: "88px" }} />
+                      <col style={{ width: "105px" }} />
+                      <col />
+                      <col style={{ width: "74px" }} />
+                      <col style={{ width: "68px" }} />
+                      <col style={{ width: "74px" }} />
+                      <col style={{ width: "58px" }} />
+                      <col style={{ width: "98px" }} />
+                    </colgroup>
+                    <TableHeader>
+                      <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+                        <TableHead className="w-7 p-0 text-center"></TableHead>
+                        <TableHead className="py-2.5 px-2 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Date</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Type</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Funding</TableHead>
+                        <TableHead className="py-2.5 px-2 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Item / Description</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Amount</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Settled</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Balance</TableHead>
+                        <TableHead className="py-2.5 px-1 text-center text-[11px] font-bold uppercase tracking-wider text-[#52627A]">Status</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-[#52627A]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCredits.map((credit) => {
+                        const badge = getCreditTypeBadgeClasses(credit.entry_type)
+                        const isExpanded = expandedCreditId === credit.id
+                        const isEditing = editingCreditId === credit.id
+                        const allocs = credit.allocations || []
 
-                      if (isEditing) {
-                        // INLINE EDIT ROW
-                        const editTot = parseFloat(editFormData.total_amount) || 0
-                        const previewBalance = Math.max(0, editTot - Number(credit.amount_paid || 0))
-                        const previewStatus = editTot <= Number(credit.amount_paid || 0) && editTot > 0
-                          ? "PAID"
-                          : Number(credit.amount_paid || 0) > 0
-                          ? "PARTIAL"
-                          : "PENDING"
+                        if (isEditing) {
+                          // INLINE EDIT ROW
+                          const editTot = parseFloat(editFormData.total_amount) || 0
+                          const previewBalance = Math.max(0, editTot - Number(credit.amount_paid || 0))
+                          const previewStatus = editTot <= Number(credit.amount_paid || 0) && editTot > 0
+                            ? "PAID"
+                            : Number(credit.amount_paid || 0) > 0
+                            ? "PARTIAL"
+                            : "PENDING"
 
+                          return (
+                            <TableRow key={credit.id} className="bg-[#EBF2FE]/60 border-2 border-[#BFDBFE]">
+                              <TableCell className="p-1"></TableCell>
+
+                              {/* Date Input */}
+                              <TableCell className="p-1">
+                                <Input
+                                  type="date"
+                                  value={editFormData.entry_date}
+                                  onChange={(e) => setEditFormData({ ...editFormData, entry_date: e.target.value })}
+                                  className="h-7 text-[11px] font-medium border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] p-1 font-mono"
+                                />
+                              </TableCell>
+
+                              {/* Type Select */}
+                              <TableCell className="p-1">
+                                <select
+                                  value={editFormData.entry_type}
+                                  onChange={(e: any) => setEditFormData({ ...editFormData, entry_type: e.target.value })}
+                                  className="h-7 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-1 text-[11px] font-semibold text-[#172B4D] shadow-2xs focus:border-[#2563EB] focus:outline-hidden w-full"
+                                >
+                                  <option value="PRODUCT_CREDIT">Expense on Behalf</option>
+                                  <option value="CASH_LOAN">Qard Hasan (قرض حسن)</option>
+                                  <option value="OTHER_CREDIT">Other Personal</option>
+                                </select>
+                              </TableCell>
+
+                              {/* Money Source & Account Select */}
+                              <TableCell className="p-1">
+                                <div className="space-y-1">
+                                  <select
+                                    value={editFormData.funding_source || ""}
+                                    onChange={(e: any) => setEditFormData({ ...editFormData, funding_source: (e.target.value as CustomerCreditFundingSource) || "" })}
+                                    className="h-6 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-1 text-[10px] font-semibold text-[#172B4D] shadow-2xs focus:border-[#2563EB] focus:outline-hidden w-full"
+                                  >
+                                    <option value="PERSONAL_FUNDS">Personal</option>
+                                    <option value="7TIME_FUNDS">7TIME</option>
+                                    {!editFormData.funding_source && <option value="">Unalloc</option>}
+                                  </select>
+                                  <Input
+                                    placeholder="Account"
+                                    value={editFormData.account}
+                                    onChange={(e) => setEditFormData({ ...editFormData, account: e.target.value })}
+                                    className="h-6 text-[10px] font-medium border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] p-1"
+                                  />
+                                </div>
+                              </TableCell>
+
+                              {/* Item / Details Inputs */}
+                              <TableCell className="p-1 min-w-0">
+                                <div className="space-y-1">
+                                  {editFormData.entry_type === "PRODUCT_CREDIT" && (
+                                    <>
+                                      <div className="flex gap-1">
+                                        <Input
+                                          placeholder="Shopkeeper (Opt)"
+                                          value={editFormData.shopkeeper_name}
+                                          onChange={(e) => setEditFormData({ ...editFormData, shopkeeper_name: e.target.value })}
+                                          className="h-6 text-[11px] border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1 p-1"
+                                        />
+                                        <Input
+                                          placeholder="Location"
+                                          value={editFormData.purchase_location}
+                                          onChange={(e) => setEditFormData({ ...editFormData, purchase_location: e.target.value })}
+                                          className="h-6 text-[11px] border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1 p-1"
+                                        />
+                                      </div>
+                                      <Input
+                                        placeholder="Item / Expense Name *"
+                                        value={editFormData.product_name}
+                                        onChange={(e) => setEditFormData({ ...editFormData, product_name: e.target.value })}
+                                        className="h-6 text-[11px] font-semibold border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] p-1"
+                                      />
+                                      <div className="flex gap-1">
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          placeholder="Qty"
+                                          value={editFormData.quantity}
+                                          onChange={(e) => handleEditQtyRateChange("quantity", e.target.value)}
+                                          className="h-6 text-[11px] w-14 border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] font-mono p-1"
+                                        />
+                                        <Input
+                                          placeholder="Unit"
+                                          value={editFormData.unit}
+                                          onChange={(e) => setEditFormData({ ...editFormData, unit: e.target.value })}
+                                          className="h-6 text-[11px] w-14 border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] p-1"
+                                        />
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          placeholder="Rate"
+                                          value={editFormData.rate_per_unit}
+                                          onChange={(e) => handleEditQtyRateChange("rate", e.target.value)}
+                                          className="h-6 text-[11px] w-16 border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] font-mono p-1"
+                                        />
+                                      </div>
+                                    </>
+                                  )}
+
+                                  {editFormData.entry_type === "CASH_LOAN" && (
+                                    <div className="text-[11px] font-bold text-[#087443] flex items-center gap-1">
+                                      <Coins className="h-3 w-3" /> Qard Hasan (Interest-Free)
+                                    </div>
+                                  )}
+
+                                  {editFormData.entry_type === "OTHER_CREDIT" && (
+                                    <Input
+                                      placeholder="Description *"
+                                      value={editFormData.description}
+                                      onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                                      className="h-6 text-[11px] font-semibold border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] p-1"
+                                    />
+                                  )}
+
+                                  <Input
+                                    placeholder="Notes (optional)"
+                                    value={editFormData.notes}
+                                    onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                                    className="h-5 text-[10px] text-[#52627A] italic border-[#D9E0E8] bg-[#FFFFFF] p-1"
+                                  />
+                                </div>
+                              </TableCell>
+
+                              {/* Total Amount Input */}
+                              <TableCell className="p-1 text-right">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0.01"
+                                  placeholder="Total"
+                                  value={editFormData.total_amount}
+                                  onChange={(e) => setEditFormData({ ...editFormData, total_amount: e.target.value })}
+                                  className="h-7 text-xs font-bold font-mono text-right border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] p-1"
+                                />
+                                {editFormData.entry_type === "PRODUCT_CREDIT" && editFormData.quantity && editFormData.rate_per_unit && (
+                                  <span className="text-[9px] text-[#66758A] block">
+                                    Qty × Rate
+                                  </span>
+                                )}
+                              </TableCell>
+
+                              {/* Repaid / Paid */}
+                              <TableCell className="p-1 text-right text-xs font-semibold font-mono text-[#087443] whitespace-nowrap">
+                                {formatMoney(credit.amount_paid)}
+                              </TableCell>
+
+                              {/* Live Balance Preview */}
+                              <TableCell className={`p-1 text-right text-xs font-bold font-mono whitespace-nowrap ${previewBalance > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
+                                {formatMoney(previewBalance)}
+                              </TableCell>
+
+                              {/* Live Status Preview */}
+                              <TableCell className="p-1 text-center whitespace-nowrap">
+                                <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full ${
+                                  previewStatus === "PAID"
+                                    ? "bg-[#EAF7EF] text-[#087443]"
+                                    : previewStatus === "PARTIAL"
+                                    ? "bg-[#FFF4D6] text-[#92400E]"
+                                    : "bg-[#FDECEC] text-[#B42318]"
+                                }`}>
+                                  {previewStatus}
+                                </span>
+                              </TableCell>
+
+                              {/* Save & Cancel Controls */}
+                              <TableCell className="p-1 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => saveInlineEdit(credit)}
+                                    disabled={updateCreditMutation.isPending}
+                                    className="h-6 px-1.5 bg-[#087443] hover:bg-[#065F38] text-white font-semibold text-[11px] shadow-xs cursor-pointer"
+                                  >
+                                    {updateCreditMutation.isPending ? (
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Check className="h-3 w-3 mr-0.5" /> Save
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={cancelInlineEdit}
+                                    disabled={updateCreditMutation.isPending}
+                                    className="h-6 px-1.5 text-[#52627A] border-[#D9E0E8] hover:bg-[#F1F4F8] hover:text-[#172B4D] text-[11px] cursor-pointer"
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        }
+
+                        // NORMAL DISPLAY ROW
                         return (
-                          <TableRow key={credit.id} className="bg-[#EBF2FE]/60 border-2 border-[#BFDBFE]">
-                            <TableCell className="p-2"></TableCell>
+                          <Fragment key={credit.id}>
+                            <TableRow
+                              className="border-b border-[#D9E0E8] hover:bg-[#F1F4F8] transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:bg-[#F1F4F8]"
+                              tabIndex={0}
+                              role="button"
+                              aria-label={`View entry details for ${credit.product_name || credit.description || getCreditTypeLabel(credit.entry_type)}`}
+                              onClick={() => handleOpenCreditDetails(credit.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault()
+                                  handleOpenCreditDetails(credit.id)
+                                }
+                              }}
+                            >
+                              <TableCell className="w-7 p-0 text-center">
+                                {allocs.length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setExpandedCreditId(isExpanded ? null : credit.id)
+                                    }}
+                                    className="p-1 text-[#66758A] hover:text-[#172B4D] rounded-md cursor-pointer mx-auto"
+                                    title={isExpanded ? "Collapse settlement history" : "View settlement history"}
+                                  >
+                                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                  </button>
+                                )}
+                              </TableCell>
 
-                            {/* Date Input */}
-                            <TableCell className="p-2">
+                              <TableCell className="py-2.5 px-2 text-xs font-medium font-mono text-[#52627A] whitespace-nowrap">
+                                {formatDate(credit.entry_date)}
+                              </TableCell>
+
+                              <TableCell className="py-2.5 px-1.5">
+                                <span className={`px-1.5 py-0.5 text-[10px] font-bold rounded-md border ${badge.bg} ${badge.text} ${badge.border} inline-block leading-tight`}>
+                                  {getCreditTypeLabel(credit.entry_type)}
+                                </span>
+                              </TableCell>
+
+                              <TableCell className="py-2.5 px-1.5">
+                                <div className="space-y-0.5">
+                                  <div>
+                                    {(() => {
+                                      const fsBadge = getFundingSourceBadgeClasses(credit.funding_source)
+                                      return (
+                                        <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded-md border ${fsBadge.bg} ${fsBadge.text} ${fsBadge.border} leading-tight`}>
+                                          {getFundingSourceLabel(credit.funding_source)}
+                                        </span>
+                                      )
+                                    })()}
+                                  </div>
+                                  {credit.account && (
+                                    <div className="text-[10px] text-[#52627A] flex items-center gap-0.5 font-medium truncate" title={credit.account}>
+                                      <Wallet className="h-2.5 w-2.5 text-[#2563EB] shrink-0" />
+                                      <span className="truncate">{credit.account}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+
+                              <TableCell className="py-2.5 px-2 min-w-0">
+                                <div className="space-y-0.5">
+                                  <div className="text-xs font-semibold text-[#172B4D] break-words line-clamp-2">
+                                    {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Expense on Behalf")}
+                                    {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
+                                    {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
+                                  </div>
+                                  {credit.entry_type === "PRODUCT_CREDIT" && credit.shopkeeper_name && (
+                                    <div className="text-[10px] text-[#087443] flex items-center gap-1 font-medium break-words">
+                                      <Store className="h-2.5 w-2.5 text-[#087443] shrink-0" />
+                                      <span className="font-semibold">{credit.shopkeeper_name}</span>
+                                      {credit.purchase_location && (
+                                        <span className="text-[#52627A]"> • {credit.purchase_location}</span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {credit.entry_type === "PRODUCT_CREDIT" && credit.items && credit.items.length > 1 ? (
+                                    <div className="mt-0.5 space-y-0.5 bg-slate-50 border border-slate-200/70 rounded-md p-1.5 text-[10px]">
+                                      <div className="font-semibold text-[#52627A]">
+                                        {credit.items.length} Line Items:
+                                      </div>
+                                      {credit.items.map((it, idx) => (
+                                        <div key={it.id || idx} className="flex items-center justify-between text-[#172B4D] py-0.2">
+                                          <span className="truncate">
+                                            <strong className="font-semibold">{it.name}</strong>
+                                            <span className="text-[#52627A] ml-1 font-normal">
+                                              ({it.quantity} {it.unit} @ Rs {it.rate_per_unit}{it.category ? ` • ${it.category}` : ""})
+                                            </span>
+                                          </span>
+                                          <span className="font-mono font-medium ml-1 shrink-0">{formatMoney(it.amount)}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
+                                      <div className="text-[10px] text-[#52627A]">
+                                        Qty: {credit.quantity} {credit.unit || "pcs"} {credit.rate_per_unit ? `@ Rs ${credit.rate_per_unit}` : ""}
+                                        {credit.category ? ` • Category: ${credit.category}` : ""}
+                                      </div>
+                                    )
+                                  )}
+                                  {credit.notes && (
+                                    <div className="text-[10px] text-[#66758A] italic break-words">
+                                      Note: {credit.notes}
+                                    </div>
+                                  )}
+                                </div>
+                              </TableCell>
+
+                              <TableCell className="py-2.5 px-1.5 text-right text-xs font-bold font-mono text-[#172B4D] whitespace-nowrap">
+                                {formatMoney(credit.total_amount)}
+                              </TableCell>
+
+                              <TableCell className="py-2.5 px-1.5 text-right text-xs font-semibold font-mono text-[#087443] whitespace-nowrap">
+                                {formatMoney(credit.amount_paid)}
+                              </TableCell>
+
+                              <TableCell className={`py-2.5 px-1.5 text-right text-xs font-bold font-mono whitespace-nowrap ${credit.balance > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
+                                {formatMoney(credit.balance)}
+                              </TableCell>
+
+                              <TableCell className="py-2.5 px-1 text-center whitespace-nowrap">
+                                <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full ${
+                                  credit.status === "PAID"
+                                    ? "bg-[#EAF7EF] text-[#087443]"
+                                    : credit.status === "PARTIAL"
+                                    ? "bg-[#FFF4D6] text-[#92400E]"
+                                    : "bg-[#FDECEC] text-[#B42318]"
+                                }`}>
+                                  {credit.status}
+                                </span>
+                              </TableCell>
+
+                              {/* Actions Column */}
+                              <TableCell className="py-2.5 px-1.5 text-right whitespace-nowrap">
+                                <div className="flex items-center justify-end gap-1">
+                                  {/* Settle Action Button */}
+                                  {credit.balance > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        openRepayCredit(credit.id)
+                                      }}
+                                      className="h-6 px-1.5 text-[10px] font-bold text-[#2563EB] hover:text-[#1D4ED8] hover:bg-[#EBF2FE] border-[#BFDBFE] cursor-pointer"
+                                    >
+                                      Settle
+                                    </Button>
+                                  )}
+
+                                  {/* Inline Edit Button */}
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      startInlineEdit(credit)
+                                    }}
+                                    className="h-6 w-6 text-[#52627A] hover:text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer p-0"
+                                    title="Edit Entry"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+
+                                  {/* Delete Entry Button */}
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setCreditToDelete(credit)
+                                    }}
+                                    className="h-6 w-6 text-[#66758A] hover:text-[#B42318] hover:bg-[#FDECEC] rounded-md cursor-pointer p-0"
+                                    title="Delete Entry"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+
+                            {/* Expandable Settlements History Sub-Table */}
+                            {isExpanded && allocs.length > 0 && (
+                              <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+                                <TableCell colSpan={10} className="p-3 pl-8">
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center gap-1.5 text-xs font-bold text-[#172B4D]">
+                                      <History className="h-3.5 w-3.5 text-[#2563EB]" />
+                                      Settlement History for this Entry ({allocs.length} settlements)
+                                    </div>
+                                    <div className="border border-[#D9E0E8] rounded-lg overflow-hidden bg-[#FFFFFF]">
+                                      <Table className="border-collapse text-xs w-full">
+                                        <TableHeader>
+                                          <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+                                            <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#172B4D] uppercase">Settlement Date</TableHead>
+                                            <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#52627A] uppercase">Method</TableHead>
+                                            <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#52627A] uppercase">Reference</TableHead>
+                                            <TableHead className="py-2 px-3 text-right font-semibold text-xs text-[#172B4D] uppercase">Amount</TableHead>
+                                            <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#52627A] uppercase">Notes</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {allocs.map((alloc) => (
+                                            <TableRow key={alloc.id} className="border-b border-[#D9E0E8] last:border-none hover:bg-[#F1F4F8] transition-colors">
+                                              <TableCell className="py-2 px-3 text-[#172B4D] font-medium font-mono">
+                                                {alloc.payment?.payment_date ? formatDate(alloc.payment.payment_date) : "N/A"}
+                                              </TableCell>
+                                              <TableCell className="py-2 px-3 text-[#52627A]">
+                                                {alloc.payment?.payment_method || "CASH"}
+                                              </TableCell>
+                                              <TableCell className="py-2 px-3 text-[#52627A]">
+                                                {alloc.payment?.reference || "-"}
+                                              </TableCell>
+                                              <TableCell className="py-2 px-3 text-right font-mono font-bold text-[#087443]">
+                                                {formatMoney(alloc.amount)}
+                                              </TableCell>
+                                              <TableCell className="py-2 px-3 text-[#52627A] italic">
+                                                {alloc.notes || alloc.payment?.notes || "-"}
+                                              </TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card List (<768px) */}
+                <div className="block md:hidden space-y-3">
+                  {filteredCredits.map((credit) => {
+                    const badge = getCreditTypeBadgeClasses(credit.entry_type)
+                    const fsBadge = getFundingSourceBadgeClasses(credit.funding_source)
+                    const isExpanded = expandedCreditId === credit.id
+                    const isEditing = editingCreditId === credit.id
+                    const allocs = credit.allocations || []
+
+                    if (isEditing) {
+                      const editTot = parseFloat(editFormData.total_amount) || 0
+                      const previewBalance = Math.max(0, editTot - Number(credit.amount_paid || 0))
+                      const previewStatus = editTot <= Number(credit.amount_paid || 0) && editTot > 0
+                        ? "PAID"
+                        : Number(credit.amount_paid || 0) > 0
+                        ? "PARTIAL"
+                        : "PENDING"
+
+                      return (
+                        <div key={credit.id} className="bg-[#FFFFFF] rounded-xl border-2 border-[#BFDBFE] p-3.5 space-y-3 shadow-xs">
+                          <div className="flex items-center justify-between pb-2 border-b border-[#D9E0E8]">
+                            <span className="text-xs font-bold text-[#2563EB]">Editing Entry</span>
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                              previewStatus === "PAID"
+                                ? "bg-[#EAF7EF] text-[#087443]"
+                                : previewStatus === "PARTIAL"
+                                ? "bg-[#FFF4D6] text-[#92400E]"
+                                : "bg-[#FDECEC] text-[#B42318]"
+                            }`}>
+                              {previewStatus}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-[#52627A] block mb-1">Date</label>
                               <Input
                                 type="date"
                                 value={editFormData.entry_date}
                                 onChange={(e) => setEditFormData({ ...editFormData, entry_date: e.target.value })}
-                                className="h-8 text-xs font-medium border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D]"
+                                className="h-8 text-xs font-mono"
                               />
-                            </TableCell>
-
-                            {/* Type Select */}
-                            <TableCell className="p-2">
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-[#52627A] block mb-1">Type</label>
                               <select
                                 value={editFormData.entry_type}
                                 onChange={(e: any) => setEditFormData({ ...editFormData, entry_type: e.target.value })}
-                                className="h-8 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-2 text-xs font-semibold text-[#172B4D] shadow-2xs focus:border-[#2563EB] focus:outline-hidden w-full"
+                                className="h-8 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-2 text-xs font-semibold text-[#172B4D] w-full"
                               >
                                 <option value="PRODUCT_CREDIT">Expense on Behalf</option>
-                                <option value="CASH_LOAN">Qard Hasan (قرض حسن)</option>
+                                <option value="CASH_LOAN">Qard Hasan</option>
                                 <option value="OTHER_CREDIT">Other Personal</option>
                               </select>
-                            </TableCell>
-
-                            {/* Money Source & Account Select */}
-                            <TableCell className="p-2">
-                              <div className="space-y-1.5">
-                                <select
-                                  value={editFormData.funding_source || ""}
-                                  onChange={(e: any) => setEditFormData({ ...editFormData, funding_source: (e.target.value as CustomerCreditFundingSource) || "" })}
-                                  className="h-8 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-2 text-xs font-semibold text-[#172B4D] shadow-2xs focus:border-[#2563EB] focus:outline-hidden w-full"
-                                >
-                                  <option value="PERSONAL_FUNDS">Personal Funds</option>
-                                  <option value="7TIME_FUNDS">7TIME Business Funds</option>
-                                  {!editFormData.funding_source && <option value="">Unallocated</option>}
-                                </select>
-                                <Input
-                                  placeholder="Account (e.g. HDFC Bank, Cash)"
-                                  value={editFormData.account}
-                                  onChange={(e) => setEditFormData({ ...editFormData, account: e.target.value })}
-                                  className="h-7 text-xs font-medium border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D]"
-                                />
-                              </div>
-                            </TableCell>
-
-                            {/* Item / Details Inputs */}
-                            <TableCell className="p-2">
-                              <div className="space-y-1.5">
-                                {editFormData.entry_type === "PRODUCT_CREDIT" && (
-                                  <>
-                                    <div className="flex gap-1.5">
-                                      <Input
-                                        placeholder="Shopkeeper / Paid To *"
-                                        value={editFormData.shopkeeper_name}
-                                        onChange={(e) => setEditFormData({ ...editFormData, shopkeeper_name: e.target.value })}
-                                        className="h-7 text-xs font-semibold border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1"
-                                      />
-                                      <Input
-                                        placeholder="Purchase Location"
-                                        value={editFormData.purchase_location}
-                                        onChange={(e) => setEditFormData({ ...editFormData, purchase_location: e.target.value })}
-                                        className="h-7 text-xs border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] flex-1"
-                                      />
-                                    </div>
-                                    <Input
-                                      placeholder="Item / Expense Name *"
-                                      value={editFormData.product_name}
-                                      onChange={(e) => setEditFormData({ ...editFormData, product_name: e.target.value })}
-                                      className="h-7 text-xs font-semibold border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D]"
-                                    />
-                                    <div className="flex gap-1.5">
-                                      <Input
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="Qty"
-                                        value={editFormData.quantity}
-                                        onChange={(e) => handleEditQtyRateChange("quantity", e.target.value)}
-                                        className="h-7 text-xs w-20 border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] font-mono"
-                                      />
-                                      <Input
-                                        placeholder="Unit (pcs, kg)"
-                                        value={editFormData.unit}
-                                        onChange={(e) => setEditFormData({ ...editFormData, unit: e.target.value })}
-                                        className="h-7 text-xs w-20 border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D]"
-                                      />
-                                      <Input
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="Rate/unit"
-                                        value={editFormData.rate_per_unit}
-                                        onChange={(e) => handleEditQtyRateChange("rate", e.target.value)}
-                                        className="h-7 text-xs w-24 border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D] font-mono"
-                                      />
-                                    </div>
-                                  </>
-                                )}
-
-                                {editFormData.entry_type === "CASH_LOAN" && (
-                                  <div className="text-xs font-bold text-[#087443] flex items-center gap-1">
-                                    <Coins className="h-3.5 w-3.5" /> Qard Hasan (Interest-Free)
-                                  </div>
-                                )}
-
-                                {editFormData.entry_type === "OTHER_CREDIT" && (
-                                  <Input
-                                    placeholder="Description / Reason *"
-                                    value={editFormData.description}
-                                    onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                                    className="h-7 text-xs font-semibold border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D]"
-                                  />
-                                )}
-
-                                <Input
-                                  placeholder="Notes (optional)"
-                                  value={editFormData.notes}
-                                  onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
-                                  className="h-6 text-[11px] text-[#52627A] italic border-[#D9E0E8] bg-[#FFFFFF]"
-                                />
-                              </div>
-                            </TableCell>
-
-                            {/* Total Amount Input */}
-                            <TableCell className="p-2 text-right">
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] font-bold text-[#52627A] block mb-1">Funding</label>
+                              <select
+                                value={editFormData.funding_source || ""}
+                                onChange={(e: any) => setEditFormData({ ...editFormData, funding_source: (e.target.value as CustomerCreditFundingSource) || "" })}
+                                className="h-8 rounded-md border border-[#D9E0E8] bg-[#FFFFFF] px-2 text-xs font-semibold text-[#172B4D] w-full"
+                              >
+                                <option value="PERSONAL_FUNDS">Personal Funds</option>
+                                <option value="7TIME_FUNDS">7TIME Business</option>
+                                {!editFormData.funding_source && <option value="">Unallocated</option>}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-[#52627A] block mb-1">Account</label>
                               <Input
-                                type="number"
-                                step="0.01"
-                                min="0.01"
-                                placeholder="Total (Rs)"
-                                value={editFormData.total_amount}
-                                onChange={(e) => setEditFormData({ ...editFormData, total_amount: e.target.value })}
-                                className="h-8 text-xs font-bold font-mono text-right border-[#D9E0E8] bg-[#FFFFFF] text-[#172B4D]"
+                                placeholder="e.g. Cash, HDFC"
+                                value={editFormData.account}
+                                onChange={(e) => setEditFormData({ ...editFormData, account: e.target.value })}
+                                className="h-8 text-xs"
                               />
-                              {editFormData.entry_type === "PRODUCT_CREDIT" && editFormData.quantity && editFormData.rate_per_unit && (
-                                <span className="text-[10px] text-[#66758A]">
-                                  Qty × Rate
-                                </span>
-                              )}
-                            </TableCell>
-
-                            {/* Repaid / Paid (Read-only, authoritative) */}
-                            <TableCell className="p-2 text-right text-xs font-semibold font-mono text-[#087443]">
-                              {formatMoney(credit.amount_paid)}
-                            </TableCell>
-
-                            {/* Live Balance Preview (Read-only) */}
-                            <TableCell className={`p-2 text-right text-xs font-bold font-mono ${previewBalance > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
-                              {formatMoney(previewBalance)}
-                            </TableCell>
-
-                            {/* Live Status Preview */}
-                            <TableCell className="p-2 text-center">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                                previewStatus === "PAID"
-                                  ? "bg-[#EAF7EF] text-[#087443]"
-                                  : previewStatus === "PARTIAL"
-                                  ? "bg-[#FFF4D6] text-[#92400E]"
-                                  : "bg-[#FDECEC] text-[#B42318]"
-                              }`}>
-                                {previewStatus}
-                              </span>
-                            </TableCell>
-
-                            {/* Save & Cancel Action Controls */}
-                            <TableCell className="p-2 text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <Button
-                                  size="sm"
-                                  onClick={() => saveInlineEdit(credit)}
-                                  disabled={updateCreditMutation.isPending}
-                                  className="h-7 px-2.5 bg-[#087443] hover:bg-[#065F38] text-white font-semibold text-xs shadow-xs cursor-pointer"
-                                >
-                                  {updateCreditMutation.isPending ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <>
-                                      <Check className="h-3.5 w-3.5 mr-1" /> Save
-                                    </>
-                                  )}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={cancelInlineEdit}
-                                  disabled={updateCreditMutation.isPending}
-                                  className="h-7 px-2 text-[#52627A] border-[#D9E0E8] hover:bg-[#F1F4F8] hover:text-[#172B4D] text-xs cursor-pointer"
-                                >
-                                  Cancel
-                                </Button>
+                            </div>
+                          </div>
+                          {editFormData.entry_type === "PRODUCT_CREDIT" && (
+                            <>
+                              <div>
+                                <label className="text-[10px] font-bold text-[#52627A] block mb-1">Item / Expense Name *</label>
+                                <Input
+                                  value={editFormData.product_name}
+                                  onChange={(e) => setEditFormData({ ...editFormData, product_name: e.target.value })}
+                                  className="h-8 text-xs font-semibold"
+                                />
                               </div>
-                            </TableCell>
-                          </TableRow>
-                        )
-                      }
-
-                      // NORMAL DISPLAY ROW
-                      return (
-                        <Fragment key={credit.id}>
-                          <TableRow className="border-b border-[#D9E0E8] hover:bg-[#F1F4F8] transition-colors">
-                            <TableCell className="p-2">
-                              {allocs.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => setExpandedCreditId(isExpanded ? null : credit.id)}
-                                  className="p-1 text-[#66758A] hover:text-[#172B4D] rounded-md cursor-pointer"
-                                  title={isExpanded ? "Collapse settlement history" : "View settlement history"}
-                                >
-                                  {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                </button>
-                              )}
-                            </TableCell>
-
-                            <TableCell className="text-xs font-medium font-mono text-[#52627A] whitespace-nowrap">
-                              {formatDate(credit.entry_date)}
-                            </TableCell>
-
-                            <TableCell>
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
-                                {getCreditTypeLabel(credit.entry_type)}
-                              </span>
-                            </TableCell>
-
-                            <TableCell className="whitespace-nowrap">
-                              <div className="space-y-1">
+                              <div className="grid grid-cols-3 gap-2">
                                 <div>
-                                  {(() => {
-                                    const fsBadge = getFundingSourceBadgeClasses(credit.funding_source)
-                                    return (
-                                      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold rounded-md border ${fsBadge.bg} ${fsBadge.text} ${fsBadge.border}`}>
-                                        {getFundingSourceLabel(credit.funding_source)}
-                                      </span>
-                                    )
-                                  })()}
+                                  <label className="text-[10px] font-bold text-[#52627A] block mb-1">Qty</label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editFormData.quantity}
+                                    onChange={(e) => handleEditQtyRateChange("quantity", e.target.value)}
+                                    className="h-8 text-xs font-mono"
+                                  />
                                 </div>
-                                {credit.account && (
-                                  <div className="text-[11px] text-[#172B4D] flex items-center gap-1 font-medium">
-                                    <Wallet className="h-3 w-3 text-[#2563EB] shrink-0" />
-                                    <span className="truncate max-w-[130px]" title={credit.account}>{credit.account}</span>
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-
-                            <TableCell>
-                              <div className="space-y-0.5">
-                                <div className="text-sm font-semibold text-[#172B4D]">
-                                  {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Expense on Behalf")}
-                                  {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
-                                  {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
+                                <div>
+                                  <label className="text-[10px] font-bold text-[#52627A] block mb-1">Unit</label>
+                                  <Input
+                                    value={editFormData.unit}
+                                    onChange={(e) => setEditFormData({ ...editFormData, unit: e.target.value })}
+                                    className="h-8 text-xs"
+                                  />
                                 </div>
-                                {credit.entry_type === "PRODUCT_CREDIT" && credit.shopkeeper_name && (
-                                  <div className="text-[11px] text-[#087443] flex items-center gap-1 font-medium">
-                                    <Store className="h-3 w-3 text-[#087443] shrink-0" />
-                                    <span className="font-semibold">{credit.shopkeeper_name}</span>
-                                    {credit.purchase_location && (
-                                      <span className="text-[#52627A]"> • {credit.purchase_location}</span>
-                                    )}
-                                  </div>
-                                )}
-                                {credit.entry_type === "PRODUCT_CREDIT" && credit.quantity && (
-                                  <div className="text-[11px] text-[#52627A]">
-                                    Qty: {credit.quantity} {credit.unit || "pcs"} {credit.rate_per_unit ? `@ Rs ${credit.rate_per_unit}` : ""}
-                                    {credit.category ? ` • Category: ${credit.category}` : ""}
-                                  </div>
-                                )}
-                                {credit.notes && (
-                                  <div className="text-[11px] text-[#66758A] italic">
-                                    Note: {credit.notes}
-                                  </div>
-                                )}
-                              </div>
-                            </TableCell>
-
-                            <TableCell className="text-right text-sm font-bold font-mono text-[#172B4D]">
-                              {formatMoney(credit.total_amount)}
-                            </TableCell>
-
-                            <TableCell className="text-right text-sm font-semibold font-mono text-[#087443]">
-                              {formatMoney(credit.amount_paid)}
-                            </TableCell>
-
-                            <TableCell className={`text-right text-sm font-bold font-mono ${credit.balance > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
-                              {formatMoney(credit.balance)}
-                            </TableCell>
-
-                            <TableCell className="text-center">
-                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                                credit.status === "PAID"
-                                  ? "bg-[#EAF7EF] text-[#087443]"
-                                  : credit.status === "PARTIAL"
-                                  ? "bg-[#FFF4D6] text-[#92400E]"
-                                  : "bg-[#FDECEC] text-[#B42318]"
-                              }`}>
-                                {credit.status}
-                              </span>
-                            </TableCell>
-
-                            {/* Actions Column */}
-                            <TableCell className="text-right whitespace-nowrap">
-                              <div className="flex items-center justify-end gap-1">
-                                {/* Inline Edit Button */}
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => startInlineEdit(credit)}
-                                  className="h-7 w-7 text-[#52627A] hover:text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer"
-                                  title="Edit Entry"
-                                >
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-
-                                {/* Settle Action Button */}
-                                {credit.balance > 0 && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => openRepayCredit(credit.id)}
-                                    className="h-7 px-2 text-xs font-bold text-[#2563EB] hover:text-[#1D4ED8] hover:bg-[#EBF2FE] border-[#BFDBFE] cursor-pointer"
-                                  >
-                                    Settle
-                                  </Button>
-                                )}
-
-                                {/* Delete Entry Button */}
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  onClick={() => setCreditToDelete(credit)}
-                                  className="h-7 w-7 text-[#66758A] hover:text-[#B42318] hover:bg-[#FDECEC] rounded-md cursor-pointer"
-                                  title="Delete Entry"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-
-                          {/* Expandable Settlements History Sub-Table */}
-                          {isExpanded && allocs.length > 0 && (
-                            <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
-                              <TableCell colSpan={10} className="p-3 pl-12">
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center gap-1.5 text-xs font-bold text-[#172B4D]">
-                                    <History className="h-3.5 w-3.5 text-[#2563EB]" />
-                                    Settlement History for this Entry ({allocs.length} settlements)
-                                  </div>
-                                  <div className="border border-[#D9E0E8] rounded-lg overflow-hidden bg-[#FFFFFF]">
-                                    <Table className="border-collapse text-xs">
-                                      <TableHeader>
-                                        <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
-                                          <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#172B4D] uppercase">Settlement Date</TableHead>
-                                          <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#52627A] uppercase">Method</TableHead>
-                                          <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#52627A] uppercase">Reference</TableHead>
-                                          <TableHead className="py-2 px-3 text-right font-semibold text-xs text-[#172B4D] uppercase">Amount</TableHead>
-                                          <TableHead className="py-2 px-3 text-left font-semibold text-xs text-[#52627A] uppercase">Notes</TableHead>
-                                        </TableRow>
-                                      </TableHeader>
-                                      <TableBody>
-                                        {allocs.map((alloc) => (
-                                          <TableRow key={alloc.id} className="border-b border-[#D9E0E8] last:border-none hover:bg-[#F1F4F8] transition-colors">
-                                            <TableCell className="py-2 px-3 text-[#172B4D] font-medium font-mono">
-                                              {alloc.payment?.payment_date ? formatDate(alloc.payment.payment_date) : "N/A"}
-                                            </TableCell>
-                                            <TableCell className="py-2 px-3 text-[#52627A]">
-                                              {alloc.payment?.payment_method || "CASH"}
-                                            </TableCell>
-                                            <TableCell className="py-2 px-3 text-[#52627A]">
-                                              {alloc.payment?.reference || "-"}
-                                            </TableCell>
-                                            <TableCell className="py-2 px-3 text-right font-mono font-bold text-[#087443]">
-                                              {formatMoney(alloc.amount)}
-                                            </TableCell>
-                                            <TableCell className="py-2 px-3 text-[#52627A] italic">
-                                              {alloc.notes || alloc.payment?.notes || "-"}
-                                            </TableCell>
-                                          </TableRow>
-                                        ))}
-                                      </TableBody>
-                                    </Table>
-                                  </div>
+                                <div>
+                                  <label className="text-[10px] font-bold text-[#52627A] block mb-1">Rate</label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editFormData.rate_per_unit}
+                                    onChange={(e) => handleEditQtyRateChange("rate", e.target.value)}
+                                    className="h-8 text-xs font-mono"
+                                  />
                                 </div>
-                              </TableCell>
-                            </TableRow>
+                              </div>
+                            </>
                           )}
-                        </Fragment>
+                          {editFormData.entry_type === "OTHER_CREDIT" && (
+                            <div>
+                              <label className="text-[10px] font-bold text-[#52627A] block mb-1">Description *</label>
+                              <Input
+                                value={editFormData.description}
+                                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                                className="h-8 text-xs font-semibold"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <label className="text-[10px] font-bold text-[#52627A] block mb-1">Total Amount (Rs) *</label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={editFormData.total_amount}
+                              onChange={(e) => setEditFormData({ ...editFormData, total_amount: e.target.value })}
+                              className="h-8 text-xs font-bold font-mono"
+                            />
+                          </div>
+                          <div className="flex items-center justify-between text-xs bg-[#F8F7F2] p-2 rounded-lg border border-[#D9E0E8]">
+                            <span className="text-[#52627A]">Paid: <strong className="font-mono text-[#087443]">{formatMoney(credit.amount_paid)}</strong></span>
+                            <span className="text-[#52627A]">Balance: <strong className={`font-mono ${previewBalance > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>{formatMoney(previewBalance)}</strong></span>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 pt-1 border-t border-[#D9E0E8]">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={cancelInlineEdit}
+                              className="h-8 px-3 text-xs"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => saveInlineEdit(credit)}
+                              disabled={updateCreditMutation.isPending}
+                              className="h-8 px-3 bg-[#087443] hover:bg-[#065F38] text-white font-semibold text-xs"
+                            >
+                              {updateCreditMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                              Update
+                            </Button>
+                          </div>
+                        </div>
                       )
-                    })}
-                  </TableBody>
-                </Table>
-              </ResponsiveTable>
+                    }
+
+                    return (
+                      <div
+                        key={credit.id}
+                        data-testid={`mobile-credit-card-${credit.id}`}
+                        onClick={() => handleOpenCreditDetails(credit.id)}
+                        role="article"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            handleOpenCreditDetails(credit.id)
+                          }
+                        }}
+                        className="bg-[#FFFFFF] rounded-xl border border-[#D9E0E8] p-3.5 shadow-2xs hover:border-[#BFDBFE] transition-colors cursor-pointer space-y-2.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-mono font-medium text-[#52627A]">{formatDate(credit.entry_date)}</span>
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${badge.bg} ${badge.text} ${badge.border}`}>
+                              {getCreditTypeLabel(credit.entry_type)}
+                            </span>
+                          </div>
+                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                            credit.status === "PAID"
+                              ? "bg-[#EAF7EF] text-[#087443]"
+                              : credit.status === "PARTIAL"
+                              ? "bg-[#FFF4D6] text-[#92400E]"
+                              : "bg-[#FDECEC] text-[#B42318]"
+                          }`}>
+                            {credit.status}
+                          </span>
+                        </div>
+
+                        <div>
+                          <div className="text-sm font-bold text-[#172B4D]">
+                            {credit.entry_type === "PRODUCT_CREDIT" && (credit.product_name || "Expense on Behalf")}
+                            {credit.entry_type === "CASH_LOAN" && "Qard Hasan"}
+                            {credit.entry_type === "OTHER_CREDIT" && (credit.description || "Other Personal")}
+                          </div>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                            <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold rounded-md border ${fsBadge.bg} ${fsBadge.text} ${fsBadge.border}`}>
+                              {getFundingSourceLabel(credit.funding_source)}
+                            </span>
+                            {credit.account && (
+                              <span className="text-[10px] text-[#52627A] flex items-center gap-1 font-medium bg-[#F1F4F8] px-1.5 py-0.5 rounded border border-[#D9E0E8]">
+                                <Wallet className="h-2.5 w-2.5 text-[#2563EB] shrink-0" />
+                                {credit.account}
+                              </span>
+                            )}
+                          </div>
+                          {credit.entry_type === "PRODUCT_CREDIT" && credit.items && credit.items.length > 1 && (
+                            <div className="bg-[#F8F7F2] border border-[#D9E0E8]/70 rounded-md p-2 text-xs space-y-1 mt-1.5">
+                              <div className="font-semibold text-[#52627A] text-[10px]">
+                                {credit.items.length} Line Items:
+                              </div>
+                              {credit.items.slice(0, 3).map((it, idx) => (
+                                <div key={it.id || idx} className="flex justify-between text-[#172B4D] text-[11px]">
+                                  <span className="truncate">{it.name} ({it.quantity} {it.unit})</span>
+                                  <span className="font-mono font-medium ml-2 shrink-0">{formatMoney(it.amount)}</span>
+                                </div>
+                              ))}
+                              {credit.items.length > 3 && (
+                                <div className="text-[10px] text-[#2563EB] font-medium">
+                                  +{credit.items.length - 3} more items (tap to view)
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {credit.entry_type === "PRODUCT_CREDIT" && (!credit.items || credit.items.length <= 1) && credit.quantity && (
+                            <div className="text-xs text-[#52627A] mt-1">
+                              Qty: {credit.quantity} {credit.unit || "pcs"} {credit.rate_per_unit ? `@ Rs ${credit.rate_per_unit}` : ""}
+                              {credit.category ? ` • ${credit.category}` : ""}
+                            </div>
+                          )}
+                          {credit.entry_type === "PRODUCT_CREDIT" && credit.shopkeeper_name && (
+                            <div className="text-[11px] text-[#087443] flex items-center gap-1 font-medium mt-1">
+                              <Store className="h-3 w-3 shrink-0" />
+                              <span>{credit.shopkeeper_name}</span>
+                              {credit.purchase_location && <span className="text-[#52627A]"> • {credit.purchase_location}</span>}
+                            </div>
+                          )}
+                          {credit.notes && (
+                            <div className="text-[11px] text-[#66758A] italic mt-1">
+                              Note: {credit.notes}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* 3-Column Financials Grid */}
+                        <div className="grid grid-cols-3 gap-2 bg-[#F8F7F2] rounded-lg p-2.5 border border-[#D9E0E8]/70 text-center">
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase text-[#52627A]">Total</span>
+                            <span className="text-xs sm:text-sm font-bold font-mono text-[#172B4D]">{formatMoney(credit.total_amount)}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase text-[#52627A]">Settled</span>
+                            <span className="text-xs sm:text-sm font-semibold font-mono text-[#087443]">{formatMoney(credit.amount_paid)}</span>
+                          </div>
+                          <div>
+                            <span className="block text-[10px] font-bold uppercase text-[#52627A]">Balance</span>
+                            <span className={`text-xs sm:text-sm font-bold font-mono ${credit.balance > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
+                              {formatMoney(credit.balance)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Card Footer Actions */}
+                        <div className="flex items-center justify-between pt-1 border-t border-[#D9E0E8]/70">
+                          <div className="flex items-center gap-2">
+                            {allocs.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setExpandedCreditId(isExpanded ? null : credit.id)
+                                }}
+                                className="text-[11px] font-semibold text-[#2563EB] hover:underline flex items-center gap-1 py-1 cursor-pointer"
+                              >
+                                <History className="h-3 w-3" />
+                                {allocs.length} {allocs.length === 1 ? "Settlement" : "Settlements"}
+                                {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                              </button>
+                            )}
+                            <span className="text-[11px] text-[#52627A]">Tap for full details</span>
+                          </div>
+                          <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                            {credit.balance > 0 && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => openRepayCredit(credit.id)}
+                                className="h-7 px-2.5 text-xs font-bold text-[#2563EB] hover:text-[#1D4ED8] hover:bg-[#EBF2FE] border-[#BFDBFE] cursor-pointer"
+                              >
+                                Settle
+                              </Button>
+                            )}
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => startInlineEdit(credit)}
+                              className="h-7 w-7 text-[#52627A] hover:text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer"
+                              title="Edit Entry"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setCreditToDelete(credit)}
+                              className="h-7 w-7 text-[#66758A] hover:text-[#B42318] hover:bg-[#FDECEC] rounded-md cursor-pointer"
+                              title="Delete Entry"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Expandable Settlements on Mobile Card */}
+                        {isExpanded && allocs.length > 0 && (
+                          <div className="mt-2 pt-2 border-t border-[#D9E0E8] space-y-1.5">
+                            <div className="text-[11px] font-bold text-[#172B4D] flex items-center gap-1">
+                              <History className="h-3.5 w-3.5 text-[#2563EB]" />
+                              Settlement History
+                            </div>
+                            <div className="space-y-1 bg-[#F8F7F2] p-2 rounded-lg border border-[#D9E0E8]/80 text-xs">
+                              {allocs.map((alloc) => (
+                                <div key={alloc.id} className="flex items-center justify-between py-1 border-b border-[#D9E0E8]/50 last:border-none">
+                                  <div>
+                                    <span className="font-mono font-medium text-[#172B4D]">{alloc.payment?.payment_date ? formatDate(alloc.payment.payment_date) : "N/A"}</span>
+                                    <span className="text-[10px] text-[#52627A] ml-2">({alloc.payment?.payment_method || "CASH"})</span>
+                                  </div>
+                                  <span className="font-mono font-bold text-[#087443]">{formatMoney(alloc.amount)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
             )}
           </div>
         )}
 
         {/* TAB 2: HISTORICAL WHOLESALE ORDERS */}
         {activeTab === "sales" && (
-          <div className="space-y-4">
-            <h3 className="text-base font-bold text-[#172B4D]">Historical Wholesale Orders</h3>
+          <div className="space-y-3 sm:space-y-4">
+            <h3 className="text-sm sm:text-base font-bold text-[#172B4D]">Historical Wholesale Orders</h3>
             {sales.length === 0 ? (
               <div className="bg-[#FFFFFF] border border-[#D9E0E8] rounded-xl p-12 text-center text-[#52627A]">
                 No wholesale orders recorded for this person.
               </div>
             ) : (
-              <ResponsiveTable minWidth={850}>
-                <Table className="border-collapse">
-                  <TableHeader>
-                    <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] py-3.5 px-4">Sale Date</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] py-3.5 px-4">Product</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right py-3.5 px-4">Quantity</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right py-3.5 px-4">Total Sale</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right py-3.5 px-4">Amount Received</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right py-3.5 px-4">Balance Due</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#52627A] text-center py-3.5 px-4">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sales.map((sale: any) => (
-                      <TableRow key={sale.id} className="hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors">
-                        <TableCell className="text-xs font-medium font-mono text-[#52627A] whitespace-nowrap">
-                          {formatDate(sale.sale_date)}
-                        </TableCell>
-                        <TableCell className="font-semibold text-[#172B4D] text-sm">
-                          {sale.product?.name || "Product"}
-                        </TableCell>
-                        <TableCell className="text-right text-xs font-mono font-medium text-[#52627A]">
-                          {sale.quantity} {sale.product?.unit || "units"}
-                        </TableCell>
-                        <TableCell className="text-right text-sm font-bold font-mono text-[#172B4D]">
-                          {formatMoney(sale.total_sale)}
-                        </TableCell>
-                        <TableCell className="text-right text-sm font-semibold font-mono text-[#087443]">
-                          {formatMoney(sale.amount_received)}
-                        </TableCell>
-                        <TableCell className={`text-right text-sm font-bold font-mono ${Number(sale.balance || (sale.total_sale - sale.amount_received)) > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
-                          {formatMoney(sale.balance ?? (sale.total_sale - sale.amount_received))}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                            sale.status === "PAID"
-                              ? "bg-[#EAF7EF] text-[#087443]"
-                              : sale.status === "PARTIAL"
-                              ? "bg-[#FFF4D6] text-[#92400E]"
-                              : "bg-[#FDECEC] text-[#B42318]"
-                          }`}>
-                            {sale.status || "PENDING"}
-                          </span>
-                        </TableCell>
+              <>
+                {/* Desktop & Laptop Table (≥768px) */}
+                <div className="hidden md:block w-full rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-2xs">
+                  <Table className="w-full table-fixed border-collapse">
+                    <colgroup>
+                      <col style={{ width: "85px" }} />
+                      <col />
+                      <col style={{ width: "75px" }} />
+                      <col style={{ width: "85px" }} />
+                      <col style={{ width: "85px" }} />
+                      <col style={{ width: "85px" }} />
+                      <col style={{ width: "65px" }} />
+                    </colgroup>
+                    <TableHeader>
+                      <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+                        <TableHead className="py-2.5 px-2 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Sale Date</TableHead>
+                        <TableHead className="py-2.5 px-2 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Product</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D] text-right">Quantity</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D] text-right">Total Sale</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D] text-right">Received</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D] text-right">Balance</TableHead>
+                        <TableHead className="py-2.5 px-1 text-[11px] font-bold uppercase tracking-wider text-[#52627A] text-center">Status</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ResponsiveTable>
+                    </TableHeader>
+                    <TableBody>
+                      {sales.map((sale: any) => (
+                        <TableRow
+                          key={sale.id}
+                          className="hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:bg-[#F1F4F8]"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`View wholesale sale details for invoice ${sale.invoice_no || sale.id}`}
+                          onClick={() => handleOpenSaleDetails(sale.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              handleOpenSaleDetails(sale.id)
+                            }
+                          }}
+                        >
+                          <TableCell className="py-2.5 px-2 text-xs font-medium font-mono text-[#52627A] whitespace-nowrap">
+                            {formatDate(sale.sale_date)}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-2 font-semibold text-[#172B4D] text-xs min-w-0">
+                            <span className="break-words line-clamp-1">{sale.product?.name || "Product"}</span>
+                          </TableCell>
+                          <TableCell className="py-2.5 px-1.5 text-right text-xs font-mono font-medium text-[#52627A] whitespace-nowrap">
+                            {sale.quantity} {sale.product?.unit || "units"}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-1.5 text-right text-xs font-bold font-mono text-[#172B4D] whitespace-nowrap">
+                            {formatMoney(sale.total_sale)}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-1.5 text-right text-xs font-semibold font-mono text-[#087443] whitespace-nowrap">
+                            {formatMoney(sale.amount_received)}
+                          </TableCell>
+                          <TableCell className={`py-2.5 px-1.5 text-right text-xs font-bold font-mono whitespace-nowrap ${Number(sale.balance || (sale.total_sale - sale.amount_received)) > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
+                            {formatMoney(sale.balance ?? (sale.total_sale - sale.amount_received))}
+                          </TableCell>
+                          <TableCell className="py-2.5 px-1 text-center whitespace-nowrap">
+                            <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded-full ${
+                              sale.status === "PAID"
+                                ? "bg-[#EAF7EF] text-[#087443]"
+                                : sale.status === "PARTIAL"
+                                ? "bg-[#FFF4D6] text-[#92400E]"
+                                : "bg-[#FDECEC] text-[#B42318]"
+                            }`}>
+                              {sale.status || "PENDING"}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card List (<768px) */}
+                <div className="block md:hidden space-y-3">
+                  {sales.map((sale: any) => (
+                    <div
+                      key={sale.id}
+                      data-testid={`mobile-sale-card-${sale.id}`}
+                      onClick={() => handleOpenSaleDetails(sale.id)}
+                      role="article"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          handleOpenSaleDetails(sale.id)
+                        }
+                      }}
+                      className="bg-[#FFFFFF] rounded-xl border border-[#D9E0E8] p-3.5 shadow-2xs hover:border-[#BFDBFE] transition-colors cursor-pointer space-y-2.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-mono font-medium text-[#52627A]">{formatDate(sale.sale_date)}</span>
+                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                          sale.status === "PAID"
+                            ? "bg-[#EAF7EF] text-[#087443]"
+                            : sale.status === "PARTIAL"
+                            ? "bg-[#FFF4D6] text-[#92400E]"
+                            : "bg-[#FDECEC] text-[#B42318]"
+                        }`}>
+                          {sale.status || "PENDING"}
+                        </span>
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-[#172B4D]">{sale.product?.name || "Product"}</h4>
+                        <p className="text-xs text-[#52627A] mt-0.5">Quantity: {sale.quantity} {sale.product?.unit || "units"}</p>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 bg-[#F8F7F2] rounded-lg p-2.5 border border-[#D9E0E8]/70 text-center">
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase text-[#52627A]">Total</span>
+                          <span className="text-xs sm:text-sm font-bold font-mono text-[#172B4D]">{formatMoney(sale.total_sale)}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase text-[#52627A]">Received</span>
+                          <span className="text-xs sm:text-sm font-semibold font-mono text-[#087443]">{formatMoney(sale.amount_received)}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[10px] font-bold uppercase text-[#52627A]">Balance</span>
+                          <span className={`text-xs sm:text-sm font-bold font-mono ${Number(sale.balance || (sale.total_sale - sale.amount_received)) > 0 ? "text-[#B42318]" : "text-[#087443]"}`}>
+                            {formatMoney(sale.balance ?? (sale.total_sale - sale.amount_received))}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
           </div>
         )}
 
         {/* TAB 3: SETTLEMENTS HISTORY */}
         {activeTab === "payments" && (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-[#172B4D]">All Settlements Received</h3>
+                <h3 className="text-sm sm:text-base font-bold text-[#172B4D]">All Settlements Received</h3>
                 <p className="text-xs text-[#52627A]">
                   Total settlements recorded: {formatMoney(ledgerSummary.totalPaymentsRecorded)}
                 </p>
@@ -1573,7 +2087,7 @@ export default function ResellerDetailPanel({
                   setIsRepayModalOpen(true)
                 }}
                 size="sm"
-                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs cursor-pointer"
+                className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold text-xs cursor-pointer h-8 px-2.5 sm:px-3"
               >
                 <Wallet className="h-3.5 w-3.5 mr-1.5" /> Record Settlement
               </Button>
@@ -1584,99 +2098,215 @@ export default function ResellerDetailPanel({
                 No settlements recorded for this person yet.
               </div>
             ) : (
-              <ResponsiveTable minWidth={750}>
-                <Table className="border-collapse">
-                  <TableHeader>
-                    <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] py-3.5 px-4">Settlement Date</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] text-right py-3.5 px-4">Amount Received</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#172B4D] py-3.5 px-4">Method</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#52627A] py-3.5 px-4">Reference / Notes</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#52627A] py-3.5 px-4">Allocated Status</TableHead>
-                      <TableHead className="text-xs font-semibold uppercase tracking-wider text-[#52627A] text-right py-3.5 px-4">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payments.map((p) => {
-                      const allocs = p.allocations || []
-                      const totalAllocated = allocs.reduce((sum: number, a: any) => sum + Number(a.amount || 0), 0)
-                      const unalloc = Math.max(0, Number(p.amount || 0) - totalAllocated)
-                      const isFullyAllocated = unalloc <= 0.01
+              <>
+                {/* Desktop & Laptop Table (≥768px) */}
+                <div className="hidden md:block w-full rounded-xl border border-[#D9E0E8] bg-[#FFFFFF] shadow-2xs">
+                  <Table className="w-full table-fixed border-collapse">
+                    <colgroup>
+                      <col style={{ width: "85px" }} />
+                      <col style={{ width: "90px" }} />
+                      <col style={{ width: "75px" }} />
+                      <col />
+                      <col style={{ width: "140px" }} />
+                      <col style={{ width: "95px" }} />
+                    </colgroup>
+                    <TableHeader>
+                      <TableRow className="bg-[#F8F7F2] border-b border-[#D9E0E8]">
+                        <TableHead className="py-2.5 px-2 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Date</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D] text-right">Amount</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#172B4D]">Method</TableHead>
+                        <TableHead className="py-2.5 px-2 text-[11px] font-bold uppercase tracking-wider text-[#52627A]">Reference / Notes</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#52627A]">Allocated Status</TableHead>
+                        <TableHead className="py-2.5 px-1.5 text-[11px] font-bold uppercase tracking-wider text-[#52627A] text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payments.map((p) => {
+                        const allocs = p.allocations || []
+                        const totalAllocated = allocs.reduce((sum: number, a: any) => sum + Number(a.amount || 0), 0)
+                        const unalloc = Math.max(0, Number(p.amount || 0) - totalAllocated)
+                        const isFullyAllocated = unalloc <= 0.01
 
-                      return (
-                        <TableRow key={p.id} className="hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors">
-                          <TableCell className="text-xs font-medium font-mono text-[#52627A] whitespace-nowrap">
-                            {formatDate(p.payment_date)}
-                          </TableCell>
-                          <TableCell className="text-right text-sm font-bold font-mono text-[#087443] whitespace-nowrap">
-                            {formatMoney(p.amount)}
-                          </TableCell>
-                          <TableCell className="text-xs font-semibold text-[#172B4D] whitespace-nowrap">
-                            {p.payment_method || "CASH"}
-                          </TableCell>
-                          <TableCell className="text-xs text-[#52627A]">
-                            <div>{p.reference || "-"}</div>
-                            {p.notes && <div className="text-[11px] text-[#66758A] italic">{p.notes}</div>}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {isFullyAllocated ? (
-                              <span className="inline-flex items-center gap-1 text-[#087443] font-semibold bg-[#EAF7EF] px-2 py-0.5 rounded-full border border-[#A6F4C5] text-[10px]">
-                                <CheckCircle2 className="h-3 w-3" /> Fully Allocated ({allocs.length} entries)
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 text-[#2563EB] font-semibold bg-[#EBF2FE] px-2 py-0.5 rounded-full border border-[#BFDBFE] text-[10px] font-mono">
-                                {totalAllocated > 0 ? `Allocated: ${formatMoney(totalAllocated)} • ` : ""}
-                                Unallocated: {formatMoney(unalloc)}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right whitespace-nowrap">
-                            <div className="flex items-center justify-end gap-1">
-                              {/* Allocate / Reallocate Button */}
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setAllocatingPayment(p)
-                                  setIsAllocateModalOpen(true)
-                                }}
-                                className="h-7 px-2 text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] hover:bg-[#EBF2FE] border-[#BFDBFE] cursor-pointer"
-                              >
-                                {isFullyAllocated ? "Reallocate" : "Allocate"}
-                              </Button>
+                        return (
+                          <TableRow
+                            key={p.id}
+                            className="hover:bg-[#F1F4F8] border-b border-[#D9E0E8] transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB] focus-visible:bg-[#F1F4F8]"
+                            tabIndex={0}
+                            role="button"
+                            aria-label={`View settlement details for payment of ${formatMoney(p.amount)} on ${formatDate(p.payment_date)}`}
+                            onClick={() => handleOpenPaymentDetails(p.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault()
+                                handleOpenPaymentDetails(p.id)
+                              }
+                            }}
+                          >
+                            <TableCell className="py-2.5 px-2 text-xs font-medium font-mono text-[#52627A] whitespace-nowrap">
+                              {formatDate(p.payment_date)}
+                            </TableCell>
+                            <TableCell className="py-2.5 px-1.5 text-right text-xs font-bold font-mono text-[#087443] whitespace-nowrap">
+                              {formatMoney(p.amount)}
+                            </TableCell>
+                            <TableCell className="py-2.5 px-1.5 text-xs font-semibold text-[#172B4D] whitespace-nowrap">
+                              {p.payment_method || "CASH"}
+                            </TableCell>
+                            <TableCell className="py-2.5 px-2 text-xs text-[#52627A] min-w-0">
+                              <div className="truncate">{p.reference || "-"}</div>
+                              {p.notes && <div className="text-[10px] text-[#66758A] italic truncate">{p.notes}</div>}
+                            </TableCell>
+                            <TableCell className="py-2.5 px-1.5 text-xs whitespace-nowrap">
+                              {isFullyAllocated ? (
+                                <span className="inline-flex items-center gap-1 text-[#087443] font-semibold bg-[#EAF7EF] px-1.5 py-0.5 rounded-full border border-[#A6F4C5] text-[10px]">
+                                  <CheckCircle2 className="h-3 w-3" /> Fully Allocated ({allocs.length})
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[#2563EB] font-semibold bg-[#EBF2FE] px-1.5 py-0.5 rounded-full border border-[#BFDBFE] text-[10px] font-mono">
+                                  {totalAllocated > 0 ? `${formatMoney(totalAllocated)} • ` : ""}
+                                  Unalloc: {formatMoney(unalloc)}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-2.5 px-1.5 text-right whitespace-nowrap">
+                              <div className="flex items-center justify-end gap-1">
+                                {/* Allocate / Reallocate Button */}
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setAllocatingPayment(p)
+                                    setIsAllocateModalOpen(true)
+                                  }}
+                                  className="h-6 px-1.5 text-[10px] font-semibold text-[#2563EB] hover:text-[#1D4ED8] hover:bg-[#EBF2FE] border-[#BFDBFE] cursor-pointer"
+                                >
+                                  {isFullyAllocated ? "Realloc" : "Allocate"}
+                                </Button>
 
-                              {/* Edit Payment Button */}
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => {
-                                  setEditingPayment(p)
-                                  setIsEditPaymentOpen(true)
-                                }}
-                                className="h-7 w-7 text-[#52627A] hover:text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer"
-                                title="Edit & Correct Settlement"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
+                                {/* Edit Payment Button */}
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setEditingPayment(p)
+                                    setIsEditPaymentOpen(true)
+                                  }}
+                                  className="h-6 w-6 text-[#52627A] hover:text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer p-0"
+                                  title="Edit & Correct Settlement"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
 
-                              {/* Void / Delete Payment Button */}
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => setPaymentToVoid(p)}
-                                className="h-7 w-7 text-[#66758A] hover:text-[#B42318] hover:bg-[#FDECEC] rounded-md cursor-pointer"
-                                title="Void Settlement"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
-              </ResponsiveTable>
+                                {/* Void / Delete Payment Button */}
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setPaymentToVoid(p)
+                                  }}
+                                  className="h-6 w-6 text-[#66758A] hover:text-[#B42318] hover:bg-[#FDECEC] rounded-md cursor-pointer p-0"
+                                  title="Void Settlement"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* Mobile Card List (<768px) */}
+                <div className="block md:hidden space-y-3">
+                  {payments.map((p) => {
+                    const allocs = p.allocations || []
+                    const totalAllocated = allocs.reduce((sum: number, a: any) => sum + Number(a.amount || 0), 0)
+                    const unalloc = Math.max(0, Number(p.amount || 0) - totalAllocated)
+                    const isFullyAllocated = unalloc <= 0.01
+
+                    return (
+                      <div
+                        key={p.id}
+                        data-testid={`mobile-settlement-card-${p.id}`}
+                        onClick={() => handleOpenPaymentDetails(p.id)}
+                        role="article"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            handleOpenPaymentDetails(p.id)
+                          }
+                        }}
+                        className="bg-[#FFFFFF] rounded-xl border border-[#D9E0E8] p-3.5 shadow-2xs hover:border-[#BFDBFE] transition-colors cursor-pointer space-y-2.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-[#2563EB]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-mono font-medium text-[#52627A]">{formatDate(p.payment_date)}</span>
+                          {isFullyAllocated ? (
+                            <span className="inline-flex items-center gap-1 text-[#087443] font-semibold bg-[#EAF7EF] px-2 py-0.5 rounded-full border border-[#A6F4C5] text-[10px]">
+                              <CheckCircle2 className="h-3 w-3" /> Fully Allocated ({allocs.length})
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[#2563EB] font-semibold bg-[#EBF2FE] px-2 py-0.5 rounded-full border border-[#BFDBFE] text-[10px] font-mono">
+                              Unalloc: {formatMoney(unalloc)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-sm font-bold font-mono text-[#087443]">{formatMoney(p.amount)}</div>
+                            <div className="text-xs text-[#52627A] font-semibold mt-0.5">{p.payment_method || "CASH"}</div>
+                          </div>
+                          <span className="text-[11px] text-[#52627A]">Tap for details</span>
+                        </div>
+                        {(p.reference || p.notes) && (
+                          <div className="text-xs text-[#52627A] bg-[#F8F7F2] p-2 rounded-lg border border-[#D9E0E8]/70 space-y-0.5">
+                            {p.reference && <div><span className="font-semibold text-[#172B4D]">Ref:</span> {p.reference}</div>}
+                            {p.notes && <div className="italic text-[#66758A]">{p.notes}</div>}
+                          </div>
+                        )}
+                        <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-[#D9E0E8]/70" onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAllocatingPayment(p)
+                              setIsAllocateModalOpen(true)
+                            }}
+                            className="h-7 px-2.5 text-xs font-semibold text-[#2563EB] hover:text-[#1D4ED8] hover:bg-[#EBF2FE] border-[#BFDBFE] cursor-pointer"
+                          >
+                            {isFullyAllocated ? "Reallocate" : "Allocate"}
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingPayment(p)
+                              setIsEditPaymentOpen(true)
+                            }}
+                            className="h-7 w-7 text-[#52627A] hover:text-[#2563EB] hover:bg-[#EBF2FE] rounded-md cursor-pointer"
+                            title="Edit & Correct Settlement"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setPaymentToVoid(p)}
+                            className="h-7 w-7 text-[#66758A] hover:text-[#B42318] hover:bg-[#FDECEC] rounded-md cursor-pointer"
+                            title="Void Settlement"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
             )}
           </div>
         )}

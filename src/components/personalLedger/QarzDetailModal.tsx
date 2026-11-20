@@ -64,7 +64,7 @@ export default function QarzDetailModal({
                   }`}
                 >
                   {isGiven ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownLeft className="h-3 w-3" />}
-                  {isGiven ? "Qarz Given (Receivable)" : "Qarz Received (Payable)"}
+                  {isGiven ? "Qarz Given (Receivable)" : "Qarz Taken (Payable)"}
                 </span>
 
                 <span
@@ -152,7 +152,7 @@ export default function QarzDetailModal({
         <div className="mt-4 bg-white border border-[#D9E0E8] rounded-xl p-4 space-y-2.5 text-xs">
           <div className="flex items-center justify-between">
             <span className="text-[#52627A] flex items-center gap-1.5">
-              <Calendar className="h-3.5 w-3.5 text-[#66758A]" /> Date Issued:
+              <Calendar className="h-3.5 w-3.5 text-[#66758A]" /> {isGiven ? "Date Issued:" : "Date Received:"}
             </span>
             <span className="font-bold text-[#172B4D]">{qarzEntry.transaction_date}</span>
           </div>
@@ -168,7 +168,7 @@ export default function QarzDetailModal({
 
           <div className="flex items-center justify-between">
             <span className="text-[#52627A] flex items-center gap-1.5">
-              <Wallet className="h-3.5 w-3.5 text-[#66758A]" /> Account:
+              <Wallet className="h-3.5 w-3.5 text-[#66758A]" /> {isGiven ? "Disbursed From Account:" : "Received Into Account:"}
             </span>
             <span className="font-bold text-[#172B4D]">{qarzEntry.account}</span>
           </div>
